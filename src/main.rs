@@ -152,12 +152,9 @@ pub fn interpolation_search<const K: usize>(sa: &SaNaive, q: &Seq, cnt: &mut usi
     let q_val = string_value::<K>(q);
     assert!(K <= 20, "K > 20 will cause integer overflow.");
     while l < r {
-        let m = if l_val < r_val {
-            // The +1 and +2 ensure l<m<r.
-            l + ((r - l) * (q_val - l_val + 1)) / (r_val - l_val + 2)
-        } else {
-            (l + r) / 2
-        };
+        // The +1 and +2 ensure l<m<r.
+        // HOT: The division is slow.
+        let m = l + ((r - l) * (q_val - l_val + 1)) / (r_val - l_val + 2);
         *cnt += 1;
         let t = sa.suffix(m);
         let m_val = string_value::<K>(t);
