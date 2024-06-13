@@ -1,4 +1,4 @@
-use std::{iter::repeat, ops::Range};
+use std::{arch::x86_64::_pext_u64, iter::repeat, ops::Range};
 
 use clap::Parser;
 use itertools::Itertools;
@@ -117,7 +117,31 @@ pub fn branchfree_search(sa: &SaNaive, q: &Seq, cnt: &mut usize) -> usize {
 }
 
 fn string_value<const K: usize>(q: &Seq) -> usize {
-    q.iter().take(K).fold(0, |acc, &x| acc * 4 + x as usize)
+    // Read two u64 values starting at q. Use bit-extract instructions to extract the low 2 bits of each byte.
+    let mask = 0x0303030303030303u64;
+    if K == 8 {
+        // Read u64 from q.
+        unsafe {
+            let a = *(q.as_ptr() as *const u64);
+            let a = a.swap_bytes();
+            let v1 = _pext_u64(a, mask) as usize;
+            // assert_eq!(v0, v1, "\n{:?}\n{v0:0b}\n{v1:0b}", &q[..8]);
+            return v1;
+        }
+    }
+    if K == 16 {
+        unsafe {
+            let a = *(q.as_ptr() as *const u64);
+            let b = *(q.as_ptr().add(8) as *const u64);
+            let a = a.swap_bytes();
+            let b = b.swap_bytes();
+            let v1 = ((_pext_u64(a, mask) as usize) << 16) + _pext_u64(b, mask) as usize;
+            // assert_eq!(v0, v1);
+            return v1;
+        }
+    }
+    let v0 = q.iter().take(K).fold(0, |acc, &x| acc * 4 + x as usize);
+    v0
 }
 
 pub fn interpolation_search<const K: usize>(sa: &SaNaive, q: &Seq, cnt: &mut usize) -> usize {
@@ -158,14 +182,14 @@ fn bench(sa: &SaNaive, queries: &[&Seq], name: &str, f: &fn(&SaNaive, &Seq, &mut
     let per_query = elapsed / queries.len() as u32;
     let per_suffix = elapsed / cnt as u32;
     let cnt_per_query = cnt as f32 / queries.len() as f32;
-    println!("{name:>30}: {elapsed:6.0?} {per_query:6.0?} {per_suffix:6.0?} {cnt_per_query:4.1?}");
+    println!("{name:>30}: {elapsed:6.2?} {per_query:6.0?} {per_suffix:6.0?} {cnt_per_query:5.2?}");
 }
 
 #[derive(Parser)]
 struct Args {
     #[clap(short, default_value_t = 10000000)]
     n: usize,
-    #[clap(short, default_value_t = 1000000)]
+    #[clap(short, default_value_t = 5000000)]
     q: usize,
 
     #[clap(short, default_value_t = 0, action = clap::ArgAction::Count,)]
