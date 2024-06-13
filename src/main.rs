@@ -210,8 +210,8 @@ fn bench(sa: &SaNaive, queries: &[&Seq], name: &str, f: &fn(&SaNaive, &Seq, &mut
 
 #[derive(Parser)]
 struct Args {
-    #[clap(short, default_value_t = 10000000)]
-    n: usize,
+    #[clap(short)]
+    n: Option<usize>,
     #[clap(short, default_value_t = 5000000)]
     q: usize,
 
@@ -219,14 +219,14 @@ struct Args {
     path: Option<PathBuf>,
 
     #[clap(short, default_value_t = 0, action = clap::ArgAction::Count,)]
-    verbose: usize,
+    verbose: u8,
 }
 
 fn main() {
     let args = Args::parse();
 
     stderrlog::new()
-        .verbosity(2 + args.verbose)
+        .verbosity(2 + args.verbose as usize)
         .show_level(false)
         .init()
         .unwrap();
@@ -236,12 +236,18 @@ fn main() {
 
     let mut t = if let Some(path) = args.path {
         info!("Reading {path:?}..");
-        let t = read_fasta_file(&path);
+        let mut t = read_fasta_file(&path);
         info!("Length {}", t.len());
+        if let Some(n) = args.n {
+            if n < t.len() {
+                t.resize(n, 0);
+            }
+            info!("Cropped to {n}");
+        }
         t
     } else {
         debug!("gen string..");
-        random_string(args.n, rng)
+        random_string(args.n.unwrap(), rng)
     };
 
     // Padding.
