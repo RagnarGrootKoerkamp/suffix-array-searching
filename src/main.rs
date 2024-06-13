@@ -25,9 +25,10 @@ type Sequence = Vec<u8>;
 pub struct SaNaive<'a> {
     t: &'a Seq,
     sa: Vec<u32>,
-    // Table on the first p bits.
-    // p: usize,
-    // table:
+    /// Table on the first p bits.
+    p: usize,
+    /// For each prefix, the index in the suffix array of the first element larger than it.
+    table: Vec<u32>,
 }
 
 impl Index<usize> for SaNaive<'_> {
@@ -39,7 +40,7 @@ impl Index<usize> for SaNaive<'_> {
 }
 
 impl<'t> SaNaive<'t> {
-    pub fn build(t: &'t Seq) -> Self {
+    pub fn build(t: &'t Seq, p: usize) -> Self {
         let mut sa = vec![0; t.len() + 100000];
         sais::sais64::parallel::sais(t, &mut sa, None, 5).unwrap();
         sa.resize(t.len(), 0);
@@ -47,7 +48,41 @@ impl<'t> SaNaive<'t> {
         for (&x, &y) in sa.iter().tuple_windows() {
             assert!(t[x as usize..] < t[y as usize..]);
         }
-        Self { t, sa }
+
+        info!("Building table..");
+        assert!(p <= 32);
+        let mut s = Self {
+            t,
+            sa,
+            p,
+            table: vec![],
+        };
+        s.fill_prefix_table();
+        let sa_size = std::mem::size_of_val(s.sa.as_slice()) / 1024 / 1024;
+        let table_size = std::mem::size_of_val(s.table.as_slice()) / 1024 / 1024;
+        info!("Suffix array size: {sa_size:>13}MB");
+        info!(
+            "Prefix table size: {table_size:>13}MB = {:.3} * SA size  (p={p})",
+            table_size as f32 / sa_size as f32
+        );
+        s
+    }
+
+    fn fill_prefix_table(&mut self) {
+        self.table = vec![0; (1 << self.p) + 1];
+        self.table[1 << self.p] = self.sa.len() as u32;
+        let mut last_prefix = 0;
+        // TODO: We can also binary search for each prefix.
+        for i in 0..self.sa.len() {
+            let prefix = self.prefix(&self.t[self.sa[i] as usize..]);
+            if prefix != last_prefix {
+                assert!(prefix > last_prefix);
+                while last_prefix < prefix {
+                    last_prefix += 1;
+                    self.table[last_prefix] = i as u32;
+                }
+            }
+        }
     }
 
     pub fn suffix(&self, i: usize) -> &Seq {
@@ -56,11 +91,26 @@ impl<'t> SaNaive<'t> {
     pub fn suffix_at(&self, i: u32) -> &Seq {
         unsafe { self.t.get_unchecked(i as usize..) }
     }
+
+    pub fn prefix(&self, q: &Seq) -> usize {
+        string_value::<16>(q) >> (32 - self.p)
+    }
+
+    pub fn prefix_range(&self, q: &Seq, cnt: &mut usize) -> Range<usize> {
+        if self.p > 0 {
+            *cnt += 1;
+        }
+        let prefix = self.prefix(q);
+        let start = self.table[prefix as usize] as usize;
+        let end = self.table[prefix as usize + 1] as usize;
+        start..end
+    }
 }
 
 pub fn binary_search(sa: &SaNaive, q: &Seq, cnt: &mut usize) -> usize {
-    let mut l = 0;
-    let mut r = sa.sa.len();
+    let range = sa.prefix_range(q, cnt);
+    let mut l = range.start;
+    let mut r = range.end;
     while l < r {
         let m = (l + r) / 2;
         *cnt += 1;
@@ -74,8 +124,9 @@ pub fn binary_search(sa: &SaNaive, q: &Seq, cnt: &mut usize) -> usize {
 }
 
 pub fn binary_search_cmp(sa: &SaNaive, q: &Seq, cnt: &mut usize) -> usize {
-    let mut l = 0;
-    let mut r = sa.sa.len();
+    let range = sa.prefix_range(q, cnt);
+    let mut l = range.start;
+    let mut r = range.end;
     while l < r {
         let m = (l + r) / 2;
         *cnt += 1;
@@ -90,8 +141,9 @@ pub fn binary_search_cmp(sa: &SaNaive, q: &Seq, cnt: &mut usize) -> usize {
 }
 
 pub fn branchy_search(sa: &SaNaive, q: &Seq, cnt: &mut usize) -> usize {
-    let mut l = 0;
-    let mut r = sa.sa.len();
+    let range = sa.prefix_range(q, cnt);
+    let mut l = range.start;
+    let mut r = range.end;
     while l < r {
         let m = (l + r) / 2;
         *cnt += 1;
@@ -114,7 +166,14 @@ pub fn binary_search_batch<const B: usize>(
 ) -> [usize; B] {
     let mut l = [0; B];
     let mut r = [sa.sa.len(); B];
-    let iterations = sa.sa.len().ilog2() + 1;
+    let mut max_len = 0;
+    for i in 0..B {
+        let range = sa.prefix_range(q[i], cnt);
+        l[i] = range.start;
+        r[i] = range.end;
+        max_len = max_len.max(r[i] - l[i]);
+    }
+    let iterations = max_len.ilog2() + 1;
     for _ in 0..iterations {
         let mut m = [0; B];
         let mut idx = [0; B];
@@ -148,7 +207,14 @@ pub fn binary_search_batch_cmp<const B: usize>(
 ) -> [usize; B] {
     let mut l = [0; B];
     let mut r = [sa.sa.len(); B];
-    let iterations = sa.sa.len().ilog2() + 1;
+    let mut max_len = 0;
+    for i in 0..B {
+        let range = sa.prefix_range(q[i], cnt);
+        l[i] = range.start;
+        r[i] = range.end;
+        max_len = max_len.max(r[i] - l[i]);
+    }
+    let iterations = max_len.ilog2() + 1;
     for _ in 0..iterations {
         let mut m = [0; B];
         let mut idx = [0; B];
@@ -176,8 +242,9 @@ pub fn binary_search_batch_cmp<const B: usize>(
 }
 
 pub fn branchfree_search(sa: &SaNaive, q: &Seq, cnt: &mut usize) -> usize {
-    let mut l = 0;
-    let mut n = sa.sa.len();
+    let range = sa.prefix_range(q, cnt);
+    let mut l = range.start;
+    let mut n = range.end - range.start;
     while n > 0 {
         let half = (n + 1) / 2;
         *cnt += 1;
@@ -260,10 +327,15 @@ pub fn cmp(t: &[u8], q: &[u8]) -> std::cmp::Ordering {
 }
 
 pub fn interpolation_search<const K: usize>(sa: &SaNaive, q: &Seq, cnt: &mut usize) -> usize {
-    let mut l = 0;
-    let mut r = sa.sa.len();
-    let mut l_val = 0;
-    let mut r_val = 4usize.pow(K as u32);
+    let range = sa.prefix_range(q, cnt);
+    let mut l = range.start;
+    let mut r = range.end;
+    let mut l_val = string_value::<K>(sa.suffix(l));
+    let mut r_val = if r < sa.sa.len() {
+        string_value::<K>(sa.suffix(r))
+    } else {
+        4usize.pow(K as u32)
+    };
     let q_val = string_value::<K>(q);
     assert!(
         r_val.checked_mul(r).is_some(),
@@ -331,8 +403,10 @@ struct Args {
     n: Option<usize>,
     #[clap(short, default_value_t = 10000000)]
     q: usize,
+    #[clap(short, default_value_t = 20)]
+    p: usize,
 
-    #[clap(short)]
+    #[clap(long)]
     path: Option<PathBuf>,
 
     #[clap(short, default_value_t = 0, action = clap::ArgAction::Count,)]
@@ -376,7 +450,7 @@ fn main() {
 
     info!("build SA..");
     let start = std::time::Instant::now();
-    let sa = SaNaive::build(t);
+    let sa = SaNaive::build(t, args.p);
     info!("build SA: {:.2?}", start.elapsed());
 
     info!("start bench..");
@@ -389,39 +463,42 @@ fn main() {
     let funcs: &[(&str, fn(&SaNaive, &[u8], &mut usize) -> usize)] = &[
         ("binary", binary_search),
         ("binary_cmp", binary_search_cmp),
-        // ("branchy", branchy_search),
+        ("branchy", branchy_search),
         ("branchfree", branchfree_search),
-        // ("interpolation_8", interpolation_search::<8>),
-        ("interpolation_16", interpolation_search::<16>),
-        // ("interpolation_24", interpolation_search::<24>),
+        ("interpolation", interpolation_search::<16>),
     ];
 
-    // for (name, f) in funcs {
-    //     bench(&sa, &queries, name, f);
-    // }
+    for (name, f) in funcs {
+        bench(&sa, &queries, name, f);
+    }
 
-    // let funcs: fn(&SaNaive, [&[u8]; 2], &mut usize) -> [usize; 2] = binary_search_batch::<2>;
-    // bench_batch(&sa, &queries, "binary_batch_2", &funcs);
-    // let funcs: fn(&SaNaive, [&[u8]; 2], &mut usize) -> [usize; 2] = binary_search_batch_cmp::<2>;
-    // bench_batch(&sa, &queries, "binary_batch_2_cmp", &funcs);
-    // let funcs: fn(&SaNaive, [&[u8]; 4], &mut usize) -> [usize; 4] = binary_search_batch::<4>;
-    // bench_batch(&sa, &queries, "binary_batch_4", &funcs);
-    // let funcs: fn(&SaNaive, [&[u8]; 4], &mut usize) -> [usize; 4] = binary_search_batch_cmp::<4>;
-    // bench_batch(&sa, &queries, "binary_batch_4_cmp", &funcs);
-    // let funcs: fn(&SaNaive, [&[u8]; 8], &mut usize) -> [usize; 8] = binary_search_batch::<8>;
-    // bench_batch(&sa, &queries, "binary_batch_8", &funcs);
-    // let funcs: fn(&SaNaive, [&[u8]; 8], &mut usize) -> [usize; 8] = binary_search_batch_cmp::<8>;
-    // bench_batch(&sa, &queries, "binary_batch_8_cmp", &funcs);
-    // let funcs: fn(&SaNaive, [&[u8]; 16], &mut usize) -> [usize; 16] = binary_search_batch::<16>;
-    // bench_batch(&sa, &queries, "binary_batch_16", &funcs);
-    // let funcs: fn(&SaNaive, [&[u8]; 16], &mut usize) -> [usize; 16] = binary_search_batch_cmp::<16>;
-    // bench_batch(&sa, &queries, "binary_batch_16_cmp", &funcs);
-    // let funcs: fn(&SaNaive, [&[u8]; 32], &mut usize) -> [usize; 32] = binary_search_batch::<32>;
-    // bench_batch(&sa, &queries, "binary_batch_32", &funcs);
+    let funcs: fn(&SaNaive, [&[u8]; 1], &mut usize) -> [usize; 1] = binary_search_batch_cmp::<1>;
+    bench_batch(&sa, &queries, "binary_batch_1_cmp", &funcs);
+    let funcs: fn(&SaNaive, [&[u8]; 2], &mut usize) -> [usize; 2] = binary_search_batch_cmp::<2>;
+    bench_batch(&sa, &queries, "binary_batch_2_cmp", &funcs);
+    let funcs: fn(&SaNaive, [&[u8]; 4], &mut usize) -> [usize; 4] = binary_search_batch_cmp::<4>;
+    bench_batch(&sa, &queries, "binary_batch_4_cmp", &funcs);
+    let funcs: fn(&SaNaive, [&[u8]; 8], &mut usize) -> [usize; 8] = binary_search_batch_cmp::<8>;
+    bench_batch(&sa, &queries, "binary_batch_8_cmp", &funcs);
+    let funcs: fn(&SaNaive, [&[u8]; 16], &mut usize) -> [usize; 16] = binary_search_batch_cmp::<16>;
+    bench_batch(&sa, &queries, "binary_batch_16_cmp", &funcs);
     let funcs: fn(&SaNaive, [&[u8]; 32], &mut usize) -> [usize; 32] = binary_search_batch_cmp::<32>;
     bench_batch(&sa, &queries, "binary_batch_32_cmp", &funcs);
-    // let funcs: fn(&SaNaive, [&[u8]; 64], &mut usize) -> [usize; 64] = binary_search_batch::<64>;
-    // bench_batch(&sa, &queries, "binary_batch_64", &funcs);
-    // let funcs: fn(&SaNaive, [&[u8]; 64], &mut usize) -> [usize; 64] = binary_search_batch_cmp::<64>;
-    // bench_batch(&sa, &queries, "binary_batch_64_cmp", &funcs);
+    let funcs: fn(&SaNaive, [&[u8]; 64], &mut usize) -> [usize; 64] = binary_search_batch_cmp::<64>;
+    bench_batch(&sa, &queries, "binary_batch_64_cmp", &funcs);
+
+    let funcs: fn(&SaNaive, [&[u8]; 1], &mut usize) -> [usize; 1] = binary_search_batch::<1>;
+    bench_batch(&sa, &queries, "binary_batch_1", &funcs);
+    let funcs: fn(&SaNaive, [&[u8]; 2], &mut usize) -> [usize; 2] = binary_search_batch::<2>;
+    bench_batch(&sa, &queries, "binary_batch_2", &funcs);
+    let funcs: fn(&SaNaive, [&[u8]; 4], &mut usize) -> [usize; 4] = binary_search_batch::<4>;
+    bench_batch(&sa, &queries, "binary_batch_4", &funcs);
+    let funcs: fn(&SaNaive, [&[u8]; 8], &mut usize) -> [usize; 8] = binary_search_batch::<8>;
+    bench_batch(&sa, &queries, "binary_batch_8", &funcs);
+    let funcs: fn(&SaNaive, [&[u8]; 16], &mut usize) -> [usize; 16] = binary_search_batch::<16>;
+    bench_batch(&sa, &queries, "binary_batch_16", &funcs);
+    let funcs: fn(&SaNaive, [&[u8]; 32], &mut usize) -> [usize; 32] = binary_search_batch::<32>;
+    bench_batch(&sa, &queries, "binary_batch_32", &funcs);
+    let funcs: fn(&SaNaive, [&[u8]; 64], &mut usize) -> [usize; 64] = binary_search_batch::<64>;
+    bench_batch(&sa, &queries, "binary_batch_64", &funcs);
 }
