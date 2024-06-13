@@ -1,14 +1,16 @@
-use std::{iter::zip, ops::Range};
+use std::{iter::repeat, ops::Range};
 
 use clap::Parser;
-use rand::Rng;
+use itertools::Itertools;
+use log::{debug, info};
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha8Rng;
 
 type Seq = [u8];
 type Sequence = Vec<u8>;
 
 /// Generate a random text of length n.
-pub fn random_string(n: usize) -> Sequence {
-    let mut rng = rand::thread_rng();
+pub fn random_string(n: usize, rng: &mut impl Rng) -> Sequence {
     let mut seq = Vec::with_capacity(n);
     for _ in 0..n {
         seq.push(rng.gen_range(0..4));
@@ -17,9 +19,14 @@ pub fn random_string(n: usize) -> Sequence {
 }
 
 /// Generate a random subset of queries.
-pub fn samples(t: &Seq, n: usize) -> Vec<usize> {
-    let mut rng = rand::thread_rng();
-    (0..n).map(|_| rng.gen_range(0..t.len())).collect()
+pub fn random_queries<'t>(t: &'t Seq, n: usize, rng: &mut impl Rng) -> Vec<&'t Seq> {
+    (0..n)
+        .map(|_| {
+            let i = rng.gen_range(0..t.len() - 100);
+            let len = rng.gen_range(30..100);
+            &t[i..i + len]
+        })
+        .collect()
 }
 
 #[allow(unused)]
@@ -51,8 +58,11 @@ pub struct SaNaive<'a> {
 impl<'t> SaNaive<'t> {
     pub fn build(t: &'t Seq) -> Self {
         assert!(t.len() < std::u32::MAX as usize);
-        let mut sa: Vec<_> = (0..t.len() as _).collect();
-        sa.sort_by_key(|&a| &t[a as usize..]);
+        let sa = divsufsort::sort(t).into_parts().1;
+        let sa: Vec<u32> = sa.into_iter().map(|x| x as u32).collect();
+        for (&x, &y) in sa.iter().tuple_windows() {
+            assert!(t[x as usize..] < t[y as usize..]);
+        }
         Self { t, sa }
     }
 
@@ -60,11 +70,12 @@ impl<'t> SaNaive<'t> {
         &self.t[self.sa[i] as usize..]
     }
 }
-pub fn binary_search(sa: &SaNaive, q: &Seq) -> usize {
+pub fn binary_search(sa: &SaNaive, q: &Seq, cnt: &mut usize) -> usize {
     let mut l = 0;
     let mut r = sa.sa.len();
     while l < r {
         let m = (l + r) / 2;
+        *cnt += 1;
         if sa.suffix(m) < q {
             l = m + 1;
         } else {
@@ -74,11 +85,12 @@ pub fn binary_search(sa: &SaNaive, q: &Seq) -> usize {
     sa.sa[l] as usize
 }
 
-pub fn branchy_search(sa: &SaNaive, q: &Seq) -> usize {
+pub fn branchy_search(sa: &SaNaive, q: &Seq, cnt: &mut usize) -> usize {
     let mut l = 0;
     let mut r = sa.sa.len();
     while l < r {
         let m = (l + r) / 2;
+        *cnt += 1;
         let t = sa.suffix(m);
         if t < q {
             l = m + 1;
@@ -91,59 +103,109 @@ pub fn branchy_search(sa: &SaNaive, q: &Seq) -> usize {
     sa.sa[l] as usize
 }
 
-pub fn branchfree_search(sa: &SaNaive, q: &Seq) -> usize {
+pub fn branchfree_search(sa: &SaNaive, q: &Seq, cnt: &mut usize) -> usize {
     let mut l = 0;
     let mut n = sa.sa.len();
     while n > 1 {
         let half = n / 2;
+        *cnt += 1;
         l = if sa.suffix(l + half) < q { l + half } else { l };
         n -= half;
     }
+    *cnt += 1;
     sa.sa[l + if sa.suffix(l) < q { 1 } else { 0 }] as usize
 }
 
-pub fn interpolation_search(sa: &SaNaive, q: &Seq) -> usize {
+fn string_value<const K: usize>(q: &Seq) -> usize {
+    q.iter().take(K).fold(0, |acc, &x| acc * 4 + x as usize)
+}
+
+pub fn interpolation_search<const K: usize>(sa: &SaNaive, q: &Seq, cnt: &mut usize) -> usize {
     let mut l = 0;
-    let mut n = sa.sa.len();
-    while n > 1 {
-        let half = n / 2;
-        l = if sa.suffix(l + half) < q { l + half } else { l };
-        n -= half;
+    let mut r = sa.sa.len();
+    let mut l_val = 0;
+    let mut r_val = 4usize.pow(K as u32);
+    let q_val = string_value::<K>(q);
+    assert!(K <= 20, "K > 20 will cause integer overflow.");
+    while l < r {
+        let m = if l_val < r_val {
+            // The +1 and +2 ensure l<m<r.
+            l + ((r - l) * (q_val - l_val + 1)) / (r_val - l_val + 2)
+        } else {
+            (l + r) / 2
+        };
+        *cnt += 1;
+        let t = sa.suffix(m);
+        let m_val = string_value::<K>(t);
+        if t < q {
+            l = m + 1;
+            l_val = m_val;
+        } else {
+            r = m;
+            r_val = m_val;
+        }
     }
-    sa.sa[l + if sa.suffix(l) < q { 1 } else { 0 }] as usize
+    sa.sa[l] as usize
 }
 
-fn bench(sa: &SaNaive, samples: &[usize], name: &str, f: &fn(&SaNaive, &Seq) -> usize) {
+fn bench(sa: &SaNaive, queries: &[&Seq], name: &str, f: &fn(&SaNaive, &Seq, &mut usize) -> usize) {
     let start = std::time::Instant::now();
-    for &i in samples {
-        f(sa, &sa.t[i..]);
+    let mut cnt = 0;
+    for &q in queries {
+        f(sa, q, &mut cnt);
     }
     let elapsed = start.elapsed();
-    let per_query = elapsed / samples.len() as u32;
-    let layers = (sa.sa.len() as f32).log2() as u32;
-    let per_branch = elapsed / layers;
-    println!("{name:>20}: {elapsed:6.3?} {per_query:6.3?} {per_branch:6.3?}");
+    let per_query = elapsed / queries.len() as u32;
+    let per_suffix = elapsed / cnt as u32;
+    let cnt_per_query = cnt as f32 / queries.len() as f32;
+    println!("{name:>30}: {elapsed:6.0?} {per_query:6.0?} {per_suffix:6.0?} {cnt_per_query:4.1?}");
 }
 
 #[derive(Parser)]
 struct Args {
-    #[clap(short, default_value_t = 1000000)]
+    #[clap(short, default_value_t = 10000000)]
     n: usize,
-    #[clap(short, default_value_t = 100000)]
-    s: usize,
+    #[clap(short, default_value_t = 1000000)]
+    q: usize,
+
+    #[clap(short, default_value_t = 0, action = clap::ArgAction::Count,)]
+    verbose: usize,
 }
 
 fn main() {
     let args = Args::parse();
-    let t = random_string(args.n);
+
+    stderrlog::new()
+        .verbosity(2 + args.verbose)
+        .show_level(false)
+        .init()
+        .unwrap();
+
+    // Get a fixed seeded rng.
+    let rng = &mut ChaCha8Rng::seed_from_u64(31415);
+
+    debug!("gen string..");
+    let mut t = random_string(args.n, rng);
+    t.extend(repeat(0).take(100));
+    debug!("gen queries..");
+    let queries = random_queries(&t, args.q, rng);
+
+    info!("build SA..");
+    let start = std::time::Instant::now();
     let sa = SaNaive::build(&t);
+    info!("build SA: {:.2?}", start.elapsed());
 
-    let samples = samples(&t, args.s);
+    info!("start bench..");
 
-    let funcs = [binary_search, branchy_search, branchfree_search];
-    let names = ["binary_search", "branchy_search", "branchfree_search"];
+    let funcs: &[(&str, fn(&SaNaive, &[u8], &mut usize) -> usize)] = &[
+        // ("binary", binary_search),
+        // ("branchy", branchy_search),
+        // ("branchfree", branchfree_search),
+        // ("interpolation_8", interpolation_search::<8>),
+        ("interpolation_16", interpolation_search::<16>),
+    ];
 
-    for (name, f) in zip(names.iter(), funcs.iter()) {
-        bench(&sa, &samples, name, f);
+    for (name, f) in funcs {
+        bench(&sa, &queries, name, f);
     }
 }

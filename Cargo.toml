@@ -3,6 +3,18 @@ name = "sa-layout"
 version = "0.1.0"
 edition = "2021"
 
+[profile.release]
+lto = "thin"
+incremental = true
+opt-level = 3
+debug = true
+panic = 'abort'
+
 [dependencies]
 clap = { version = "4.5.7", features = ["derive"] }
+divsufsort = "2.0.0"
+itertools = "0.13.0"
+log = "0.4.21"
 rand = "0.8.5"
+rand_chacha = "0.3.1"
+stderrlog = "0.6.0"
