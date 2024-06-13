@@ -166,6 +166,21 @@ fn string_value<const K: usize>(q: &Seq) -> usize {
             return v1;
         }
     }
+    if K == 24 {
+        unsafe {
+            let a = *(q.as_ptr() as *const u64);
+            let b = *(q.as_ptr().add(8) as *const u64);
+            let c = *(q.as_ptr().add(16) as *const u64);
+            let a = a.swap_bytes();
+            let b = b.swap_bytes();
+            let c = c.swap_bytes();
+            let v1 = ((_pext_u64(a, mask) as usize) << 32)
+                + ((_pext_u64(b, mask) as usize) << 16)
+                + _pext_u64(c, mask) as usize;
+            // assert_eq!(v0, v1);
+            return v1;
+        }
+    }
     let v0 = q.iter().take(K).fold(0, |acc, &x| acc * 4 + x as usize);
     v0
 }
@@ -205,7 +220,9 @@ fn bench(sa: &SaNaive, queries: &[&Seq], name: &str, f: &fn(&SaNaive, &Seq, &mut
     let per_query = elapsed / queries.len() as u32;
     let per_suffix = elapsed / cnt as u32;
     let cnt_per_query = cnt as f32 / queries.len() as f32;
-    println!("{name:>30}: {elapsed:6.2?} {per_query:6.0?} {per_suffix:6.0?} {cnt_per_query:5.2?}");
+    eprintln!(
+        "{name:>20}: {elapsed:>8.2?} {per_query:>6.0?} {per_suffix:>6.0?} {cnt_per_query:>5.2?}"
+    );
 }
 
 #[derive(Parser)]
@@ -264,12 +281,17 @@ fn main() {
 
     info!("start bench..");
 
+    eprintln!(
+        "{:>20}  {:>8} {:>6} {:>6} {:>5}",
+        "method", "total", "/query", "/loop", "#loops"
+    );
     let funcs: &[(&str, fn(&SaNaive, &[u8], &mut usize) -> usize)] = &[
         ("binary", binary_search),
         // ("branchy", branchy_search),
         // ("branchfree", branchfree_search),
         // ("interpolation_8", interpolation_search::<8>),
         ("interpolation_16", interpolation_search::<16>),
+        // ("interpolation_24", interpolation_search::<24>),
     ];
 
     for (name, f) in funcs {
