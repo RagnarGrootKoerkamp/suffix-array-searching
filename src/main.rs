@@ -47,7 +47,7 @@ pub fn random_string(n: usize, rng: &mut impl Rng) -> Sequence {
 pub fn random_queries<'t>(t: &'t Seq, n: usize, rng: &mut impl Rng) -> Vec<&'t Seq> {
     (0..n)
         .map(|_| {
-            let i = rng.gen_range(0..t.len() - 100);
+            let i = rng.gen_range(0..t.len() - 200);
             let len = rng.gen_range(30..100);
             &t[i..i + len]
         })
@@ -243,14 +243,17 @@ fn main() {
         debug!("gen string..");
         random_string(args.n, rng)
     };
-    t.extend(repeat(0).take(100));
+
+    // Padding.
+    t.extend(repeat(0).take(200));
+    let t = &t[..t.len() - 200];
 
     debug!("gen queries..");
-    let queries = random_queries(&t, args.q, rng);
+    let queries = random_queries(t, args.q, rng);
 
     info!("build SA..");
     let start = std::time::Instant::now();
-    let sa = SaNaive::build(&t);
+    let sa = SaNaive::build(t);
     info!("build SA: {:.2?}", start.elapsed());
 
     info!("start bench..");
