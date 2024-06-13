@@ -9,6 +9,27 @@ use rand_chacha::ChaCha8Rng;
 type Seq = [u8];
 type Sequence = Vec<u8>;
 
+
+pub fn read_fasta_file(path: &Path) -> Sequence {
+    let mut map = [0; 256];
+    map[b'A' as usize] = 0;
+    map[b'C' as usize] = 1;
+    map[b'G' as usize] = 2;
+    map[b'T' as usize] = 3;
+
+    map[b'a' as usize] = 0;
+    map[b'c' as usize] = 1;
+    map[b'g' as usize] = 2;
+    map[b't' as usize] = 3;
+
+    let mut f = needletail::parse_fastx_file(path).unwrap();
+    let mut out = vec![];
+    while let Some(seq) = f.next() {
+        out.extend(seq.unwrap().seq().into_iter().map(|c| map[*c as usize]));
+    }
+    out
+}
+
 /// Generate a random text of length n.
 pub fn random_string(n: usize, rng: &mut impl Rng) -> Sequence {
     let mut seq = Vec::with_capacity(n);
@@ -189,6 +210,9 @@ struct Args {
     #[clap(short, default_value_t = 5000000)]
     q: usize,
 
+    #[clap(short)]
+    path: Option<PathBuf>,
+
     #[clap(short, default_value_t = 0, action = clap::ArgAction::Count,)]
     verbose: usize,
 }
@@ -205,9 +229,17 @@ fn main() {
     // Get a fixed seeded rng.
     let rng = &mut ChaCha8Rng::seed_from_u64(31415);
 
-    debug!("gen string..");
-    let mut t = random_string(args.n, rng);
+    let mut t = if let Some(path) = args.path {
+        info!("Reading {path:?}..");
+        let t = read_fasta_file(&path);
+        info!("Length {}", t.len());
+        t
+    } else {
+        debug!("gen string..");
+        random_string(args.n, rng)
+    };
     t.extend(repeat(0).take(100));
+
     debug!("gen queries..");
     let queries = random_queries(&t, args.q, rng);
 
@@ -219,7 +251,7 @@ fn main() {
     info!("start bench..");
 
     let funcs: &[(&str, fn(&SaNaive, &[u8], &mut usize) -> usize)] = &[
-        // ("binary", binary_search),
+        ("binary", binary_search),
         // ("branchy", branchy_search),
         // ("branchfree", branchfree_search),
         // ("interpolation_8", interpolation_search::<8>),
