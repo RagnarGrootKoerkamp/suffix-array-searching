@@ -1,4 +1,9 @@
-use std::{arch::x86_64::_pext_u64, iter::repeat, ops::Range};
+use std::{
+    arch::x86_64::_pext_u64,
+    iter::repeat,
+    ops::Range,
+    path::{Path, PathBuf},
+};
 
 use clap::Parser;
 use itertools::Itertools;
@@ -8,7 +13,6 @@ use rand_chacha::ChaCha8Rng;
 
 type Seq = [u8];
 type Sequence = Vec<u8>;
-
 
 pub fn read_fasta_file(path: &Path) -> Sequence {
     let mut map = [0; 256];
@@ -78,8 +82,9 @@ pub struct SaNaive<'a> {
 
 impl<'t> SaNaive<'t> {
     pub fn build(t: &'t Seq) -> Self {
-        assert!(t.len() < std::u32::MAX as usize);
-        let sa = divsufsort::sort(t).into_parts().1;
+        let mut sa = vec![0; t.len() + 100000];
+        sais::sais64::parallel::sais(t, &mut sa, None, 5).unwrap();
+        sa.resize(t.len(), 0);
         let sa: Vec<u32> = sa.into_iter().map(|x| x as u32).collect();
         for (&x, &y) in sa.iter().tuple_windows() {
             assert!(t[x as usize..] < t[y as usize..]);
