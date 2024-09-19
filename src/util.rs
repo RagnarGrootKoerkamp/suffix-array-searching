@@ -1,5 +1,5 @@
 use rand::Rng;
-use std::path::Path;
+use std::{path::Path, str::FromStr};
 
 use super::*;
 
@@ -15,10 +15,17 @@ pub fn read_fasta_file(path: &Path) -> Sequence {
     map[b'g' as usize] = 2;
     map[b't' as usize] = 3;
 
-    let mut f = needletail::parse_fastx_file(path).unwrap();
+    let mut reader = needletail::parse_fastx_file(path).unwrap();
     let mut out = vec![];
-    while let Some(seq) = f.next() {
-        out.extend(seq.unwrap().seq().into_iter().map(|c| map[*c as usize]));
+    while let Some(record) = reader.next() {
+        out.extend(
+            record
+                .unwrap()
+                .seq()
+                .into_iter()
+                .map(|c| unsafe { map.get_unchecked(*c as usize) }),
+        );
+        // break;
     }
     out
 }
@@ -127,4 +134,33 @@ pub fn string_value<const K: usize>(q: &Seq) -> usize {
     }
     let v0 = q.iter().take(K).fold(0, |acc, &x| acc * 4 + x as usize);
     v0
+}
+
+type SA = Vec<usize>;
+
+pub fn build_sa(text: &Seq) -> SA {
+    libdivsufsort_rs::divsufsort(&text)
+        .unwrap()
+        .iter()
+        .map(|x| *x as usize)
+        .collect()
+}
+
+pub fn time<T>(t: &str, f: impl FnOnce() -> T) -> T {
+    eprintln!("{t}: Starting");
+    let start = std::time::Instant::now();
+    let r = f();
+    let elapsed = start.elapsed();
+    eprintln!("{t}: Elapsed: {:?}", elapsed);
+    r
+}
+
+pub fn read_human_genome() -> Sequence {
+    read_fasta_file(&Path::new("human-genome.fa"))
+}
+
+pub fn read_human_genome_with_sa() -> (Sequence, SA) {
+    let seq = read_human_genome();
+    let sa = build_sa(&seq);
+    (seq, sa)
 }

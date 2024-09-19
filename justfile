@@ -12,3 +12,17 @@ flame: build
 
 stat *args='': build
     perf stat -d ./target/release/sa-layout {{args}}
+
+test2:
+    cargo test -r
+
+perf2:
+    cargo build -r --tests
+    perf record cargo test -r query_substring -- --nocapture
+    # perf report
+stat2:
+    cargo build -r --tests
+    perf stat cargo test -r query_substring -- --nocapture
+
+py:
+    source .env/bin/activate && maturin develop -r
