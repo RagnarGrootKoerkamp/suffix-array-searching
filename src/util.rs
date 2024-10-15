@@ -1,6 +1,5 @@
 use rand::Rng;
-use std::{path::Path, str::FromStr};
-
+use std::{path::Path, str::FromStr, ptr};
 use super::*;
 
 pub fn read_fasta_file(path: &Path) -> Sequence {
@@ -99,7 +98,7 @@ pub fn string_value<const K: usize>(q: &Seq) -> usize {
     if K == 8 {
         // Read u64 from q.
         unsafe {
-            let a = *(q.as_ptr() as *const u64);
+            let a = std::ptr::read_unaligned(q.as_ptr() as *const u64);
             let a = a.swap_bytes();
             let v1 = _pext_u64(a, mask) as usize;
             // assert_eq!(v0, v1, "\n{:?}\n{v0:0b}\n{v1:0b}", &q[..8]);
@@ -108,8 +107,8 @@ pub fn string_value<const K: usize>(q: &Seq) -> usize {
     }
     if K == 16 {
         unsafe {
-            let a = *(q.as_ptr() as *const u64);
-            let b = *(q.as_ptr().add(8) as *const u64);
+            let a = std::ptr::read_unaligned(q.as_ptr() as *const u64);
+            let b = std::ptr::read_unaligned(q.as_ptr().add(8) as *const u64);
             let a = a.swap_bytes();
             let b = b.swap_bytes();
             let v1 = ((_pext_u64(a, mask) as usize) << 16) + _pext_u64(b, mask) as usize;
@@ -119,9 +118,9 @@ pub fn string_value<const K: usize>(q: &Seq) -> usize {
     }
     if K == 24 {
         unsafe {
-            let a = *(q.as_ptr() as *const u64);
-            let b = *(q.as_ptr().add(8) as *const u64);
-            let c = *(q.as_ptr().add(16) as *const u64);
+            let a = std::ptr::read_unaligned(q.as_ptr() as *const u64);
+            let b = std::ptr::read_unaligned(q.as_ptr().add(8) as *const u64);
+            let c = std::ptr::read_unaligned(q.as_ptr().add(16) as *const u64);
             let a = a.swap_bytes();
             let b = b.swap_bytes();
             let c = c.swap_bytes();
