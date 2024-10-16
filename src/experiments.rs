@@ -63,8 +63,20 @@ pub fn binary_search(sa: &SA, q: &Seq, cnt: &mut usize) -> usize {
     sa[l] as usize
 }
 
-type F1 = fn(&SA, &[u8], &mut usize) -> usize;
 
+pub fn branchless_bin_search(sa: &SA, q: &Seq, cnt: &mut usize) -> usize {
+    let mut base = 0;
+    let mut len = sa.sa.len();
+    while len > 1 {
+        let half = len / 2;
+        *cnt += 1;
+        base += ((sa.suffix(base + half) < q) as usize) * half;
+        len = len - half;
+    }
+    base
+}
+
+type F1 = fn(&SA, &[u8], &mut usize) -> usize;
 
 pub fn bench(sa: &SA, queries: &[&Seq], name: &str, f: F1) {
     let start = std::time::Instant::now();

@@ -71,6 +71,8 @@ fn main() {
     );
 
     experiments::bench(&sa, &qs, "binary_basic", experiments::binary_search as _);
+    experiments::bench(&sa, &qs, "binary_branchless", experiments::branchless_bin_search as _);
+
     // bench(&sa, &qs, "binary_c", binary_search_cmp as _);
     // bench(&sa, &qs, "branchy", branchy_search as _);
     // bench(&sa, &qs, "branchfree", branchfree_search as _);
