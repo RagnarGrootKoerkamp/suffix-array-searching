@@ -477,19 +477,13 @@ pub mod py {
     const HIGHEST_GENERATED: u32 = 4200000000;
 
     #[pyclass]
-    struct Benchmark {
+    struct BenchmarkSortedArray {
         data: Vec<u32>,
         func_map: HashMap<&'static str, experiments_sorted_arrays::VanillaBinSearch>,
     }
 
-    #[pyclass]
-    struct BenchResult {
-        times: Vec<std::time::Duration>,
-        comp_cnts: Vec<usize>
-    }
-
     #[pymethods]
-    impl Benchmark {
+    impl BenchmarkSortedArray {
         #[new]
         fn new(num: usize) -> Self {
             let mut v: Vec<u32> = Vec::new();
@@ -501,7 +495,7 @@ pub mod py {
             let mut functions = HashMap::new();
             functions.insert("basic_binsearch", experiments_sorted_arrays::binary_search as experiments_sorted_arrays::VanillaBinSearch);
             v.sort();
-            Benchmark { data: v, func_map: functions}
+            BenchmarkSortedArray { data: v, func_map: functions}
         }
 
         fn _bench(&self, size: usize, repetitions: usize, fname: &str) -> (std::time::Duration, usize) {
@@ -520,19 +514,19 @@ pub mod py {
                 let elapsed = start.elapsed();
                 timing += elapsed;
             }
-            eprintln!("{results}");
             (timing, cnt)
         }
 
         fn benchmark(&self, fname: &str, start_pow2: usize, stop_pow2: usize, repetitions: usize) -> (Vec<std::time::Duration>, Vec<usize>) {
-            let mut result: BenchResult = BenchResult { times: Vec::new(), comp_cnts: Vec::new() };
+            let mut times = Vec::new();
+            let mut comp_cnts = Vec::new();
             for p in start_pow2..stop_pow2 {
                 let size = 2usize.pow(p as u32);
                 let (timing, cnt) = self._bench(size, repetitions, fname);
-                result.comp_cnts.push(cnt);
-                result.times.push(timing);
+                comp_cnts.push(cnt);
+                times.push(timing);
             }
-            (result.times, result.comp_cnts)
+            (times, comp_cnts)
         }
 
     }
@@ -551,8 +545,7 @@ pub mod py {
     fn sa_layout(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(self::read_human_genome, m)?)?;
         m.add_function(wrap_pyfunction!(self::rank_curve, m)?)?;
-        m.add_class::<Benchmark>()?;
-        m.add_class::<BenchResult>()?;
+        m.add_class::<BenchmarkSortedArray>()?;
         Ok(())
     }
 }
