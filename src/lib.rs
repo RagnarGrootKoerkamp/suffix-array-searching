@@ -1,7 +1,7 @@
 #![allow(unused)]
 #![feature(array_chunks, portable_simd)]
 pub mod util;
-
+pub mod experiments_sorted_arrays;
 pub use util::*;
 
 use std::{
@@ -466,8 +466,76 @@ pub fn rank_curve(seq: &Seq, k: usize) -> Vec<u32> {
 }
 
 pub mod py {
+    use crate::experiments_sorted_arrays::VanillaBinSearch;
+
     use super::*;
+    use experiments_sorted_arrays;
     use pyo3::prelude::*;
+    use rand::Rng;
+    use std::collections::HashMap;
+    const LOWEST_GENERATED: u32 = 0;
+    const HIGHEST_GENERATED: u32 = 4200000000;
+
+    #[pyclass]
+    struct Benchmark {
+        data: Vec<u32>,
+        func_map: HashMap<&'static str, experiments_sorted_arrays::VanillaBinSearch>,
+    }
+
+    #[pyclass]
+    struct BenchResult {
+        times: Vec<std::time::Duration>,
+        comp_cnts: Vec<usize>
+    }
+
+    #[pymethods]
+    impl Benchmark {
+        #[new]
+        fn new(num: usize) -> Self {
+            let mut v: Vec<u32> = Vec::new();
+            let mut rng = rand::thread_rng();
+            for i in 0..num {
+                let num = rng.gen_range(LOWEST_GENERATED..HIGHEST_GENERATED);
+                v.push(num);
+            }
+            let mut functions = HashMap::new();
+            functions.insert("basic_binsearch", experiments_sorted_arrays::binary_search as experiments_sorted_arrays::VanillaBinSearch);
+            v.sort();
+            Benchmark { data: v, func_map: functions}
+        }
+
+        fn _bench(&self, size: usize, repetitions: usize, fname: &str) -> (std::time::Duration, usize) {
+            assert!(size <= self.data.len());
+            let mut timing = std::time::Duration::new(0, 0);
+            let mut cnt = 0;
+            let mut results = 0;
+            for i in 0..repetitions {
+                // select start of interval
+                let slice_start = rand::thread_rng().gen_range(0..self.data.len() - size);
+                let slice_end = slice_start + size;
+                // select searched value
+                let searched_val = rand::thread_rng().gen_range(self.data[slice_start]..self.data[slice_end]);
+                let start = std::time::Instant::now();
+                results += self.func_map[fname](&self.data[slice_start..slice_end], searched_val, &mut cnt);
+                let elapsed = start.elapsed();
+                timing += elapsed;
+            }
+            eprintln!("{results}");
+            (timing, cnt)
+        }
+
+        fn benchmark(&self, fname: &str, start_pow2: usize, stop_pow2: usize, repetitions: usize) -> (Vec<std::time::Duration>, Vec<usize>) {
+            let mut result: BenchResult = BenchResult { times: Vec::new(), comp_cnts: Vec::new() };
+            for p in start_pow2..stop_pow2 {
+                let size = 2usize.pow(p as u32);
+                let (timing, cnt) = self._bench(size, repetitions, fname);
+                result.comp_cnts.push(cnt);
+                result.times.push(timing);
+            }
+            (result.times, result.comp_cnts)
+        }
+
+    }
 
     #[pyfunction]
     fn read_human_genome() -> PyResult<Sequence> {
@@ -483,6 +551,8 @@ pub mod py {
     fn sa_layout(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(self::read_human_genome, m)?)?;
         m.add_function(wrap_pyfunction!(self::rank_curve, m)?)?;
+        m.add_class::<Benchmark>()?;
+        m.add_class::<BenchResult>()?;
         Ok(())
     }
 }
