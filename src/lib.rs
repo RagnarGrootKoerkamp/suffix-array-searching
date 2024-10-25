@@ -498,7 +498,7 @@ pub mod py {
             BenchmarkSortedArray { data: v, func_map: functions}
         }
 
-        fn _bench(&self, size: usize, repetitions: usize, fname: &str) -> (std::time::Duration, usize) {
+        fn _bench(&self, size: usize, repetitions: usize, fname: &str) -> (f64, f64) {
             assert!(size <= self.data.len());
             let mut timing = std::time::Duration::new(0, 0);
             let mut cnt = 0;
@@ -514,10 +514,11 @@ pub mod py {
                 let elapsed = start.elapsed();
                 timing += elapsed;
             }
-            (timing, cnt)
+            // FIXME: this is ugly
+            (timing.as_nanos() as f64 / repetitions as f64, cnt as f64 / repetitions as f64)
         }
 
-        fn benchmark(&self, fname: &str, start_pow2: usize, stop_pow2: usize, repetitions: usize) -> (Vec<std::time::Duration>, Vec<usize>) {
+        fn benchmark(&self, fname: &str, start_pow2: usize, stop_pow2: usize, repetitions: usize) -> (Vec<f64>, Vec<f64>) {
             let mut times = Vec::new();
             let mut comp_cnts = Vec::new();
             for p in start_pow2..stop_pow2 {
