@@ -492,8 +492,9 @@ pub mod py {
                 let num = rng.gen_range(LOWEST_GENERATED..HIGHEST_GENERATED);
                 v.push(num);
             }
-            let mut functions = HashMap::new();
+            let mut functions: HashMap<&str, fn(&[u32], u32, &mut usize) -> usize> = HashMap::new();
             functions.insert("basic_binsearch", experiments_sorted_arrays::binary_search as experiments_sorted_arrays::VanillaBinSearch);
+            functions.insert("basic_binsearch_branchless", experiments_sorted_arrays::binary_search_branchless as experiments_sorted_arrays::VanillaBinSearch);
             v.sort();
             BenchmarkSortedArray { data: v, func_map: functions}
         }
