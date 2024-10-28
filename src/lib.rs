@@ -29,6 +29,7 @@ pub struct SaNaive<'a> {
     /// Table on the first p bits.
     p: usize,
     /// For each prefix, the index in the suffix array of the first element larger than it.
+    /// Has length 2^p + 1.
     table: Vec<u32>,
 }
 
@@ -123,6 +124,13 @@ pub fn binary_search(sa: &SaNaive, q: &Seq, cnt: &mut usize) -> usize {
     }
     sa[l] as usize
 }
+
+//   *........*...................*............*...
+//   00000000 1111111111111111111 222222222222 3333
+//   00111223 0000111111111222223 012222233333 1123
+//                       *
+//           *
+//                  *
 
 pub fn binary_search_cmp(sa: &SaNaive, q: &Seq, cnt: &mut usize) -> usize {
     let range = sa.prefix_range(q, cnt);
@@ -394,6 +402,17 @@ pub fn interpolation_search<const K: usize>(sa: &SaNaive, q: &Seq, cnt: &mut usi
         r_val.checked_mul(r).is_some(),
         "Too large K causes integer overflow."
     );
+    // n = 10^9
+    // lg n = 30
+    // lg lg n = 5
+    //
+    // 1111111111111111111111112 9999
+    // *.  --------------------     *
+    //  *.                          *
+    //   *                          *
+    //    *                         *
+    //                         *    *
+    //
     while l < r {
         *cnt += 1;
         // The +1 and +2 ensure l<m<r.
