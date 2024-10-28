@@ -42,7 +42,8 @@ impl Index<usize> for SaNaive<'_> {
 }
 
 impl<'t> SaNaive<'t> {
-    pub fn build(t: &'t Seq, p: usize) -> Self {
+    pub fn build(t: &'t Seq) -> Self {
+        let p = 0;
         let mut sa = vec![0; t.len() + 100000];
         sais::sais64::parallel::sais(t, &mut sa, None, 5).unwrap();
         sa.resize(t.len(), 0);
@@ -95,7 +96,7 @@ impl<'t> SaNaive<'t> {
     }
 
     pub fn prefix(&self, q: &Seq) -> usize {
-        string_value::<16>(q) >> (32 - self.p)
+        return 0;
     }
 
     pub fn prefix_range(&self, q: &Seq, cnt: &mut usize) -> Range<usize> {
