@@ -1,0 +1,11 @@
+* Integer search
+- Binary search
+- Branchless
+- With/without prefetching
+- Sorted/Eytzinger/B-tree layout
+- Prefix lookup
+- Interpolation search (on non-random data)
+- Batching
+  - Chunked
+* Suffix array search
+- Inlining values
