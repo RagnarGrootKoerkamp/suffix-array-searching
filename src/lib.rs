@@ -524,19 +524,22 @@ pub mod py {
             let mut timing = std::time::Duration::new(0, 0);
             let mut cnt = 0;
             let mut results = 0;
+            let func = self.func_map[fname];
+            let mut searched_values = Vec::new();
+            // FIXME this is awful
+            let slice_start = rand::thread_rng().gen_range(0..self.data.len() - size);
+            let slice_end = slice_start + size;
             for i in 0..repetitions {
-                // select start of interval
-                let slice_start = rand::thread_rng().gen_range(0..self.data.len() - size);
-                let slice_end = slice_start + size;
-                // select searched value
-                let searched_val = rand::thread_rng().gen_range(self.data[slice_start]..self.data[slice_end]);
-                let start = std::time::Instant::now();
-                results += self.func_map[fname](&self.data[slice_start..slice_end], searched_val, &mut cnt);
-                let elapsed = start.elapsed();
-                timing += elapsed;
+                searched_values.push(rand::thread_rng().gen_range(self.data[slice_start]..self.data[slice_end]));
             }
+            
+            let start = std::time::Instant::now();
+            for i in 0..repetitions {
+                results += func(&self.data[slice_start..slice_end], searched_values[i], &mut cnt);
+            }
+            let elapsed = start.elapsed();
             // FIXME: this is ugly
-            (timing.as_nanos() as f64 / repetitions as f64, cnt as f64 / repetitions as f64)
+            (elapsed.as_nanos() as f64 / repetitions as f64, cnt as f64 / repetitions as f64)
         }
 
         fn benchmark(&self, fname: &str, start_pow2: usize, stop_pow2: usize, repetitions: usize) -> (Vec<f64>, Vec<f64>) {

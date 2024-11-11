@@ -102,7 +102,7 @@ pub fn string_value<const K: usize>(q: &Seq) -> usize {
             let a = a.swap_bytes();
             // let v1 = _pext_u64(a, mask) as usize;
             // assert_eq!(v0, v1, "\n{:?}\n{v0:0b}\n{v1:0b}", &q[..8]);
-            return a;
+            return a.try_into().unwrap();
         }
     }
     if K == 16 {

@@ -5,6 +5,7 @@ use rand_chacha::ChaCha8Rng;
 use sa_layout::*;
 use std::{iter::repeat, path::PathBuf};
 mod experiments;
+mod experiments_sorted_arrays;
 
 
 #[derive(Parser)]
