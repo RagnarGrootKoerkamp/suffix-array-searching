@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 START_POW2 = 10
 STOP_POW2 = 26
 NUM_REPEATS = 1000000
-to_try = ["basic_binsearch", "basic_binsearch_branchless"]
+to_try = ["basic_binsearch", "basic_binsearch_branchless", "eytzinger"]
 
 
 def plot_results(sizes, names, timings, comparisons, filename="plot.pdf"):

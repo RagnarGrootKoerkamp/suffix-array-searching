@@ -500,6 +500,7 @@ pub mod py {
     struct BenchmarkSortedArray {
         func_map: HashMap<&'static str, experiments_sorted_arrays::VanillaBinSearch>,
         // TODO: preprocess_map
+        preprocess_map: HashMap<&'static str, experiments_sorted_arrays::PreprocessArray>,
     }
 
     fn gen_random_array(size: usize, min: u32, max: u32) -> Vec<u32> {
@@ -518,14 +519,20 @@ pub mod py {
     impl BenchmarkSortedArray {
         #[new]
         fn new() -> Self {
-            let mut functions: HashMap<&str, fn(&[u32], u32, &mut usize) -> usize> = HashMap::new();
+            let mut functions: HashMap<&str, experiments_sorted_arrays::VanillaBinSearch> = HashMap::new();
+            let mut preprocess_map: HashMap<&str, experiments_sorted_arrays::PreprocessArray> = HashMap::new();
             functions.insert("basic_binsearch", experiments_sorted_arrays::binary_search as experiments_sorted_arrays::VanillaBinSearch);
             functions.insert("basic_binsearch_branchless", experiments_sorted_arrays::binary_search_branchless as experiments_sorted_arrays::VanillaBinSearch);
-            BenchmarkSortedArray { func_map: functions}
+            functions.insert("eytzinger", experiments_sorted_arrays::eytzinger as experiments_sorted_arrays::VanillaBinSearch);
+            preprocess_map.insert("eytzinger", experiments_sorted_arrays::to_eytzinger as experiments_sorted_arrays::PreprocessArray);
+            BenchmarkSortedArray { func_map: functions, preprocess_map: preprocess_map }
         }
 
         fn _bench(&self, size: usize, repetitions: usize, fname: &str) -> (f64, f64) {
-            let array = gen_random_array(size, LOWEST_GENERATED, HIGHEST_GENERATED);
+            let mut array = gen_random_array(size, LOWEST_GENERATED, HIGHEST_GENERATED);
+            if self.preprocess_map.contains_key(fname) {
+                array = (self.preprocess_map[fname])(array);
+            }
             let mut timing = std::time::Duration::new(0, 0);
             let mut cnt = 0;
             let mut results = 0;

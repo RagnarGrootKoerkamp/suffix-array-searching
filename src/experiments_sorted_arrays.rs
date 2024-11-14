@@ -1,4 +1,5 @@
 pub type VanillaBinSearch = fn(&[u32], u32, &mut usize) -> usize;
+pub type PreprocessArray = fn(input: Vec<u32>) -> Vec<u32>;
 
 // completely basic binsearch
 pub fn binary_search(array: &[u32], q: u32, cnt: &mut usize) -> usize {
@@ -29,6 +30,15 @@ pub fn binary_search_branchless(array: &[u32], q: u32, cnt: &mut usize) -> usize
     base
 }
 
+pub fn eytzinger(array: &[u32], q: u32, cnt: &mut usize) -> usize {
+    let mut index = 1; // array starts from 1 (maybe I want to change this later for alignment?)
+    while index < array.len() {
+        index = 2 * index + usize::from(q > array[index]);
+    }
+    let zeros = index.trailing_ones() + 1;
+    index >> zeros
+}
+
 // a recursive function to actually perform the Eytzinger transformation
 // FIXME: this is not in-place (which is okay for us), but we might have to implement this in-place
 fn _to_eytzinger(a: &[u32], t: &mut Vec<u32>, i: &mut usize, k: usize) {
@@ -40,11 +50,11 @@ fn _to_eytzinger(a: &[u32], t: &mut Vec<u32>, i: &mut usize, k: usize) {
     }
 }
 
-pub fn to_eytzinger(array: &[u32]) -> Vec<u32> {
+pub fn to_eytzinger(array: Vec<u32>) -> Vec<u32> {
     let mut eytzinger = vec![0; array.len() + 1]; // +1 for one-based indexing
     let mut i: usize = 0;
     let k: usize = 1;
-    _to_eytzinger(array, &mut eytzinger, &mut i, k);
+    _to_eytzinger(&array, &mut eytzinger, &mut i, k);
     eytzinger
 }
 
@@ -55,7 +65,7 @@ mod tests {
     fn eytzinger_test_pow2() {
         let input = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let corr_output = vec![0, 8, 4, 12, 2, 6, 10, 14, 1, 3, 5, 7, 9, 11, 13, 15];
-        let output = to_eytzinger(&input);
+        let output = to_eytzinger(input);
         let incorrect = corr_output.iter().zip(&output).filter(|&(a, b)| a != b).count();
         assert_eq!(incorrect, 0);
     }
@@ -64,10 +74,19 @@ mod tests {
     fn eytzinger_test_non_pow2() {
         let input = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
         let corr_output = vec![0, 6, 3, 8, 1, 5, 7, 9, 0, 2, 4];
-        let output = to_eytzinger(&input);
+        let output = to_eytzinger(input);
         let incorrect = corr_output.iter().zip(&output).filter(|&(a, b)| a != b).count();
         println!("{:?}", output);
         assert_eq!(incorrect, 0);
+    }
+
+    #[test]
+    fn eyetzinger_search_test() {
+        let eyetzinger_array = vec![0, 6, 3, 8, 1, 5, 7, 9, 0, 2, 4];
+        let q: u32 = 3;
+        let mut cnt: usize = 0;
+        let result = eytzinger(&eyetzinger_array, 3, &mut cnt);
+        assert_eq!(eyetzinger_array[result], 3);
     }
 }
 
