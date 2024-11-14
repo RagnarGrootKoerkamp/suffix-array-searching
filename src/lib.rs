@@ -498,44 +498,48 @@ pub mod py {
 
     #[pyclass]
     struct BenchmarkSortedArray {
-        data: Vec<u32>,
         func_map: HashMap<&'static str, experiments_sorted_arrays::VanillaBinSearch>,
+        // TODO: preprocess_map
+    }
+
+    fn gen_random_array(size: usize, min: u32, max: u32) -> Vec<u32> {
+        // TODO: generate a new array
+        let mut array = Vec::new();
+        let mut rng = rand::thread_rng();
+        for i in 0..size {
+            let num = rng.gen_range(min..max);
+            array.push(num);
+        }
+        array.sort();
+        array
     }
 
     #[pymethods]
     impl BenchmarkSortedArray {
         #[new]
-        fn new(num: usize) -> Self {
-            let mut v: Vec<u32> = Vec::new();
-            let mut rng = rand::thread_rng();
-            for i in 0..num {
-                let num = rng.gen_range(LOWEST_GENERATED..HIGHEST_GENERATED);
-                v.push(num);
-            }
+        fn new() -> Self {
             let mut functions: HashMap<&str, fn(&[u32], u32, &mut usize) -> usize> = HashMap::new();
             functions.insert("basic_binsearch", experiments_sorted_arrays::binary_search as experiments_sorted_arrays::VanillaBinSearch);
             functions.insert("basic_binsearch_branchless", experiments_sorted_arrays::binary_search_branchless as experiments_sorted_arrays::VanillaBinSearch);
-            v.sort();
-            BenchmarkSortedArray { data: v, func_map: functions}
+            BenchmarkSortedArray { func_map: functions}
         }
 
         fn _bench(&self, size: usize, repetitions: usize, fname: &str) -> (f64, f64) {
-            assert!(size <= self.data.len());
+            let array = gen_random_array(size, LOWEST_GENERATED, HIGHEST_GENERATED);
             let mut timing = std::time::Duration::new(0, 0);
             let mut cnt = 0;
             let mut results = 0;
             let func = self.func_map[fname];
             let mut searched_values = Vec::new();
             // FIXME this is awful
-            let slice_start = rand::thread_rng().gen_range(0..self.data.len() - size);
-            let slice_end = slice_start + size;
             for i in 0..repetitions {
-                searched_values.push(rand::thread_rng().gen_range(self.data[slice_start]..self.data[slice_end]));
+                let query = rand::thread_rng().gen_range(LOWEST_GENERATED..HIGHEST_GENERATED);
+                searched_values.push(query);
             }
             
             let start = std::time::Instant::now();
             for i in 0..repetitions {
-                results += func(&self.data[slice_start..slice_end], searched_values[i], &mut cnt);
+                results += func(&array, searched_values[i], &mut cnt);
             }
             let elapsed = start.elapsed();
             // FIXME: this is ugly

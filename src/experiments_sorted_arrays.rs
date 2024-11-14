@@ -30,6 +30,7 @@ pub fn binary_search_branchless(array: &[u32], q: u32, cnt: &mut usize) -> usize
 }
 
 // a recursive function to actually perform the Eytzinger transformation
+// FIXME: this is not in-place (which is okay for us), but we might have to implement this in-place
 fn _to_eytzinger(a: &[u32], t: &mut Vec<u32>, i: &mut usize, k: usize) {
     if (k <= a.len()) {
         _to_eytzinger(a, t, i, 2 * k);
