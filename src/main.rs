@@ -1,3 +1,4 @@
+#![feature(core_intrinsics)]
 use clap::Parser;
 use log::{debug, info};
 use rand::SeedableRng;

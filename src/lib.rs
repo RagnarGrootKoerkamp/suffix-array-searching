@@ -1,5 +1,5 @@
 #![allow(unused)]
-#![feature(array_chunks, portable_simd)]
+#![feature(array_chunks, portable_simd, core_intrinsics)]
 pub mod util;
 pub mod experiments_sorted_arrays;
 pub use util::*;
@@ -524,7 +524,9 @@ pub mod py {
             functions.insert("basic_binsearch", experiments_sorted_arrays::binary_search as experiments_sorted_arrays::VanillaBinSearch);
             functions.insert("basic_binsearch_branchless", experiments_sorted_arrays::binary_search_branchless as experiments_sorted_arrays::VanillaBinSearch);
             functions.insert("eytzinger", experiments_sorted_arrays::eytzinger as experiments_sorted_arrays::VanillaBinSearch);
+            functions.insert("eytzinger_prefetched", experiments_sorted_arrays::eytzinger_prefetched as experiments_sorted_arrays::VanillaBinSearch);
             preprocess_map.insert("eytzinger", experiments_sorted_arrays::to_eytzinger as experiments_sorted_arrays::PreprocessArray);
+            preprocess_map.insert("eytzinger_prefetched", experiments_sorted_arrays::to_eytzinger as experiments_sorted_arrays::PreprocessArray);
             BenchmarkSortedArray { func_map: functions, preprocess_map: preprocess_map }
         }
 
