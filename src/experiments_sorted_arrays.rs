@@ -15,6 +15,7 @@ pub fn binary_search(array: &[u32], q: u32, cnt: &mut usize) -> usize {
     while l < r {
         *cnt += 1;
         let m = (l + r) / 2;
+        // TODO should I prefetch both or just one?
         if get(array, m) < q {
             l = m + 1;
         } else {
@@ -44,6 +45,12 @@ pub fn binary_search_branchless_prefetched(array: &[u32], q: u32, cnt: &mut usiz
     while len > 1 {
         let half = len / 2;
         *cnt += 1;
+        unsafe {
+            let ptr_right = &array[base + half + len / 2 - 1] as *const u32;
+            let ptr_left = &array[base + len / 2 - 1] as *const u32;
+            std::intrinsics::prefetch_read_data(ptr_left, 3);
+            std::intrinsics::prefetch_read_data(ptr_right, 3);    
+        }
         base += (get(array, base + half) < q) as usize * half;
         len = len - half;
     }
@@ -60,11 +67,12 @@ pub fn eytzinger(array: &[u32], q: u32, cnt: &mut usize) -> usize {
 }
 
 pub fn eytzinger_prefetched(array: &[u32], q: u32, cnt: &mut usize) -> usize {
-    let mut index = 1;
+    let mut index: usize = 1;
     while index < array.len() {
         index = 2 * index + usize::from(q > get(array, index));
         unsafe {
-            std::intrinsics::prefetch_read_data(array.as_ptr().wrapping_add(index * 16), 3);
+            let ptr = (&array[0] as *const u32).offset((index * 16).try_into().unwrap());
+            std::intrinsics::prefetch_read_data(ptr, 3);
         };
     }
     let zeros = index.trailing_ones() + 1;

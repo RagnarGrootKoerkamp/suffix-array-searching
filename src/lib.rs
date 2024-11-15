@@ -523,6 +523,7 @@ pub mod py {
             let mut preprocess_map: HashMap<&str, experiments_sorted_arrays::PreprocessArray> = HashMap::new();
             functions.insert("basic_binsearch", experiments_sorted_arrays::binary_search as experiments_sorted_arrays::VanillaBinSearch);
             functions.insert("basic_binsearch_branchless", experiments_sorted_arrays::binary_search_branchless as experiments_sorted_arrays::VanillaBinSearch);
+            functions.insert("basic_binsearch_branchless_prefetched", experiments_sorted_arrays::binary_search_branchless_prefetched as experiments_sorted_arrays::VanillaBinSearch);
             functions.insert("eytzinger", experiments_sorted_arrays::eytzinger as experiments_sorted_arrays::VanillaBinSearch);
             functions.insert("eytzinger_prefetched", experiments_sorted_arrays::eytzinger_prefetched as experiments_sorted_arrays::VanillaBinSearch);
             preprocess_map.insert("eytzinger", experiments_sorted_arrays::to_eytzinger as experiments_sorted_arrays::PreprocessArray);

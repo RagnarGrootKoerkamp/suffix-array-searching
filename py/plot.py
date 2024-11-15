@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 # placeholder for now to see some results
 START_POW2 = 10
-STOP_POW2 = 26
+STOP_POW2 = 20
 NUM_REPEATS = 1000000
 to_try = ["basic_binsearch", "basic_binsearch_branchless", "eytzinger", "eytzinger_prefetched"]
 
