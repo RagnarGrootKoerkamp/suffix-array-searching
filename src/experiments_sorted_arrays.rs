@@ -36,7 +36,7 @@ pub fn binary_search_branchless(array: &[u32], q: u32, cnt: &mut usize) -> usize
 }
 
 pub fn eytzinger(array: &[u32], q: u32, cnt: &mut usize) -> usize {
-    let mut index = 1; // array starts from 1 (maybe I want to change this later for alignment?)
+    let mut index = 1;
     while index < array.len() {
         index = 2 * index + usize::from(q > get(array, index));
     }
@@ -67,10 +67,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn eytzinger_test_pow2() {
-        let input = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+    fn eytzinger_test_pow2_min_1() {
+        let input = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let corr_output = vec![0, 8, 4, 12, 2, 6, 10, 14, 1, 3, 5, 7, 9, 11, 13, 15];
         let output = to_eytzinger(input);
+        assert_eq!(output.len(), corr_output.len());
         let incorrect = corr_output.iter().zip(&output).filter(|&(a, b)| a != b).count();
         assert_eq!(incorrect, 0);
     }
