@@ -1,6 +1,11 @@
 pub type VanillaBinSearch = fn(&[u32], u32, &mut usize) -> usize;
 pub type PreprocessArray = fn(input: Vec<u32>) -> Vec<u32>;
 
+// FIXME: is this a good way to go around this?
+fn get(array: &[u32], index: usize) -> u32 {
+    unsafe { *array.get_unchecked(index) }
+}
+
 // completely basic binsearch
 pub fn binary_search(array: &[u32], q: u32, cnt: &mut usize) -> usize {
     let mut l = 0;
@@ -8,7 +13,7 @@ pub fn binary_search(array: &[u32], q: u32, cnt: &mut usize) -> usize {
     while l < r {
         *cnt += 1;
         let m = (l + r) / 2;
-        if array[m] < q {
+        if get(array, m) < q {
             l = m + 1;
         } else {
             r = m;
@@ -24,7 +29,7 @@ pub fn binary_search_branchless(array: &[u32], q: u32, cnt: &mut usize) -> usize
     while len > 1 {
         let half = len / 2;
         *cnt += 1;
-        base += (array[base + half] < q) as usize * half;
+        base += (get(array, base + half) < q) as usize * half;
         len = len - half;
     }
     base
@@ -33,7 +38,7 @@ pub fn binary_search_branchless(array: &[u32], q: u32, cnt: &mut usize) -> usize
 pub fn eytzinger(array: &[u32], q: u32, cnt: &mut usize) -> usize {
     let mut index = 1; // array starts from 1 (maybe I want to change this later for alignment?)
     while index < array.len() {
-        index = 2 * index + usize::from(q > array[index]);
+        index = 2 * index + usize::from(q > get(array, index));
     }
     let zeros = index.trailing_ones() + 1;
     index >> zeros
