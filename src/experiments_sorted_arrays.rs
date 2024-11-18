@@ -105,7 +105,6 @@ pub fn _to_btree<const K: usize>(a: &[u32], t: &mut Vec<u32>, i: &mut usize, k: 
         for j in 0..node_size {
             _to_btree::<K>(a, t, i, k * K + j * node_size);
             t[k + j] = a[*i];
-            println!("adding value {} at index {} to {}", a[*i], i, k + j);
             *i += 1;
         }
         _to_btree::<K>(a, t, i, k * K + node_size * node_size);
@@ -157,6 +156,15 @@ mod tests {
         let orig_array = vec![1, 2, 3, 4, 5, 6, 7, 8];
         let correct_output = vec![0, 3, 6, 1, 2, 4, 5, 7, 8];
         let computed_out = to_btree::<3>(orig_array);
+        println!("{:?}", computed_out);
+        assert_eq!(correct_output, computed_out);
+    }
+
+    #[test]
+    fn test_b_tree_k_4() {
+        let orig_array = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+        let correct_output = vec![0, 4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15];
+        let computed_out = to_btree::<4>(orig_array);
         println!("{:?}", computed_out);
         assert_eq!(correct_output, computed_out);
     }
