@@ -99,6 +99,28 @@ pub fn to_eytzinger(array: Vec<u32>) -> Vec<u32> {
     eytzinger
 }
 
+pub fn _to_btree<const K: usize>(a: &[u32], t: &mut Vec<u32>, i: &mut usize, k: usize) {
+    let node_size = K - 1;
+    if k <= a.len() {
+        for j in 0..node_size {
+            _to_btree::<K>(a, t, i, k * K + j * node_size);
+            t[k + j] = a[*i];
+            println!("adding value {} at index {} to {}", a[*i], i, k + j);
+            *i += 1;
+        }
+        _to_btree::<K>(a, t, i, k * K + node_size * node_size);
+    }
+}
+
+pub fn to_btree<const K: usize>(array: Vec<u32>) -> Vec<u32> {
+    // => size of node equals K-1
+    let mut btree = vec![0; array.len() + 1];
+    let mut i: usize = 0;
+    let k = 1;
+    _to_btree::<K>(&array, &mut btree, &mut i, k);
+    btree
+}
+
 mod tests {
     use super::*;
 
@@ -118,7 +140,6 @@ mod tests {
         let corr_output = vec![0, 6, 3, 8, 1, 5, 7, 9, 0, 2, 4];
         let output = to_eytzinger(input);
         let incorrect = corr_output.iter().zip(&output).filter(|&(a, b)| a != b).count();
-        println!("{:?}", output);
         assert_eq!(incorrect, 0);
     }
 
@@ -129,6 +150,15 @@ mod tests {
         let mut cnt: usize = 0;
         let result = eytzinger(&eyetzinger_array, 3, &mut cnt);
         assert_eq!(eyetzinger_array[result], 3);
+    }
+
+    #[test]
+    fn test_b_tree_k_3() {
+        let orig_array = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let correct_output = vec![0, 3, 6, 1, 2, 4, 5, 7, 8];
+        let computed_out = to_btree::<3>(orig_array);
+        println!("{:?}", computed_out);
+        assert_eq!(correct_output, computed_out);
     }
 }
 
