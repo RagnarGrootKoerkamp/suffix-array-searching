@@ -112,6 +112,8 @@ pub fn _to_btree<const B: usize>(a: &[u32], t: &mut Vec<u32>, i: &mut usize, k: 
             if *i < a.len() {
                 let x = a[*i];
                 t[k * B + j] = x;
+            } else {
+                t[k * B + j] = u32::MAX;
             }
             *i += 1;
         }
@@ -180,10 +182,11 @@ mod tests {
 
     #[test]
     fn test_b_tree_k_3_not_round() {
-        let orig_array = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-        // let corr_output = vec![0, 3, 6, 1, 2, 4, 5, 7, 8];
+        let orig_array = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+        let corr_output = vec![4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 4294967295, 4294967295];
         let computed_out = to_btree::<3>(orig_array);
         println!("{:?}", computed_out);
+        assert_eq!(computed_out, corr_output);
     }
 }
 
