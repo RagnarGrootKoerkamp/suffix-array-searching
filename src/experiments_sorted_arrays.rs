@@ -79,6 +79,37 @@ pub fn eytzinger_prefetched(array: &[u32], q: u32, cnt: &mut usize) -> usize {
     index >> zeros
 }
 
+// analogous to algorithmica
+fn go_to<const B: usize>(k: usize, i: usize) -> usize {
+    return k * (B + 1) + i + 1;
+}
+
+pub fn btree_search<const B: usize>(btree: &[u32], q: u32, cnt: &mut usize) -> usize {
+    // completely naive
+    let mut mask = 1 << B;
+    let mut k = 0;
+    let mut res = usize::MAX;
+    let btree_blocks = btree.len() / B;
+
+    while k < btree_blocks {
+        let mut jump_to = 0;
+        for j in 0..B {
+            let compare_to = btree[k * B + j];
+            if q == compare_to {
+                return k * B + j;
+            } else if q < compare_to {
+                break;
+            }
+            jump_to += 1;
+        }
+        if jump_to < B {
+            res = k * B + jump_to;
+        }
+        k = go_to::<B>(k, jump_to);
+    }
+    return res;
+}
+
 
 // a recursive function to actually perform the Eytzinger transformation
 // FIXME: this is not in-place (which is okay for us), but we might have to implement this in-place
@@ -99,10 +130,6 @@ pub fn to_eytzinger(array: Vec<u32>) -> Vec<u32> {
     eytzinger
 }
 
-// analogous to algorithmica
-fn go_to<const B: usize>(k: usize, i: usize) -> usize {
-    return k * (B + 1) + i + 1;
-}
 
 pub fn _to_btree<const B: usize>(a: &[u32], t: &mut Vec<u32>, i: &mut usize, k: usize) {
     let num_blocks = (a.len() + B - 1) / B;
@@ -187,6 +214,34 @@ mod tests {
         let computed_out = to_btree::<3>(orig_array);
         println!("{:?}", computed_out);
         assert_eq!(computed_out, corr_output);
+    }
+
+    #[test]
+    fn test_btree_basic_search() {
+        let mut orig_array = Vec::new();
+        let size = 1024;
+        for i in 0..size {
+            orig_array.push(i);
+        }
+        let mut cnt = 0;
+        let q = 40;
+        let btree = to_btree::<16>(orig_array);
+        let i = btree_search::<16>(&btree, q, &mut cnt);
+        assert_eq!(btree[i], q);
+    }
+
+    #[test]
+    fn test_btree_basic_search_elem_not_present() {
+        let mut orig_array = Vec::new();
+        let size = 1024;
+        for i in 0..size {
+            orig_array.push(i);
+        }
+        let mut cnt = 0;
+        let q = 1024;
+        let btree = to_btree::<16>(orig_array);
+        let i = btree_search::<16>(&btree, q, &mut cnt);
+        assert_eq!(i, usize::MAX);
     }
 }
 
