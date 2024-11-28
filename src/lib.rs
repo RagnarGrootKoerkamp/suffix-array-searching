@@ -19,8 +19,10 @@ pub mod py {
     #[pyclass]
     struct BenchmarkSortedArray {
         func_map: HashMap<&'static str, experiments_sorted_arrays::VanillaBinSearch>,
-        // TODO: preprocess_map
         preprocess_map: HashMap<&'static str, experiments_sorted_arrays::PreprocessArray>,
+        // a workaround for my bad knowledge of Rust;
+        // stores names of functions that are a part of the benchmark before they are all run
+        to_bench_map: Vec<String>,
     }
 
     fn gen_random_array(size: usize, min: u32, max: u32) -> Vec<u32> {
@@ -33,6 +35,37 @@ pub mod py {
         }
         array.sort();
         array
+    }
+
+    impl BenchmarkSortedArray {
+        fn _bench(
+            &self,
+            preprocessed_array: &[u32],
+            repetitions: usize,
+            fname: &str,
+        ) -> (f64, f64) {
+            let mut timing = std::time::Duration::new(0, 0);
+            let mut cnt = 0;
+            let mut results = 0;
+            let func = self.func_map[fname];
+            let mut searched_values = Vec::new();
+            // FIXME this is awful
+            for i in 0..repetitions {
+                let query = rand::thread_rng().gen_range(LOWEST_GENERATED..HIGHEST_GENERATED);
+                searched_values.push(query);
+            }
+
+            let start = std::time::Instant::now();
+            for i in 0..repetitions {
+                results += func(&preprocessed_array, searched_values[i], &mut cnt);
+            }
+            let elapsed = start.elapsed();
+            // FIXME: this is ugly
+            (
+                elapsed.as_nanos() as f64 / repetitions as f64,
+                cnt as f64 / repetitions as f64,
+            )
+        }
     }
 
     #[pymethods]
@@ -79,57 +112,45 @@ pub mod py {
             BenchmarkSortedArray {
                 func_map: functions,
                 preprocess_map: preprocess_map,
+                to_bench_map: Vec::new(),
             }
         }
 
-        fn _bench(&self, size: usize, repetitions: usize, fname: &str) -> (f64, f64) {
-            let mut array = gen_random_array(size, LOWEST_GENERATED, HIGHEST_GENERATED);
-            if self.preprocess_map.contains_key(fname) {
-                array = (self.preprocess_map[fname])(array);
-            }
-            let mut timing = std::time::Duration::new(0, 0);
-            let mut cnt = 0;
-            let mut results = 0;
-            let func = self.func_map[fname];
-            let mut searched_values = Vec::new();
-            // FIXME this is awful
-            for i in 0..repetitions {
-                let query = rand::thread_rng().gen_range(LOWEST_GENERATED..HIGHEST_GENERATED);
-                searched_values.push(query);
-            }
-
-            let start = std::time::Instant::now();
-            for i in 0..repetitions {
-                results += func(&array, searched_values[i], &mut cnt);
-            }
-            let elapsed = start.elapsed();
-            // FIXME: this is ugly
-            (
-                elapsed.as_nanos() as f64 / repetitions as f64,
-                cnt as f64 / repetitions as f64,
-            )
-        }
-
-        fn test(&self, fname: &str, start_pow2: usize, stop_pow2: usize) -> bool {
-            false
+        fn add_func_to_bm(&mut self, fname: &str) {
+            self.to_bench_map.push(String::from(fname));
         }
 
         fn benchmark(
             &self,
-            fname: &str,
             start_pow2: usize,
             stop_pow2: usize,
             repetitions: usize,
-        ) -> (Vec<f64>, Vec<f64>) {
-            let mut times = Vec::new();
-            let mut comp_cnts = Vec::new();
+        ) -> HashMap<&String, (Vec<f64>, Vec<f64>)> {
+            let mut returned_timings = HashMap::new();
+            for fname in &self.to_bench_map {
+                let mut times = Vec::new();
+                let mut comp_cnts = Vec::new();
+                returned_timings.insert(fname, (times, comp_cnts));
+            }
+
             for p in start_pow2..stop_pow2 {
                 let size = 2usize.pow(p as u32);
-                let (timing, cnt) = self._bench(size, repetitions, fname);
-                comp_cnts.push(cnt);
-                times.push(timing);
+                let array: Vec<u32> = gen_random_array(size, LOWEST_GENERATED, HIGHEST_GENERATED);
+                // TODO: generate array here
+                for fname in &self.to_bench_map {
+                    let mut preprocessed_array = array.clone();
+                    if self.preprocess_map.contains_key(&fname as &str) {
+                        preprocessed_array =
+                            (self.preprocess_map[&fname as &str])(preprocessed_array);
+                    }
+
+                    let (ref mut timings, cnts) = returned_timings.get_mut(&fname).unwrap();
+                    let (timing, cnt) = self._bench(&preprocessed_array, repetitions, &fname);
+                    cnts.push(cnt);
+                    timings.push(timing);
+                }
             }
-            (times, comp_cnts)
+            returned_timings
         }
     }
 
