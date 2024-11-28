@@ -49,7 +49,7 @@ pub fn binary_search_branchless_prefetched(array: &[u32], q: u32, cnt: &mut usiz
             let ptr_right = &array[base + half + len / 2 - 1] as *const u32;
             let ptr_left = &array[base + len / 2 - 1] as *const u32;
             std::intrinsics::prefetch_read_data(ptr_left, 3);
-            std::intrinsics::prefetch_read_data(ptr_right, 3);    
+            std::intrinsics::prefetch_read_data(ptr_right, 3);
         }
         base += (get(array, base + half) < q) as usize * half;
         len = len - half;
@@ -109,7 +109,29 @@ pub fn btree_search<const B: usize>(btree: &[u32], q: u32, cnt: &mut usize) -> u
     }
     return res;
 }
+pub fn btree_search_branchless<const B: usize>(btree: &[u32], q: u32, cnt: &mut usize) -> usize {
+    let mut mask = 1 << B;
+    let mut k = 0;
+    let mut res = usize::MAX;
+    let btree_blocks = btree.len() / B;
 
+    while k < btree_blocks {
+        let mut jump_to = 0;
+        // I'm searching for the first element that is <= to the searched one
+        for j in 0..B {
+            let compare_to = btree[k * B + j];
+            if q == compare_to {
+                return k * B + j;
+            }
+            jump_to += usize::from(q >= compare_to)
+        }
+        if jump_to < B {
+            res = k * B + jump_to;
+        }
+        k = go_to::<B>(k, jump_to);
+    }
+    return res;
+}
 
 // a recursive function to actually perform the Eytzinger transformation
 // FIXME: this is not in-place (which is okay for us), but we might have to implement this in-place
@@ -129,7 +151,6 @@ pub fn to_eytzinger(array: Vec<u32>) -> Vec<u32> {
     _to_eytzinger(&array, &mut eytzinger, &mut i, k);
     eytzinger
 }
-
 
 pub fn _to_btree<const B: usize>(a: &[u32], t: &mut Vec<u32>, i: &mut usize, k: usize) {
     let num_blocks = (a.len() + B - 1) / B;
@@ -167,7 +188,11 @@ mod tests {
         let corr_output = vec![0, 8, 4, 12, 2, 6, 10, 14, 1, 3, 5, 7, 9, 11, 13, 15];
         let output = to_eytzinger(input);
         assert_eq!(output.len(), corr_output.len());
-        let incorrect = corr_output.iter().zip(&output).filter(|&(a, b)| a != b).count();
+        let incorrect = corr_output
+            .iter()
+            .zip(&output)
+            .filter(|&(a, b)| a != b)
+            .count();
         assert_eq!(incorrect, 0);
     }
 
@@ -176,7 +201,11 @@ mod tests {
         let input = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
         let corr_output = vec![0, 6, 3, 8, 1, 5, 7, 9, 0, 2, 4];
         let output = to_eytzinger(input);
-        let incorrect = corr_output.iter().zip(&output).filter(|&(a, b)| a != b).count();
+        let incorrect = corr_output
+            .iter()
+            .zip(&output)
+            .filter(|&(a, b)| a != b)
+            .count();
         assert_eq!(incorrect, 0);
     }
 
@@ -210,7 +239,9 @@ mod tests {
     #[test]
     fn test_b_tree_k_3_not_round() {
         let orig_array = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
-        let corr_output = vec![4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 4294967295, 4294967295];
+        let corr_output = vec![
+            4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 4294967295, 4294967295,
+        ];
         let computed_out = to_btree::<3>(orig_array);
         println!("{:?}", computed_out);
         assert_eq!(computed_out, corr_output);
@@ -244,4 +275,3 @@ mod tests {
         assert_eq!(i, usize::MAX);
     }
 }
-

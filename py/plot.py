@@ -1,18 +1,18 @@
 #!/usr/bin/python
 import sa_layout
+import numpy as np
 import matplotlib.pyplot as plt
 
 # placeholder for now to see some results
 START_POW2 = 10
-STOP_POW2 = 20
+STOP_POW2 = 27
 NUM_REPEATS = 1000000
-to_try = ["basic_binsearch", "basic_binsearch_branchless", "eytzinger", "eytzinger_prefetched"]
-
+to_try = ["eytzinger_prefetched", "btree_basic_16", "btree_branchless_16"]
 
 def plot_results(sizes, names, timings, comparisons, filename="plot.pdf"):
     fig, ax = plt.subplots()
     for name, timing in zip(names, timings):
-        ax.plot(sizes, timing, label=name)
+        ax.plot(4 * np.array(sizes), timing, label=name)
     # Customize the plot
     ax.set_title("Performance plot")
     ax.set_xlabel("size of inputs")

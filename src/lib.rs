@@ -1,7 +1,7 @@
 #![allow(unused)]
 #![feature(array_chunks, portable_simd, core_intrinsics)]
-pub mod util;
 pub mod experiments_sorted_arrays;
+pub mod util;
 pub use util::*;
 
 use std::{
@@ -519,16 +519,47 @@ pub mod py {
     impl BenchmarkSortedArray {
         #[new]
         fn new() -> Self {
-            let mut functions: HashMap<&str, experiments_sorted_arrays::VanillaBinSearch> = HashMap::new();
-            let mut preprocess_map: HashMap<&str, experiments_sorted_arrays::PreprocessArray> = HashMap::new();
-            functions.insert("basic_binsearch", experiments_sorted_arrays::binary_search as experiments_sorted_arrays::VanillaBinSearch);
-            functions.insert("basic_binsearch_branchless", experiments_sorted_arrays::binary_search_branchless as experiments_sorted_arrays::VanillaBinSearch);
-            functions.insert("basic_binsearch_branchless_prefetched", experiments_sorted_arrays::binary_search_branchless_prefetched as experiments_sorted_arrays::VanillaBinSearch);
-            functions.insert("eytzinger", experiments_sorted_arrays::eytzinger as experiments_sorted_arrays::VanillaBinSearch);
-            functions.insert("eytzinger_prefetched", experiments_sorted_arrays::eytzinger_prefetched as experiments_sorted_arrays::VanillaBinSearch);
-            preprocess_map.insert("eytzinger", experiments_sorted_arrays::to_eytzinger as experiments_sorted_arrays::PreprocessArray);
-            preprocess_map.insert("eytzinger_prefetched", experiments_sorted_arrays::to_eytzinger as experiments_sorted_arrays::PreprocessArray);
-            BenchmarkSortedArray { func_map: functions, preprocess_map: preprocess_map }
+            let mut functions: HashMap<&str, experiments_sorted_arrays::VanillaBinSearch> =
+                HashMap::new();
+            let mut preprocess_map: HashMap<&str, experiments_sorted_arrays::PreprocessArray> =
+                HashMap::new();
+            functions.insert("basic_binsearch", experiments_sorted_arrays::binary_search);
+            functions.insert(
+                "basic_binsearch_branchless",
+                experiments_sorted_arrays::binary_search_branchless,
+            );
+            functions.insert(
+                "basic_binsearch_branchless_prefetched",
+                experiments_sorted_arrays::binary_search_branchless_prefetched,
+            );
+            functions.insert("eytzinger", experiments_sorted_arrays::eytzinger);
+            functions.insert(
+                "eytzinger_prefetched",
+                experiments_sorted_arrays::eytzinger_prefetched,
+            );
+            functions.insert(
+                "btree_basic_16",
+                experiments_sorted_arrays::btree_search::<16>,
+            );
+            functions.insert(
+                "btree_branchless_16",
+                experiments_sorted_arrays::btree_search_branchless::<16>,
+            );
+            preprocess_map.insert("eytzinger", experiments_sorted_arrays::to_eytzinger);
+            preprocess_map.insert(
+                "eytzinger_prefetched",
+                experiments_sorted_arrays::to_eytzinger,
+            );
+            preprocess_map.insert("btree_basic_16", experiments_sorted_arrays::to_btree::<16>);
+            preprocess_map.insert(
+                "btree_branchless_16",
+                experiments_sorted_arrays::to_btree::<16>,
+            );
+
+            BenchmarkSortedArray {
+                func_map: functions,
+                preprocess_map: preprocess_map,
+            }
         }
 
         fn _bench(&self, size: usize, repetitions: usize, fname: &str) -> (f64, f64) {
@@ -546,17 +577,26 @@ pub mod py {
                 let query = rand::thread_rng().gen_range(LOWEST_GENERATED..HIGHEST_GENERATED);
                 searched_values.push(query);
             }
-            
+
             let start = std::time::Instant::now();
             for i in 0..repetitions {
                 results += func(&array, searched_values[i], &mut cnt);
             }
             let elapsed = start.elapsed();
             // FIXME: this is ugly
-            (elapsed.as_nanos() as f64 / repetitions as f64, cnt as f64 / repetitions as f64)
+            (
+                elapsed.as_nanos() as f64 / repetitions as f64,
+                cnt as f64 / repetitions as f64,
+            )
         }
 
-        fn benchmark(&self, fname: &str, start_pow2: usize, stop_pow2: usize, repetitions: usize) -> (Vec<f64>, Vec<f64>) {
+        fn benchmark(
+            &self,
+            fname: &str,
+            start_pow2: usize,
+            stop_pow2: usize,
+            repetitions: usize,
+        ) -> (Vec<f64>, Vec<f64>) {
             let mut times = Vec::new();
             let mut comp_cnts = Vec::new();
             for p in start_pow2..stop_pow2 {
@@ -567,7 +607,6 @@ pub mod py {
             }
             (times, comp_cnts)
         }
-
     }
 
     #[pyfunction]
