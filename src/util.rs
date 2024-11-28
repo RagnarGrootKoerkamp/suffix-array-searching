@@ -1,6 +1,17 @@
 use rand::Rng;
-use std::{path::Path, str::FromStr, ptr};
-use super::*;
+use std::{
+    arch::x86_64::_pext_u64,
+    cmp::Ordering::{Greater, Less},
+    iter::repeat,
+    ops::{Index, Range},
+    path::PathBuf,
+    simd::{cmp::SimdPartialEq, Simd},
+    slice::from_raw_parts,
+};
+use std::{path::Path, ptr, str::FromStr};
+
+pub type Seq = [u8];
+pub type Sequence = Vec<u8>;
 
 pub fn read_fasta_file(path: &Path) -> Sequence {
     let mut map = [0; 256];
