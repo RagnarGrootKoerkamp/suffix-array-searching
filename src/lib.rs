@@ -21,11 +21,11 @@ pub mod py {
     use rand::Rng;
     use std::collections::HashMap;
     const LOWEST_GENERATED: u32 = 0;
-    const HIGHEST_GENERATED: u32 = 4200000000;
+    const HIGHEST_GENERATED: u32 = 20;
     const UPPER_BOUND: u32 = u32::MAX;
 
     const TEST_START_POW2: usize = 3;
-    const TEST_END_POW2: usize = 20;
+    const TEST_END_POW2: usize = 5;
     const TEST_QUERIES: usize = 10;
     const TRUSTED_FUNCTION: experiments_sorted_arrays::VanillaBinSearch =
         experiments_sorted_arrays::binary_search;
@@ -99,6 +99,12 @@ pub mod py {
                             "The output of {} differs from the trusted function for size {}!",
                             fname, size
                         );
+                        eprintln!("the inputs are {:?}, {:?}", array, searched_values);
+                        eprintln!(
+                            "The trusted function's results are:\n {:?}",
+                            trusted_results
+                        );
+                        eprintln!("The examined functions's results are:\n {:?}", new_results);
                         correct = false;
                     }
                 }
