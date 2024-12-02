@@ -5,6 +5,13 @@ pub mod sa_search;
 pub mod util;
 pub use util::*;
 
+fn vec_eq(va: &Vec<u32>, vb: &Vec<u32>) -> bool {
+    (va.len() == vb.len()) &&  // zip stops at the shortest
+     va.iter()
+       .zip(vb)
+       .all(|(a,b)| a == b)
+}
+
 pub mod py {
     use crate::experiments_sorted_arrays::VanillaBinSearch;
 
@@ -15,6 +22,13 @@ pub mod py {
     use std::collections::HashMap;
     const LOWEST_GENERATED: u32 = 0;
     const HIGHEST_GENERATED: u32 = 4200000000;
+    const UPPER_BOUND: u32 = u32::MAX;
+
+    const TEST_START_POW2: usize = 3;
+    const TEST_END_POW2: usize = 20;
+    const TEST_QUERIES: usize = 10;
+    const TRUSTED_FUNCTION: experiments_sorted_arrays::VanillaBinSearch =
+        experiments_sorted_arrays::binary_search;
 
     #[pyclass]
     struct BenchmarkSortedArray {
@@ -38,12 +52,61 @@ pub mod py {
     }
 
     impl BenchmarkSortedArray {
-        fn _bench(
+        // returns a vector of values the function found. Useful for comparing outputs of different implementations.
+        fn test_one(
             &self,
+            func: experiments_sorted_arrays::VanillaBinSearch,
             preprocessed_array: &[u32],
-            repetitions: usize,
-            fname: &str,
-        ) -> (f64, f64) {
+            searched_values: &[u32],
+        ) -> Vec<u32> {
+            let mut results = Vec::new();
+            let mut cnt: usize = 0;
+            let repetitions = searched_values.len();
+            for i in 0..repetitions {
+                let index = func(&preprocessed_array, searched_values[i], &mut cnt);
+                if index < preprocessed_array.len() {
+                    results.push(preprocessed_array[index]);
+                } else {
+                    results.push(UPPER_BOUND);
+                }
+            }
+            results
+        }
+
+        // FIXME: this is very duplicated code as compared to the code for benchmarking
+        fn test_all(&self) -> bool {
+            let mut correct = true;
+            for pow2 in TEST_START_POW2..TEST_END_POW2 + 1 {
+                let size = 2usize.pow(pow2 as u32);
+                let array = gen_random_array(size, LOWEST_GENERATED, HIGHEST_GENERATED);
+                let mut searched_values = Vec::new();
+                for _ in 0..TEST_QUERIES {
+                    let query = rand::thread_rng().gen_range(LOWEST_GENERATED..HIGHEST_GENERATED);
+                    searched_values.push(query);
+                }
+                let mut trusted_results = self.test_one(TRUSTED_FUNCTION, &array, &searched_values);
+                for (fname, func) in &self.func_map {
+                    let mut preprocessed_array = array.clone();
+                    if self.preprocess_map.contains_key(&fname as &str) {
+                        preprocessed_array =
+                            (self.preprocess_map[&fname as &str])(preprocessed_array);
+                    }
+                    let new_results =
+                        self.test_one(func.clone(), &preprocessed_array, &searched_values);
+                    // check vector equality
+                    if !vec_eq(&trusted_results, &new_results) {
+                        eprintln!(
+                            "The output of {} differs from the trusted function for size {}!",
+                            fname, size
+                        );
+                        correct = false;
+                    }
+                }
+            }
+            correct
+        }
+
+        fn bench(&self, preprocessed_array: &[u32], repetitions: usize, fname: &str) -> (f64, f64) {
             let mut timing = std::time::Duration::new(0, 0);
             let mut cnt = 0;
             let mut results = 0;
@@ -145,7 +208,7 @@ pub mod py {
                     }
 
                     let (ref mut timings, cnts) = returned_timings.get_mut(&fname).unwrap();
-                    let (timing, cnt) = self._bench(&preprocessed_array, repetitions, &fname);
+                    let (timing, cnt) = self.bench(&preprocessed_array, repetitions, &fname);
                     cnts.push(cnt);
                     timings.push(timing);
                 }
@@ -158,5 +221,16 @@ pub mod py {
     fn sa_layout(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<BenchmarkSortedArray>()?;
         Ok(())
+    }
+
+    mod test {
+        use super::*;
+
+        #[test]
+        fn test_benchmarks() {
+            let benchmark = BenchmarkSortedArray::new();
+            let correct = benchmark.test_all();
+            assert!(correct);
+        }
     }
 }

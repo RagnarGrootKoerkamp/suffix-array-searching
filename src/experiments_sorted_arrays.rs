@@ -248,6 +248,17 @@ mod tests {
     }
 
     #[test]
+    fn test_btree_search_oob() {
+        let orig_array = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+        let computed_out = to_btree::<3>(orig_array);
+        let mut cnt = 0;
+        let result = btree_search::<3>(&computed_out, 0, &mut cnt);
+        println!("{:?}", computed_out);
+        println!("{}", result);
+        assert!(false);
+    }
+
+    #[test]
     fn test_btree_basic_search() {
         let mut orig_array = Vec::new();
         let size = 1024;
