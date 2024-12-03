@@ -4,10 +4,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # placeholder for now to see some results
-START_POW2 = 10
-STOP_POW2 = 20
+START_POW2 = 5
+STOP_POW2 = 28
 NUM_REPEATS = 1000000
-to_try = ["eytzinger_prefetched", "btree_basic_16", "btree_branchless_16"]
+to_try = ["basic_binsearch", "basic_binsearch_branchless", "eytzinger", "eytzinger_prefetched", "btree_basic_16", "btree_branchless_16", "btree_simd_16"]
 
 def plot_results(sizes, names, timings, comparisons, filename="plot.pdf"):
     fig, ax = plt.subplots()
@@ -34,7 +34,8 @@ for name in to_try:
 
 benchmarks = b.benchmark(START_POW2, STOP_POW2, NUM_REPEATS)
 
-for name, bench_result in benchmarks.items():
+for name in to_try:
+    bench_result = benchmarks[name]
     timing, comparison = bench_result
     timings.append(timing)
     comparisons.append(comparison)
