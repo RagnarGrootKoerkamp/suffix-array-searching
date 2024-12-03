@@ -32,7 +32,7 @@ pub fn binary_search_branchless(array: &[u32], q: u32, cnt: &mut usize) -> usize
     while len > 1 {
         let half = len / 2;
         *cnt += 1;
-        base += (get(array, base + half) < q) as usize * half;
+        base += (array[base + half - 1] < q) as usize * half;
         len = len - half;
     }
     base
@@ -51,7 +51,7 @@ pub fn binary_search_branchless_prefetched(array: &[u32], q: u32, cnt: &mut usiz
             std::intrinsics::prefetch_read_data(ptr_left, 3);
             std::intrinsics::prefetch_read_data(ptr_right, 3);
         }
-        base += (get(array, base + half) < q) as usize * half;
+        base += (get(array, base + half - 1) < q) as usize * half;
         len = len - half;
     }
     base
@@ -184,6 +184,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn branchless_test_oob() {
+        let input = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+        let q = 16;
+        let mut cnt = 0;
+        let result = binary_search_branchless(&input, q, &mut cnt);
+        // result should be out-of-bounds of the array
+        assert!(result == 15);
+    }
+
+    #[test]
     fn eytzinger_test_pow2_min_1() {
         let input = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let corr_output = vec![u32::MAX, 8, 4, 12, 2, 6, 10, 14, 1, 3, 5, 7, 9, 11, 13, 15];
@@ -263,9 +273,6 @@ mod tests {
         let computed_out = to_btree::<3>(orig_array);
         let mut cnt = 0;
         let result = btree_search::<3>(&computed_out, 0, &mut cnt);
-        println!("{:?}", computed_out);
-        println!("{}", result);
-        assert!(false);
     }
 
     #[test]
