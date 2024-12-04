@@ -1,4 +1,4 @@
-#![feature(core_intrinsics)]
+#![feature(core_intrinsics, portable_simd)]
 use clap::Parser;
 use log::{debug, info};
 use rand::SeedableRng;
@@ -7,7 +7,6 @@ use sa_layout::*;
 use std::{iter::repeat, path::PathBuf};
 mod experiments;
 mod experiments_sorted_arrays;
-
 
 #[derive(Parser)]
 struct Args {
@@ -73,7 +72,12 @@ fn main() {
     );
 
     experiments::bench(&sa, &qs, "binary_basic", experiments::binary_search as _);
-    experiments::bench(&sa, &qs, "binary_branchless", experiments::branchless_bin_search as _);
+    experiments::bench(
+        &sa,
+        &qs,
+        "binary_branchless",
+        experiments::branchless_bin_search as _,
+    );
 
     // bench(&sa, &qs, "binary_c", binary_search_cmp as _);
     // bench(&sa, &qs, "branchy", branchy_search as _);

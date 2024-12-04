@@ -1,4 +1,8 @@
 use std::intrinsics;
+use std::intrinsics::simd::simd_ge;
+use std::simd::cmp::SimdPartialOrd;
+use std::simd::num::{SimdInt, SimdUint};
+use std::simd::u32x16;
 
 pub type VanillaBinSearch = fn(&[u32], u32, &mut usize) -> usize;
 pub type PreprocessArray = fn(input: Vec<u32>) -> Vec<u32>;
@@ -32,7 +36,7 @@ pub fn binary_search_branchless(array: &[u32], q: u32, cnt: &mut usize) -> usize
     while len > 1 {
         let half = len / 2;
         *cnt += 1;
-        base += (array[base + half - 1] < q) as usize * half;
+        base += (get(&array, base + half - 1) < q) as usize * half;
         len = len - half;
     }
     base
@@ -90,14 +94,12 @@ pub fn btree_search<const B: usize>(btree: &[u32], q: u32, cnt: &mut usize) -> u
     let mut k = 0;
     let mut res = usize::MAX;
     let btree_blocks = btree.len() / B;
-
     while k < btree_blocks {
         let mut jump_to = 0;
         for j in 0..B {
-            let compare_to = btree[k * B + j];
-            if q == compare_to {
-                return k * B + j;
-            } else if q < compare_to {
+            let compare_to = get(&btree, k * B + j);
+            // FIXME: bad early stop
+            if q <= compare_to {
                 break;
             }
             jump_to += 1;
@@ -109,6 +111,7 @@ pub fn btree_search<const B: usize>(btree: &[u32], q: u32, cnt: &mut usize) -> u
     }
     return res;
 }
+
 pub fn btree_search_branchless<const B: usize>(btree: &[u32], q: u32, cnt: &mut usize) -> usize {
     let mut mask = 1 << B;
     let mut k = 0;
@@ -119,12 +122,35 @@ pub fn btree_search_branchless<const B: usize>(btree: &[u32], q: u32, cnt: &mut 
         let mut jump_to = 0;
         // I'm searching for the first element that is <= to the searched one
         for j in 0..B {
-            let compare_to = btree[k * B + j];
-            if q == compare_to {
-                return k * B + j;
-            }
+            let compare_to = get(&btree, k * B + j);
             jump_to += usize::from(q >= compare_to)
         }
+        if jump_to < B {
+            res = k * B + jump_to;
+        }
+        k = go_to::<B>(k, jump_to);
+    }
+    return res;
+}
+
+pub fn btree_search_simd<const B: usize>(btree: &[u32], q: u32, cnt: &mut usize) -> usize {
+    // for now assume B is 16
+    assert!(B == 16);
+    let mut k = 0;
+    let mut res = usize::MAX;
+    let btree_blocks = btree.len() / B;
+    // load the value q into a vector
+    let q_vec = u32x16::splat(q);
+    while k < btree_blocks {
+        // load the block
+        let block: [u32; 16] = btree[k * B..k * B + 16].try_into().unwrap();
+        let b_vec = u32x16::from_array(block);
+        // compare and assign to another vector
+        let comparison = b_vec.simd_ge(q_vec);
+        let jump_to: usize = match comparison.first_set() {
+            None => 16,
+            Some(i) => i,
+        };
         if jump_to < B {
             res = k * B + jump_to;
         }
@@ -273,6 +299,18 @@ mod tests {
         let computed_out = to_btree::<3>(orig_array);
         let mut cnt = 0;
         let result = btree_search::<3>(&computed_out, 0, &mut cnt);
+    }
+
+    #[test]
+    fn test_btree_and_btree_simd() {
+        let array = (20..2000).collect();
+        let btree = to_btree::<16>(array);
+        let q = 20;
+        let mut cnt = 0;
+        let r1 = btree_search::<16>(&btree, q, &mut cnt);
+        let r2 = btree_search_simd::<16>(&btree, q, &mut cnt);
+        println!("results {} {}", r1, r2);
+        println!("{} {}", btree[r1], btree[r2]);
     }
 
     #[test]

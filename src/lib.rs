@@ -26,7 +26,7 @@ pub mod py {
 
     const TEST_START_POW2: usize = 3;
     const TEST_END_POW2: usize = 20;
-    const TEST_QUERIES: usize = 100;
+    const TEST_QUERIES: usize = 10000;
     const TRUSTED_FUNCTION: experiments_sorted_arrays::VanillaBinSearch =
         experiments_sorted_arrays::binary_search;
 
@@ -167,6 +167,10 @@ pub mod py {
                 "btree_branchless_16",
                 experiments_sorted_arrays::btree_search_branchless::<16>,
             );
+            functions.insert(
+                "btree_simd_16",
+                experiments_sorted_arrays::btree_search_simd::<16>,
+            );
             preprocess_map.insert("eytzinger", experiments_sorted_arrays::to_eytzinger);
             preprocess_map.insert(
                 "eytzinger_prefetched",
@@ -177,6 +181,8 @@ pub mod py {
                 "btree_branchless_16",
                 experiments_sorted_arrays::to_btree::<16>,
             );
+
+            preprocess_map.insert("btree_simd_16", experiments_sorted_arrays::to_btree::<16>);
 
             BenchmarkSortedArray {
                 func_map: functions,
