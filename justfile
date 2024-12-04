@@ -26,3 +26,7 @@ stat2:
 
 py:
     source .env/bin/activate && maturin develop -r
+
+
+cpufreq:
+    sudo cpupower frequency-set --governor powersave -d 2.6GHz -u 2.6GHz
