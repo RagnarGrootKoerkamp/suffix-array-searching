@@ -1,25 +1,27 @@
+use num_traits::bounds::Bounded;
+
 #[repr(align(64))]
 #[derive(Clone, Copy, Debug)]
-struct BTreeNode<T: Ord + Copy + Default, const B: usize, const Pad: usize> {
+struct BTreeNode<T: Ord + Copy + Default + Bounded, const B: usize, const Pad: usize> {
     data: [T; B],
     padding: [u8; Pad],
 }
 
 #[derive(Debug)]
-struct BTree<T: Ord + Copy + Default, const B: usize, const Pad: usize> {
+struct BTree<T: Ord + Copy + Default + Bounded, const B: usize, const Pad: usize> {
     tree: Vec<BTreeNode<T, B, Pad>>,
 }
 
-impl<T: Ord + Copy + Default, const B: usize, const Pad: usize> BTreeNode<T, B, Pad> {
+impl<T: Ord + Copy + Default + Bounded, const B: usize, const Pad: usize> BTreeNode<T, B, Pad> {
     pub fn new() -> BTreeNode<T, B, Pad> {
         BTreeNode {
-            data: [T::default(); B],
+            data: [T::max_value(); B],
             padding: [0; Pad],
         }
     }
 }
 
-impl<T: Ord + Copy + Default, const B: usize, const Pad: usize> BTree<T, B, Pad> {
+impl<T: Ord + Copy + Default + Bounded, const B: usize, const Pad: usize> BTree<T, B, Pad> {
     fn go_to(k: usize, j: usize) -> usize {
         k * (B + 1) + j
     }
@@ -141,7 +143,6 @@ mod tests {
         let orig_array = vec![1, 2, 3, 4, 5, 6, 7, 8];
         let computed_out = BTree::<u32, 2, 0>::new(&orig_array);
         println!("{:?}", computed_out);
-        assert!(false);
     }
 
     #[test]
@@ -150,7 +151,6 @@ mod tests {
         let correct_output = vec![4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15];
         let computed_out = BTree::<u32, 3, 0>::new(&orig_array);
         println!("{:?}", computed_out);
-        assert!(false);
     }
 
     // #[test]
