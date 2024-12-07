@@ -88,77 +88,6 @@ fn go_to<const B: usize>(k: usize, i: usize) -> usize {
     return k * (B + 1) + i + 1;
 }
 
-pub fn btree_search<const B: usize>(btree: &[u32], q: u32, cnt: &mut usize) -> usize {
-    // completely naive
-    let mut mask = 1 << B;
-    let mut k = 0;
-    let mut res = usize::MAX;
-    let btree_blocks = btree.len() / B;
-    while k < btree_blocks {
-        let mut jump_to = 0;
-        for j in 0..B {
-            let compare_to = get(&btree, k * B + j);
-            // FIXME: bad early stop
-            if q <= compare_to {
-                break;
-            }
-            jump_to += 1;
-        }
-        if jump_to < B {
-            res = k * B + jump_to;
-        }
-        k = go_to::<B>(k, jump_to);
-    }
-    return res;
-}
-
-pub fn btree_search_branchless<const B: usize>(btree: &[u32], q: u32, cnt: &mut usize) -> usize {
-    let mut mask = 1 << B;
-    let mut k = 0;
-    let mut res = usize::MAX;
-    let btree_blocks = btree.len() / B;
-
-    while k < btree_blocks {
-        let mut jump_to = 0;
-        // I'm searching for the first element that is <= to the searched one
-        for j in 0..B {
-            let compare_to = get(&btree, k * B + j);
-            jump_to += usize::from(q >= compare_to)
-        }
-        if jump_to < B {
-            res = k * B + jump_to;
-        }
-        k = go_to::<B>(k, jump_to);
-    }
-    return res;
-}
-
-pub fn btree_search_simd<const B: usize>(btree: &[u32], q: u32, cnt: &mut usize) -> usize {
-    // for now assume B is 16
-    assert!(B == 16);
-    let mut k = 0;
-    let mut res = usize::MAX;
-    let btree_blocks = btree.len() / B;
-    // load the value q into a vector
-    let q_vec = u32x16::splat(q);
-    while k < btree_blocks {
-        // load the block
-        let block: [u32; 16] = btree[k * B..k * B + 16].try_into().unwrap();
-        let b_vec = u32x16::from_array(block);
-        // compare and assign to another vector
-        let comparison = b_vec.simd_ge(q_vec);
-        let jump_to: usize = match comparison.first_set() {
-            None => 16,
-            Some(i) => i,
-        };
-        if jump_to < B {
-            res = k * B + jump_to;
-        }
-        k = go_to::<B>(k, jump_to);
-    }
-    return res;
-}
-
 // a recursive function to actually perform the Eytzinger transformation
 // FIXME: this is not in-place (which is okay for us), but we might have to implement this in-place
 fn _to_eytzinger(a: &[u32], t: &mut Vec<u32>, i: &mut usize, k: usize) {
@@ -177,33 +106,6 @@ pub fn to_eytzinger(array: Vec<u32>) -> Vec<u32> {
     let k: usize = 1;
     _to_eytzinger(&array, &mut eytzinger, &mut i, k);
     eytzinger
-}
-
-pub fn _to_btree<const B: usize>(a: &[u32], t: &mut Vec<u32>, i: &mut usize, k: usize) {
-    let num_blocks = (a.len() + B - 1) / B;
-    if k < num_blocks {
-        for j in 0..B {
-            _to_btree::<B>(a, t, i, go_to::<B>(k, j));
-            if *i < a.len() {
-                let x = a[*i];
-                t[k * B + j] = x;
-            } else {
-                t[k * B + j] = u32::MAX;
-            }
-            *i += 1;
-        }
-        _to_btree::<B>(a, t, i, go_to::<B>(k, B));
-    }
-}
-
-pub fn to_btree<const B: usize>(array: Vec<u32>) -> Vec<u32> {
-    // => size of node equals K-1
-    let n_blocks = (array.len() + B - 1) / B;
-    let mut btree = vec![0; n_blocks * B];
-    let mut i: usize = 0;
-    let k = 0;
-    _to_btree::<B>(&array, &mut btree, &mut i, k);
-    btree
 }
 
 mod tests {
@@ -262,82 +164,5 @@ mod tests {
         let mut cnt: usize = 0;
         let result = eytzinger(&eyetzinger_array, q, &mut cnt);
         assert_eq!(result, 0);
-    }
-
-    #[test]
-    fn test_b_tree_k_2() {
-        let orig_array = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let correct_output = vec![3, 6, 1, 2, 4, 5, 7, 8];
-        let computed_out = to_btree::<2>(orig_array);
-        println!("{:?}", computed_out);
-        assert_eq!(correct_output, computed_out);
-    }
-
-    #[test]
-    fn test_b_tree_k_3() {
-        let orig_array = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-        let correct_output = vec![4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15];
-        let computed_out = to_btree::<3>(orig_array);
-        println!("{:?}", computed_out);
-        assert_eq!(correct_output, computed_out);
-    }
-
-    #[test]
-    fn test_b_tree_k_3_not_round() {
-        let orig_array = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
-        let corr_output = vec![
-            4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 4294967295, 4294967295,
-        ];
-        let computed_out = to_btree::<3>(orig_array);
-        println!("{:?}", computed_out);
-        assert_eq!(computed_out, corr_output);
-    }
-
-    #[test]
-    fn test_btree_search_oob() {
-        let orig_array = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
-        let computed_out = to_btree::<3>(orig_array);
-        let mut cnt = 0;
-        let result = btree_search::<3>(&computed_out, 0, &mut cnt);
-    }
-
-    #[test]
-    fn test_btree_and_btree_simd() {
-        let array = (20..2000).collect();
-        let btree = to_btree::<16>(array);
-        let q = 20;
-        let mut cnt = 0;
-        let r1 = btree_search::<16>(&btree, q, &mut cnt);
-        let r2 = btree_search_simd::<16>(&btree, q, &mut cnt);
-        println!("results {} {}", r1, r2);
-        println!("{} {}", btree[r1], btree[r2]);
-    }
-
-    #[test]
-    fn test_btree_basic_search() {
-        let mut orig_array = Vec::new();
-        let size = 1024;
-        for i in 0..size {
-            orig_array.push(i);
-        }
-        let mut cnt = 0;
-        let q = 40;
-        let btree = to_btree::<16>(orig_array);
-        let i = btree_search::<16>(&btree, q, &mut cnt);
-        assert_eq!(btree[i], q);
-    }
-
-    #[test]
-    fn test_btree_basic_search_elem_not_present() {
-        let mut orig_array = Vec::new();
-        let size = 1024;
-        for i in 0..size {
-            orig_array.push(i);
-        }
-        let mut cnt = 0;
-        let q = 1024;
-        let btree = to_btree::<16>(orig_array);
-        let i = btree_search::<16>(&btree, q, &mut cnt);
-        assert_eq!(i, usize::MAX);
     }
 }

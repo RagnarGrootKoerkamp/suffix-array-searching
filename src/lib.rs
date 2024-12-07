@@ -1,5 +1,6 @@
 #![allow(unused)]
 #![feature(array_chunks, portable_simd, core_intrinsics)]
+pub mod btree;
 pub mod experiments_sorted_arrays;
 pub mod sa_search;
 pub mod util;
@@ -159,31 +160,11 @@ pub mod py {
                 "eytzinger_prefetched",
                 experiments_sorted_arrays::eytzinger_prefetched,
             );
-            functions.insert(
-                "btree_basic_16",
-                experiments_sorted_arrays::btree_search::<16>,
-            );
-            functions.insert(
-                "btree_branchless_16",
-                experiments_sorted_arrays::btree_search_branchless::<16>,
-            );
-            functions.insert(
-                "btree_simd_16",
-                experiments_sorted_arrays::btree_search_simd::<16>,
-            );
             preprocess_map.insert("eytzinger", experiments_sorted_arrays::to_eytzinger);
             preprocess_map.insert(
                 "eytzinger_prefetched",
                 experiments_sorted_arrays::to_eytzinger,
             );
-            preprocess_map.insert("btree_basic_16", experiments_sorted_arrays::to_btree::<16>);
-            preprocess_map.insert(
-                "btree_branchless_16",
-                experiments_sorted_arrays::to_btree::<16>,
-            );
-
-            preprocess_map.insert("btree_simd_16", experiments_sorted_arrays::to_btree::<16>);
-
             BenchmarkSortedArray {
                 func_map: functions,
                 preprocess_map: preprocess_map,
