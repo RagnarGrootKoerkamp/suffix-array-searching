@@ -77,12 +77,16 @@ impl<T: Ord + Copy + Default + Bounded + Debug, const B: usize, const Pad: usize
             for j in 0..B {
                 let compare_to = self.get(k, j);
                 // FIXME: bad early stop
+                if q == compare_to {
+                    return self.get(k, jump_to);
+                }
                 if q <= compare_to {
                     break;
                 }
                 jump_to += 1;
             }
             res_block = k;
+            println!("{k} {jump_to} {:?}", self.tree[k].data);
             k = BTree::<T, B, Pad>::go_to(k, jump_to);
         }
         return self.get(res_block, jump_to);
@@ -162,10 +166,24 @@ mod tests {
     }
 
     #[test]
-    fn test_btree_search() {
+    fn test_btree_search_bottom_layer() {
         let mut array: Vec<u32> = (1..2000).collect();
         array.push(u32::MAX);
         let q = 452;
+        let mut cnt: usize = 0;
+        let btree = BTree::<u32, 16, 0>::new(&array);
+        let btree_res = btree.search(q, &mut cnt);
+
+        let binsearch_res = array[experiments_sorted_arrays::binary_search(&array, q, &mut cnt)];
+        println!("{btree_res}, {binsearch_res}");
+        assert!(btree_res == binsearch_res);
+    }
+
+    #[test]
+    fn test_btree_search_top_node() {
+        let mut array: Vec<u32> = (1..2000).collect();
+        array.push(u32::MAX);
+        let q = 289;
         let mut cnt: usize = 0;
         let btree = BTree::<u32, 16, 0>::new(&array);
         let btree_res = btree.search(q, &mut cnt);
