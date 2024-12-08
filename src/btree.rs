@@ -1,9 +1,5 @@
 use num_traits::bounds::Bounded;
-use std::clone::CloneToUninit;
 use std::fmt::Debug;
-use std::intrinsics::simd::{simd_ge, simd_lt};
-use std::simd::cmp::SimdPartialOrd;
-use std::simd::num::SimdInt;
 use std::simd::prelude::*;
 use std::simd::SimdElement;
 
@@ -12,34 +8,34 @@ use std::simd::SimdElement;
 pub struct BTreeNode<
     T: Ord + Copy + Default + Bounded + Debug + SimdElement,
     const B: usize,
-    const Pad: usize,
+    const PAD: usize,
 > {
     data: [T; B],
-    padding: [u8; Pad],
+    padding: [u8; PAD],
 }
 
 #[derive(Debug)]
 pub struct BTree<
     T: Ord + Copy + Default + Bounded + Debug + SimdElement,
     const B: usize,
-    const Pad: usize,
+    const PAD: usize,
 > {
-    tree: Vec<BTreeNode<T, B, Pad>>,
+    tree: Vec<BTreeNode<T, B, PAD>>,
 }
 
-impl<T: Ord + Copy + Default + Bounded + Debug + SimdElement, const B: usize, const Pad: usize>
-    BTreeNode<T, B, Pad>
+impl<T: Ord + Copy + Default + Bounded + Debug + SimdElement, const B: usize, const PAD: usize>
+    BTreeNode<T, B, PAD>
 {
-    pub fn new() -> BTreeNode<T, B, Pad> {
+    pub fn new() -> BTreeNode<T, B, PAD> {
         BTreeNode {
             data: [T::max_value(); B],
-            padding: [0; Pad],
+            padding: [0; PAD],
         }
     }
 }
 
-impl<T: Ord + Copy + Default + Bounded + Debug + SimdElement, const B: usize, const Pad: usize>
-    BTree<T, B, Pad>
+impl<T: Ord + Copy + Default + Bounded + Debug + SimdElement, const B: usize, const PAD: usize>
+    BTree<T, B, PAD>
 where
     Simd<T, 16>: SimdPartialOrd,
     Simd<T, 16>: SimdPartialEq<Mask = Mask<T::Mask, 16>>,
@@ -53,28 +49,28 @@ where
     // i is the current
     // k is the number of the block
     // i is the position in the original array
-    fn to_btree(a: &[T], t: &mut Vec<BTreeNode<T, B, Pad>>, i: &mut usize, k: usize) {
+    fn to_btree(a: &[T], t: &mut Vec<BTreeNode<T, B, PAD>>, i: &mut usize, k: usize) {
         let num_blocks = (a.len() + B - 1) / B;
         if k < num_blocks {
             for j in 0..B {
-                BTree::<T, B, Pad>::to_btree(a, t, i, BTree::<T, B, Pad>::go_to(k, j));
+                BTree::<T, B, PAD>::to_btree(a, t, i, BTree::<T, B, PAD>::go_to(k, j));
                 if *i < a.len() {
                     t[k].data[j] = a[*i];
                 }
                 // FIXME: figure out a way to get a default vlaue
                 *i += 1;
             }
-            BTree::to_btree(a, t, i, BTree::<T, B, Pad>::go_to(k, B));
+            BTree::to_btree(a, t, i, BTree::<T, B, PAD>::go_to(k, B));
         }
     }
 
-    pub fn new(array: &[T]) -> BTree<T, B, Pad> {
+    pub fn new(array: &[T]) -> BTree<T, B, PAD> {
         // always have at least one node
         let n_blocks = (array.len() + B) / B;
-        let mut btree = vec![BTreeNode::<T, B, Pad>::new(); n_blocks];
+        let mut btree = vec![BTreeNode::<T, B, PAD>::new(); n_blocks];
         let mut i: usize = 0;
         let k = 0;
-        BTree::<T, B, Pad>::to_btree(&array, &mut btree, &mut i, k);
+        BTree::<T, B, PAD>::to_btree(&array, &mut btree, &mut i, k);
         BTree { tree: btree }
     }
 
@@ -104,12 +100,12 @@ where
                 jump_to += 1;
             }
             res_block = k;
-            k = BTree::<T, B, Pad>::go_to(k, jump_to);
+            k = BTree::<T, B, PAD>::go_to(k, jump_to);
         }
         return self.get(res_block, jump_to);
     }
 
-    fn cmp(&self, q: T, node: &BTreeNode<T, B, Pad>) -> usize {
+    fn cmp(&self, q: T, node: &BTreeNode<T, B, PAD>) -> usize {
         // TODO: make this somehow work on all sizes
         const MASK_SIZE: usize = 16;
         assert!(B == MASK_SIZE);
@@ -142,17 +138,17 @@ where
                 jump_to += 1;
             }
             res_block = k;
-            k = BTree::<T, B, Pad>::go_to(k, jump_to);
+            k = BTree::<T, B, PAD>::go_to(k, jump_to);
         }
         return self.get(res_block, jump_to);
     }
 }
 
-pub type BTreeSearch<T, const Count: usize, const Pad: usize> =
-    fn(&[BTreeNode<T, Count, Pad>], T, &mut usize) -> usize;
+pub type BTreeSearch<T, const COUNT: usize, const PAD: usize> =
+    fn(&[BTreeNode<T, COUNT, PAD>], T, &mut usize) -> usize;
 // takes as input a sorted array, returns a BTree
-pub type ToBTree<T, const Count: usize, const Pad: usize> =
-    fn(input: Vec<T>) -> Vec<BTreeNode<T, Count, Pad>>;
+pub type ToBTree<T, const COUNT: usize, const PAD: usize> =
+    fn(input: Vec<T>) -> Vec<BTreeNode<T, COUNT, PAD>>;
 
 // pub fn btree_search_branchless<const B: usize>(btree: &[u32], q: u32, cnt: &mut usize) -> usize {
 //     let mut mask = 1 << B;

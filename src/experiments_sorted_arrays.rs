@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use crate::prefetch_index;
+
 pub type VanillaBinSearch = fn(&[u32], u32, &mut usize) -> usize;
 pub type PreprocessArray = fn(input: &Vec<u32>) -> Vec<u32>;
 
@@ -47,19 +49,15 @@ pub fn binary_search_branchless_prefetched(array: &[u32], q: u32, cnt: &mut usiz
     while len > 1 {
         let half = len / 2;
         *cnt += 1;
-        unsafe {
-            let ptr_right = &array[base + half + len / 2 - 1] as *const u32;
-            let ptr_left = &array[base + len / 2 - 1] as *const u32;
-            std::intrinsics::prefetch_read_data(ptr_left, 3);
-            std::intrinsics::prefetch_read_data(ptr_right, 3);
-        }
+        prefetch_index(array, base + half + len / 2 - 1);
+        prefetch_index(array, base + len / 2 - 1);
         base += (get(array, base + half - 1) < q) as usize * half;
         len = len - half;
     }
     base
 }
 
-pub fn eytzinger(array: &[u32], q: u32, cnt: &mut usize) -> usize {
+pub fn eytzinger(array: &[u32], q: u32, _cnt: &mut usize) -> usize {
     let mut index = 1;
     while index < array.len() {
         index = 2 * index + usize::from(q > get(array, index));
@@ -68,14 +66,11 @@ pub fn eytzinger(array: &[u32], q: u32, cnt: &mut usize) -> usize {
     index >> zeros
 }
 
-pub fn eytzinger_prefetched(array: &[u32], q: u32, cnt: &mut usize) -> usize {
+pub fn eytzinger_prefetched(array: &[u32], q: u32, _cnt: &mut usize) -> usize {
     let mut index: usize = 1;
     while index < array.len() {
         index = 2 * index + usize::from(q > get(array, index));
-        unsafe {
-            let ptr = (&array[0] as *const u32).offset((index * 16).try_into().unwrap());
-            std::intrinsics::prefetch_read_data(ptr, 3);
-        };
+        prefetch_index(array, 16 * index);
     }
     let zeros = index.trailing_ones() + 1;
     index >> zeros
@@ -84,7 +79,7 @@ pub fn eytzinger_prefetched(array: &[u32], q: u32, cnt: &mut usize) -> usize {
 // a recursive function to actually perform the Eytzinger transformation
 // FIXME: this is not in-place (which is okay for us), but we might have to implement this in-place
 fn _to_eytzinger(a: &[u32], t: &mut Vec<u32>, i: &mut usize, k: usize) {
-    if (k <= a.len()) {
+    if k <= a.len() {
         _to_eytzinger(a, t, i, 2 * k);
         t[k] = a[*i];
         *i += 1;
@@ -101,6 +96,7 @@ pub fn to_eytzinger(array: &Vec<u32>) -> Vec<u32> {
     eytzinger
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 

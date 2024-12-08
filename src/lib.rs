@@ -1,5 +1,5 @@
 #![allow(unused)]
-#![feature(array_chunks, clone_to_uninit, portable_simd, core_intrinsics)]
+#![feature(array_chunks, portable_simd)]
 pub mod btree;
 pub mod experiments_sorted_arrays;
 pub mod sa_search;
@@ -168,7 +168,7 @@ pub mod py {
             );
             BenchmarkSortedArray {
                 func_map: functions,
-                preprocess_map: preprocess_map,
+                preprocess_map,
                 to_bench_map: Vec::new(),
             }
         }
