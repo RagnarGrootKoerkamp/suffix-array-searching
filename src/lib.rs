@@ -90,7 +90,7 @@ pub mod py {
                     let mut preprocessed_array = array.clone();
                     if self.preprocess_map.contains_key(&fname as &str) {
                         preprocessed_array =
-                            (self.preprocess_map[&fname as &str])(preprocessed_array);
+                            (self.preprocess_map[&fname as &str])(&preprocessed_array);
                     }
                     let new_results =
                         self.test_one(func.clone(), &preprocessed_array, &searched_values);
@@ -197,7 +197,7 @@ pub mod py {
                     let mut preprocessed_array = array.clone();
                     if self.preprocess_map.contains_key(&fname as &str) {
                         preprocessed_array =
-                            (self.preprocess_map[&fname as &str])(preprocessed_array);
+                            (self.preprocess_map[&fname as &str])(&preprocessed_array);
                     }
 
                     let (ref mut timings, cnts) = returned_timings.get_mut(&fname).unwrap();

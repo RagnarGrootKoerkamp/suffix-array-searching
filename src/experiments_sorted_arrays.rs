@@ -5,7 +5,7 @@ use std::simd::num::{SimdInt, SimdUint};
 use std::simd::u32x16;
 
 pub type VanillaBinSearch = fn(&[u32], u32, &mut usize) -> usize;
-pub type PreprocessArray = fn(input: Vec<u32>) -> Vec<u32>;
+pub type PreprocessArray = fn(input: &Vec<u32>) -> Vec<u32>;
 
 // FIXME: is this a good way to go around this?
 fn get(array: &[u32], index: usize) -> u32 {
@@ -83,11 +83,6 @@ pub fn eytzinger_prefetched(array: &[u32], q: u32, cnt: &mut usize) -> usize {
     index >> zeros
 }
 
-// analogous to algorithmica
-fn go_to<const B: usize>(k: usize, i: usize) -> usize {
-    return k * (B + 1) + i + 1;
-}
-
 // a recursive function to actually perform the Eytzinger transformation
 // FIXME: this is not in-place (which is okay for us), but we might have to implement this in-place
 fn _to_eytzinger(a: &[u32], t: &mut Vec<u32>, i: &mut usize, k: usize) {
@@ -99,7 +94,7 @@ fn _to_eytzinger(a: &[u32], t: &mut Vec<u32>, i: &mut usize, k: usize) {
     }
 }
 
-pub fn to_eytzinger(array: Vec<u32>) -> Vec<u32> {
+pub fn to_eytzinger(array: &Vec<u32>) -> Vec<u32> {
     let mut eytzinger = vec![0; array.len() + 1]; // +1 for one-based indexing
     eytzinger[0] = u32::MAX;
     let mut i: usize = 0;
@@ -122,10 +117,21 @@ mod tests {
     }
 
     #[test]
+    fn eytzinger_vs_binsearch() {
+        let input = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+        let preprocessed = to_eytzinger(&input);
+        let q = 5;
+        let mut cnt: usize = 0;
+        let ey_res = eytzinger(&preprocessed, q, &mut cnt);
+        let bin_res = binary_search(&input, q, &mut cnt);
+        println!("{ey_res}, {bin_res}");
+    }
+
+    #[test]
     fn eytzinger_test_pow2_min_1() {
         let input = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let corr_output = vec![u32::MAX, 8, 4, 12, 2, 6, 10, 14, 1, 3, 5, 7, 9, 11, 13, 15];
-        let output = to_eytzinger(input);
+        let output = to_eytzinger(&input);
         assert_eq!(output.len(), corr_output.len());
         let incorrect = corr_output
             .iter()
@@ -139,7 +145,7 @@ mod tests {
     fn eytzinger_test_non_pow2() {
         let input = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
         let corr_output = vec![u32::MAX, 6, 3, 8, 1, 5, 7, 9, 0, 2, 4];
-        let output = to_eytzinger(input);
+        let output = to_eytzinger(&input);
         let incorrect = corr_output
             .iter()
             .zip(&output)
