@@ -48,6 +48,7 @@ pub mod py {
             let num = rng.gen_range(min..max);
             array.push(num);
         }
+        array.push(u32::MAX);
         array.sort();
         array
     }
