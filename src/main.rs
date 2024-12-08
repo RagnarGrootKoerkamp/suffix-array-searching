@@ -1,4 +1,4 @@
-#![feature(core_intrinsics, portable_simd)]
+#![feature(core_intrinsics, portable_simd, clone_to_uninit)]
 use clap::Parser;
 use log::{debug, info};
 use rand::SeedableRng;

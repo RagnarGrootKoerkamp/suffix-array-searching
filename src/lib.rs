@@ -1,5 +1,5 @@
 #![allow(unused)]
-#![feature(array_chunks, portable_simd, core_intrinsics)]
+#![feature(array_chunks, clone_to_uninit, portable_simd, core_intrinsics)]
 pub mod btree;
 pub mod experiments_sorted_arrays;
 pub mod sa_search;
