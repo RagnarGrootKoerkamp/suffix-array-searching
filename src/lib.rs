@@ -116,6 +116,10 @@ pub mod py {
         }
 
         fn bench(&self, preprocessed_array: &[u32], queries: usize, fname: &str) -> (f64, f64) {
+            eprintln!(
+                "Benching on size {:>10} for {queries} queries: {fname}.",
+                size::Size::from_bytes(std::mem::size_of_val(preprocessed_array)).to_string()
+            );
             let mut timing = std::time::Duration::new(0, 0);
             let mut cnt = 0;
             let mut results = 0;
