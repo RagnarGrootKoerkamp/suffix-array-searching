@@ -124,7 +124,9 @@ pub mod py {
             let mut timing = std::time::Duration::new(0, 0);
             let mut cnt = 0;
             let mut results = 0;
-            let func = self.func_map[fname];
+            let Some(func) = self.func_map.get(fname) else {
+                panic!("Did not find function {fname}.");
+            };
             let mut searched_values = Vec::new();
             // FIXME this is awful
             for i in 0..queries {
