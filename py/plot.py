@@ -11,6 +11,12 @@ L1 = 32768
 L2 = 524288
 L3 = 4194304
 
+# Ragnar's config.
+if True:
+    L2 = 262144
+    L3 = 12582912
+    STOP_POW2 = 28
+
 NUM_QUERIES = 1000000
 to_try = [
     "basic_binsearch",
@@ -66,7 +72,12 @@ for name in to_try:
 
 benchmarks = b.benchmark(START_POW2, STOP_POW2, NUM_QUERIES)
 
-binsearches = ["basic_binsearch", "basic_binsearch_branchless", "eytzinger", "eytzinger_prefetched"]
-btrees_plus_eyetzinger = ["eytzinger", "eytzinger_prefetched", "btree_basic_16", "btree_simd_16"]
-plot_results(benchmarks, binsearches, "plot_binsearches.png")
-plot_results(benchmarks, btrees_plus_eyetzinger, "plot_btrees.png")
+binsearches = [
+    "basic_binsearch",
+    "basic_binsearch_branchless",
+    "eytzinger",
+    "eytzinger_prefetched",
+    # "btree_basic_16",
+    # "btree_simd_16",
+]
+plot_results(benchmarks, binsearches, "plot.png")

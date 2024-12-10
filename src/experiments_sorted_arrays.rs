@@ -29,6 +29,7 @@ pub fn binary_search(array: &[u32], q: u32, cnt: &mut usize) -> usize {
 
 // branchless search (but does not work branchless yet)
 // FIXME: branchless is inconsistent with normal binsearch when the query is larger than the largest value in the array
+// Ragnar: That's fine. I'd say we leave that case as 'implementation defined' behaviour, since it can easily be fixed by padding with u32::MAX
 pub fn binary_search_branchless(array: &[u32], q: u32, cnt: &mut usize) -> usize {
     let mut base = 0;
     let mut len = array.len();
