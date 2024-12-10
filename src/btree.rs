@@ -109,9 +109,8 @@ where
         // TODO: make this somehow work on all sizes
         const MASK_SIZE: usize = 16;
         assert!(B == MASK_SIZE);
-        let data_simd: Simd<T, 16> =
-            std::simd::prelude::Simd::<T, MASK_SIZE>::from_slice(&node.data[0..MASK_SIZE]);
-        let q_simd = std::simd::prelude::Simd::<T, MASK_SIZE>::splat(q);
+        let data_simd: Simd<T, 16> = Simd::<T, MASK_SIZE>::from_slice(&node.data[0..MASK_SIZE]);
+        let q_simd = Simd::<T, MASK_SIZE>::splat(q);
         let mask = q_simd.simd_lt(data_simd);
         //usize::try_from(mask.to_int().reduce_sum().abs()).unwrap()
         mask.first_set().unwrap()
