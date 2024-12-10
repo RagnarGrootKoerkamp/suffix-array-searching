@@ -20,6 +20,7 @@ pub mod py {
     use experiments_sorted_arrays;
     use pyo3::prelude::*;
     use rand::Rng;
+    use rdst::RadixSort;
     use std::collections::HashMap;
     const LOWEST_GENERATED: u32 = 0;
     const HIGHEST_GENERATED: u32 = 42000000;
@@ -49,7 +50,7 @@ pub mod py {
             array.push(num);
         }
         array.push(u32::MAX);
-        array.sort();
+        array.radix_sort_unstable();
         array
     }
 
