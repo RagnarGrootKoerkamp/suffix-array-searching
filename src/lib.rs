@@ -41,13 +41,14 @@ pub mod py {
         to_bench_map: Vec<String>,
     }
 
+    /// Generate a u32 array of the given *size* in bytes, and ends in u32::MAX.
     fn gen_random_array(size: usize, min: u32, max: u32) -> Vec<u32> {
+        let len = size / std::mem::size_of::<u32>();
         // TODO: generate a new array
         let mut array = Vec::new();
         let mut rng = rand::thread_rng();
-        for i in 0..size {
-            let num = rng.gen_range(min..max);
-            array.push(num);
+        for i in 0..len - 1 {
+            array.push(rng.gen_range(min..max));
         }
         array.push(u32::MAX);
         array.radix_sort_unstable();
@@ -195,7 +196,7 @@ pub mod py {
                 returned_timings.insert(fname, (times, comp_cnts));
             }
 
-            for p in start_pow2..stop_pow2 {
+            for p in start_pow2..=stop_pow2 {
                 let size = 2usize.pow(p as u32);
                 let array: Vec<u32> = gen_random_array(size, LOWEST_GENERATED, HIGHEST_GENERATED);
                 // TODO: generate array here
