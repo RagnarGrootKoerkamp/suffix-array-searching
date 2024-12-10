@@ -11,8 +11,16 @@ L1 = 32768
 L2 = 524288
 L3 = 4194304
 
-NUM_REPEATS = 1000000
-to_try = ["basic_binsearch", "basic_binsearch_branchless", "eytzinger", "eytzinger_prefetched", "btree_basic_16", "btree_branchless_16", "btree_simd_16"]
+NUM_QUERIES = 1000000
+to_try = [
+    "basic_binsearch",
+    "basic_binsearch_branchless",
+    "eytzinger",
+    "eytzinger_prefetched",
+    # "btree_basic_16",
+    # "btree_branchless_16",
+    # "btree_simd_16",
+]
 
 # def plot_results(sizes, names, timings, comparisons, filename="plot.pdf"):
 #     fig, ax = plt.subplots()
@@ -26,6 +34,7 @@ to_try = ["basic_binsearch", "basic_binsearch_branchless", "eytzinger", "eytzing
 #     ax.legend()
 #     ax.grid(True)  # Show grid for readability
 #     fig.savefig(filename, bbox_inches="tight")
+
 
 def plot_results(benchmark, names, filename):
     timings = [benchmark[name][0] for name in names]
@@ -45,6 +54,7 @@ def plot_results(benchmark, names, filename):
     ax.grid(True)  # Show grid for readability
     fig.savefig(filename, bbox_inches="tight")
 
+
 b = sa_layout.BenchmarkSortedArray()
 sizes = [2**x for x in range(START_POW2, STOP_POW2)]
 timings = []
@@ -54,7 +64,7 @@ print("START BENCHING")
 for name in to_try:
     b.add_func_to_bm(name)
 
-benchmarks = b.benchmark(START_POW2, STOP_POW2, NUM_REPEATS)
+benchmarks = b.benchmark(START_POW2, STOP_POW2, NUM_QUERIES)
 
 binsearches = ["basic_binsearch", "basic_binsearch_branchless", "eytzinger", "eytzinger_prefetched"]
 btrees_plus_eyetzinger = ["eytzinger", "eytzinger_prefetched", "btree_basic_16", "btree_simd_16"]

@@ -63,8 +63,8 @@ pub mod py {
         ) -> Vec<u32> {
             let mut results = Vec::new();
             let mut cnt: usize = 0;
-            let repetitions = searched_values.len();
-            for i in 0..repetitions {
+            let queries = searched_values.len();
+            for i in 0..queries {
                 let index = func(&preprocessed_array, searched_values[i], &mut cnt);
                 if index < preprocessed_array.len() {
                     results.push(preprocessed_array[index]);
@@ -114,27 +114,27 @@ pub mod py {
             correct
         }
 
-        fn bench(&self, preprocessed_array: &[u32], repetitions: usize, fname: &str) -> (f64, f64) {
+        fn bench(&self, preprocessed_array: &[u32], queries: usize, fname: &str) -> (f64, f64) {
             let mut timing = std::time::Duration::new(0, 0);
             let mut cnt = 0;
             let mut results = 0;
             let func = self.func_map[fname];
             let mut searched_values = Vec::new();
             // FIXME this is awful
-            for i in 0..repetitions {
+            for i in 0..queries {
                 let query = rand::thread_rng().gen_range(LOWEST_GENERATED..HIGHEST_GENERATED);
                 searched_values.push(query);
             }
 
             let start = std::time::Instant::now();
-            for i in 0..repetitions {
+            for i in 0..queries {
                 results += func(&preprocessed_array, searched_values[i], &mut cnt);
             }
             let elapsed = start.elapsed();
             // FIXME: this is ugly
             (
-                elapsed.as_nanos() as f64 / repetitions as f64,
-                cnt as f64 / repetitions as f64,
+                elapsed.as_nanos() as f64 / queries as f64,
+                cnt as f64 / queries as f64,
             )
         }
     }
@@ -181,7 +181,7 @@ pub mod py {
             &self,
             start_pow2: usize,
             stop_pow2: usize,
-            repetitions: usize,
+            queries: usize,
         ) -> HashMap<&String, (Vec<f64>, Vec<f64>)> {
             let mut returned_timings = HashMap::new();
             for fname in &self.to_bench_map {
@@ -202,7 +202,7 @@ pub mod py {
                     }
 
                     let (ref mut timings, cnts) = returned_timings.get_mut(&fname).unwrap();
-                    let (timing, cnt) = self.bench(&preprocessed_array, repetitions, &fname);
+                    let (timing, cnt) = self.bench(&preprocessed_array, queries, &fname);
                     cnts.push(cnt);
                     timings.push(timing);
                 }
