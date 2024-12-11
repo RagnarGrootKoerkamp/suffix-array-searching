@@ -25,6 +25,7 @@ const HIGHEST_GENERATED: u32 = 42000000;
 
 pub type Fn<T> = (&'static str, fn(&mut T, u32) -> u32);
 pub type BFn<const B: usize, T> = (&'static str, fn(&mut T, &[u32; B]) -> [u32; B]);
+pub type PFn<const B: usize, T> = (&'static str, fn(&T, &[u32; B]) -> [u32; B]);
 
 pub fn run<T>(searcher: &mut T, search: Fn<T>, queries: &[u32]) -> Vec<u32> {
     queries
@@ -59,6 +60,34 @@ pub fn bench_batch<const B: usize, T>(searcher: &mut T, search: BFn<B, T>, queri
     for qs in queries.array_chunks::<B>() {
         black_box(search.1(searcher, qs));
     }
+    let elapsed = start.elapsed();
+    elapsed.as_nanos() as f64 / queries.len() as f64
+}
+
+pub fn bench_batch_par<const B: usize, T: Send + Sync>(
+    searcher: &mut T,
+    search: PFn<B, T>,
+    queries: &[u32],
+    threads: usize,
+) -> f64 {
+    info!("Benching {}", search.0);
+    let chunk_size = queries.len().div_ceil(threads).next_multiple_of(B);
+    let start = Instant::now();
+
+    rayon::scope(|scope| {
+        for idx in 0..threads {
+            let searcher = &searcher;
+            let search = &search;
+            scope.spawn(move |_| {
+                let start_idx = idx * chunk_size;
+                let end = ((idx + 1) * chunk_size).min(queries.len());
+                for qs in queries[start_idx..end].array_chunks::<B>() {
+                    black_box(search.1(searcher, qs));
+                }
+            });
+        }
+    });
+
     let elapsed = start.elapsed();
     elapsed.as_nanos() as f64 / queries.len() as f64
 }
@@ -368,6 +397,13 @@ impl BenchmarkSortedArray {
             let f: BFn<128, _> = ("bp_batch_ptr3_rev_last", BpTree16R::batch_ptr3::<128, true>);
             let t = bench_batch(bp, f, queries);
             results.entry(f.0).or_default().push((size, t, 0));
+
+            let strings = ["", "t1", "t2", "t3", "t4", "t5", "t6"];
+            for t in 1..=6 {
+                let f: PFn<128, _> = (strings[t], BpTree16R::batch_ptr3_par::<128, false>);
+                let t = bench_batch_par(bp, f, queries, t);
+                results.entry(f.0).or_default().push((size, t, 0));
+            }
 
             // let f: BFn<32, _> = ("bp_batch_ptr3_32", BpTree16::batch_ptr3::<32>);
             // let t = bench_batch(bp, f, queries);

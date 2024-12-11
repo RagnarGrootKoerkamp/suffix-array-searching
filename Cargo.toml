@@ -31,3 +31,4 @@ rdst = "0.20.14"
 size = "0.4.1"
 tracing =  {version="0.1.41", features=["log"]}
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+rayon = "1.10.0"

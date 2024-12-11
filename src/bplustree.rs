@@ -221,6 +221,10 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
     }
 
     pub fn batch_ptr3<const P: usize, const LAST: bool>(&mut self, q: &[u32; P]) -> [u32; P] {
+        self.batch_ptr3_par::<P, LAST>(q)
+    }
+
+    pub fn batch_ptr3_par<const P: usize, const LAST: bool>(&self, q: &[u32; P]) -> [u32; P] {
         let mut k = [0; P];
         let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
 
