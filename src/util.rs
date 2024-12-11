@@ -168,17 +168,24 @@ pub fn read_human_genome_with_sa() -> (Sequence, SA) {
 }
 
 fn init_trace() {
-    use tracing::level_filters::LevelFilter;
-    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+    // use tracing::level_filters::LevelFilter;
+    // use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
-        .with(
-            tracing_subscriber::EnvFilter::builder()
-                .with_default_directive(LevelFilter::TRACE.into())
-                .from_env_lossy(),
-        )
-        .init();
+    // tracing_subscriber::registry()
+    //     .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+    //     .with(
+    //         tracing_subscriber::EnvFilter::builder()
+    //             .with_default_directive(LevelFilter::TRACE.into())
+    //             .from_env_lossy(),
+    //     )
+    //     .init();
+
+    stderrlog::new()
+        .color(stderrlog::ColorChoice::Always)
+        .verbosity(5)
+        .show_level(true)
+        .init()
+        .unwrap();
 }
 
 pub static INIT_TRACE: LazyLock<()> = LazyLock::new(init_trace);
