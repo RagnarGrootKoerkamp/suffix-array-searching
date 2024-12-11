@@ -86,6 +86,37 @@ impl<const B: usize, const N: usize> BTreeNode<B, N> {
         }
     }
 
+    /// This returns the popcount multiplied by 64.
+    /// Normal:   last index < query.
+    /// Reversed: last index <= query.
+    pub fn find_splat_last(&self, q_simd: Simd<u32, 8>) -> usize {
+        let low: Simd<u32, 8> = Simd::from_slice(&self.data[0..N / 2]);
+        let high: Simd<u32, 8> = Simd::from_slice(&self.data[N / 2..N]);
+        unsafe {
+            let q_simd: Simd<i32, 8> = t(q_simd);
+            let mask_low = q_simd.simd_ge(t(low));
+            let mask_high = q_simd.simd_ge(t(high));
+            use std::mem::transmute as t;
+            let merged = _mm256_packs_epi32(t(mask_low), t(mask_high));
+            let mask = _mm256_movemask_epi8(t(merged));
+            mask.count_ones() as usize / 2
+        }
+    }
+
+    pub fn find_splat64_last(&self, q_simd: Simd<u32, 8>) -> usize {
+        let low: Simd<u32, 8> = Simd::from_slice(&self.data[0..N / 2]);
+        let high: Simd<u32, 8> = Simd::from_slice(&self.data[N / 2..N]);
+        unsafe {
+            let q_simd: Simd<i32, 8> = t(q_simd);
+            let mask_low = q_simd.simd_ge(t(low));
+            let mask_high = q_simd.simd_ge(t(high));
+            use std::mem::transmute as t;
+            let merged = _mm256_packs_epi32(t(mask_low), t(mask_high));
+            let mask = _mm256_movemask_epi8(t(merged));
+            mask.count_ones() as usize * 32
+        }
+    }
+
     /// Return the index of the first element >=q.
     /// This first does a single comparison to choose the left or right half of the array,
     /// and then uses SIMD on that half.

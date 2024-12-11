@@ -164,6 +164,13 @@ impl BenchmarkSortedArray {
             let new_results = run_batch(bp, f, queries);
             assert_eq!(results, new_results, "{}", f.0);
 
+            let f: BFn<128, _> = ("bp_batch_ptr3", BpTree16::batch_ptr3::<128, false>);
+            let new_results = run_batch(bp, f, queries);
+            assert_eq!(results, new_results, "{}\n{vals:?}", f.0);
+
+            let f: BFn<128, _> = ("bp_batch_ptr3_last", BpTree16::batch_ptr3::<128, true>);
+            let last_results = run_batch(bp, f, queries);
+
             let bp = &mut BpTree15::new(vals.clone());
 
             let f: BFn<128, _> = ("bp_batch", BpTree15::batch::<128>);
@@ -181,6 +188,16 @@ impl BenchmarkSortedArray {
             let f: BFn<128, _> = ("bp_batch_ptr", BpTree15::batch_ptr2::<128>);
             let new_results = run_batch(bp, f, queries);
             assert_eq!(results, new_results, "{}", f.0);
+
+            let bpr = &mut BpTree16R::new(vals.clone());
+
+            let f: BFn<128, _> = ("bp_batch_ptr3_rev", BpTree16R::batch_ptr3::<128, false>);
+            let new_results = run_batch(bpr, f, queries);
+            assert_eq!(results, new_results, "{}\n{vals:?}", f.0);
+
+            let f: BFn<128, _> = ("bp_batch_ptr3_rev_last", BpTree16R::batch_ptr3::<128, true>);
+            let new_last_results = run_batch(bpr, f, queries);
+            assert_eq!(last_results, new_last_results, "{}\n{vals:?}", f.0);
         }
         correct
     }
@@ -325,18 +342,30 @@ impl BenchmarkSortedArray {
             // let t = bench_batch(bp, f, queries);
             // results.entry(f.0).or_default().push((size, t, 0));
 
-            let bp = &mut BpTree16::new(vals[..len].to_vec());
+            // let bp = &mut BpTree16::new(vals[..len].to_vec());
 
-            let f: BFn<128, _> = ("bp_batch_prefetch", BpTree16::batch_prefetch::<128>);
+            // let f: BFn<128, _> = ("bp_batch_prefetch", BpTree16::batch_prefetch::<128>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+            // let f: BFn<128, _> = ("bp_batch_ptr", BpTree16::batch_ptr::<128>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+            // let f: BFn<128, _> = ("bp_batch_ptr2", BpTree16::batch_ptr2::<128>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+            // let f: BFn<128, _> = ("bp_batch_ptr3", BpTree16::batch_ptr3::<128, false>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+            // let f: BFn<128, _> = ("bp_batch_ptr3_last", BpTree16::batch_ptr3::<128, true>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+
+            let bp = &mut BpTree16R::new(vals[..len].to_vec());
+
+            let f: BFn<128, _> = ("bp_batch_ptr3_rev", BpTree16R::batch_ptr3::<128, false>);
             let t = bench_batch(bp, f, queries);
             results.entry(f.0).or_default().push((size, t, 0));
-            let f: BFn<128, _> = ("bp_batch_ptr", BpTree16::batch_ptr::<128>);
-            let t = bench_batch(bp, f, queries);
-            results.entry(f.0).or_default().push((size, t, 0));
-            let f: BFn<128, _> = ("bp_batch_ptr2", BpTree16::batch_ptr2::<128>);
-            let t = bench_batch(bp, f, queries);
-            results.entry(f.0).or_default().push((size, t, 0));
-            let f: BFn<128, _> = ("bp_batch_ptr3", BpTree16::batch_ptr3::<128>);
+            let f: BFn<128, _> = ("bp_batch_ptr3_rev_last", BpTree16R::batch_ptr3::<128, true>);
             let t = bench_batch(bp, f, queries);
             results.entry(f.0).or_default().push((size, t, 0));
 

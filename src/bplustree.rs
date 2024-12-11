@@ -220,7 +220,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         })
     }
 
-    pub fn batch_ptr3<const P: usize>(&mut self, q: &[u32; P]) -> [u32; P] {
+    pub fn batch_ptr3<const P: usize, const LAST: bool>(&mut self, q: &[u32; P]) -> [u32; P] {
         let mut k = [0; P];
         let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
 
@@ -234,7 +234,11 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
             let o = unsafe { *offsets.get_unchecked(h) };
             let o2 = unsafe { *offsets.get_unchecked(h - 1) };
             for i in 0..P {
-                let jump_to = unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i]);
+                let jump_to = if !LAST {
+                    unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
+                } else {
+                    unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
+                };
                 k[i] = k[i] * (B + 1) + jump_to;
                 prefetch_ptr(unsafe { o2.byte_add(k[i]) });
             }
@@ -242,7 +246,11 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
 
         let o = unsafe { *offsets.get_unchecked(0) };
         std::array::from_fn(|i| {
-            let mut index = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
+            let mut index = if !LAST {
+                unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
+            } else {
+                unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
+            };
             if !REV && index == B {
                 index = N;
             }
