@@ -19,22 +19,26 @@ def plot_results(results, out):
     plt.close("all")
     fig, ax = plt.subplots()
     for name, rs in sorted(results.items()):
-        ax.plot([r[0] for r in rs], [r[1] for r in rs], label=name)
+        ls = "solid"
+        if "ptr" in name:
+            ls = "dashed"
+        ax.plot([r[0] for r in rs], [r[1] for r in rs], label=name, ls=ls)
+
     # Customize the plot
     ax.set_xlabel("Array size (bytes)")
-    secax = ax.secondary_xaxis("top", functions=(lambda x: 4 * x, lambda x: x / 4))
-    secax.set_xscale("log", base=2)
-    secax.set_xlabel("Array length (u32)")
     ax.set_ylabel("Time per query (ns)")
     ax.set_xscale("log", base=2)
+    secax = ax.secondary_xaxis("top", functions=(lambda x: x / 4, lambda x: x * 4))
+    secax.set_xscale("log", base=2)
+    secax.set_xlabel("Array length (u32)")
 
     for L in caches():
         ax.axvline(x=L, linestyle="--", color="blue")
     ax.legend(loc="upper left")
-    ax.grid(True)  # Show grid for readability
-    ax.set_ylim(0, 200)
+    ax.grid(True)
+    ax.grid(which="minor", color="gray", alpha=0.2)
     fig.savefig(out, bbox_inches="tight")
-    fig.show()
+    plt.show()
 
 
 b = sa_layout.BenchmarkSortedArray()
@@ -44,6 +48,7 @@ START_POW2 = 5
 STOP_POW2 = 28
 NUM_QUERIES = 1000000
 
+print("Starting benchmarks..")
 results = b.benchmark(START_POW2, STOP_POW2, NUM_QUERIES)
 
 plot_results(results, "plot.svg")
