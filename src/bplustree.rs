@@ -101,6 +101,17 @@ impl<const B: usize, const N: usize> BpTree<B, N> {
         self.get(k + index / B, index % B)
     }
 
+    pub fn search_split(&mut self, q: u32) -> u32 {
+        let mut k = 0;
+        for o in self.offsets[1..self.offsets.len() - 1].into_iter().rev() {
+            let jump_to = self.node(o + k).find_split(q);
+            k = k * (B + 1) + jump_to;
+        }
+
+        let index = self.node(k).find(q);
+        self.get(k + index / B, index % B)
+    }
+
     pub fn batch<const P: usize>(&mut self, q: &[u32; P]) -> [u32; P] {
         let mut k = [0; P];
         for o in self.offsets[1..self.offsets.len() - 1].into_iter().rev() {

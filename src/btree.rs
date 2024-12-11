@@ -32,6 +32,22 @@ impl<const B: usize, const N: usize> BTreeNode<B, N> {
         let mask = q_simd.simd_le(data_simd);
         mask.first_set().unwrap_or(B)
     }
+    /// Return the index of the first element >=q.
+    /// This first does a single comparison to choose the left or right half of the array,
+    /// and then uses SIMD on that half.
+    /// This may reduce the pressure on SIMD registers.
+    pub fn find_split(&self, q: u32) -> usize {
+        let idx;
+        if q <= self.data[B / 2] {
+            idx = 0;
+        } else {
+            idx = B / 2;
+        }
+        let half_simd = Simd::<u32, 8>::from_slice(&self.data[idx..idx + B / 2]);
+        let q_simd = Simd::splat(q);
+        let mask = q_simd.simd_le(half_simd);
+        idx + mask.first_set().unwrap_or(8)
+    }
 }
 
 impl<const B: usize, const N: usize> BTree<B, N> {

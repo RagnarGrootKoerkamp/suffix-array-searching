@@ -169,7 +169,10 @@ impl BenchmarkSortedArray {
             ("bt_loop", BTree16::search_loop),
             ("bt_simd", BTree16::search_simd),
         ];
-        let bp: Vec<Fn<_>> = vec![("bp_search", BpTree16::search)];
+        let bp: Vec<Fn<_>> = vec![
+            ("bp_search", BpTree16::search),
+            ("bp_search_split", BpTree16::search_split),
+        ];
 
         BenchmarkSortedArray { bs, eyt, bt, bp }
     }
