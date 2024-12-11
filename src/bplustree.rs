@@ -1,6 +1,6 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, simd::Simd};
 
-use crate::{btree::BTreeNode, prefetch_index};
+use itertools::Itertools;
 
 use crate::{
     btree::{BTreeNode, MAX},
@@ -129,21 +129,79 @@ impl<const B: usize, const N: usize> BpTree<B, N> {
 
     pub fn batch_prefetch<const P: usize>(&mut self, q: &[u32; P]) -> [u32; P] {
         let mut k = [0; P];
+        let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
         for h in (1..self.offsets.len() - 1).rev() {
             let o = unsafe { self.offsets.get_unchecked(h) };
             let o2 = unsafe { self.offsets.get_unchecked(h - 1) };
             for i in 0..P {
-                let jump_to = self.node(o + k[i]).find(q[i]);
+                let jump_to = self.node(o + k[i]).find_splat(q_simd[i]);
                 k[i] = k[i] * (B + 1) + jump_to;
                 prefetch_index(&self.tree, o2 + k[i]);
             }
         }
 
         std::array::from_fn(|i| {
-            let index = self.node(k[i]).find(q[i]);
+            let index = self.node(k[i]).find_splat(q_simd[i]);
             self.get(k[i] + index / B, index % B)
         })
     }
+
+    pub fn batch_ptr<const P: usize>(&mut self, q: &[u32; P]) -> [u32; P] {
+        let mut k = [0; P];
+        let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
+
+        let offsets = self
+            .offsets
+            .iter()
+            .map(|o| unsafe { self.tree.as_ptr().add(*o) })
+            .collect_vec();
+
+        for h in (1..offsets.len() - 1).rev() {
+            let o = unsafe { *offsets.get_unchecked(h) };
+            let o2 = unsafe { *offsets.get_unchecked(h - 1) };
+            for i in 0..P {
+                let jump_to = unsafe { *o.add(k[i]) }.find_splat(q_simd[i]);
+                k[i] = k[i] * (B + 1) + jump_to;
+                prefetch_ptr(unsafe { o2.add(k[i]) });
+            }
+        }
+
+        std::array::from_fn(|i| {
+            let index = self.node(k[i]).find_splat(q_simd[i]);
+            self.get(k[i] + index / B, index % B)
+        })
+    }
+
+    pub fn batch_ptr2<const P: usize>(&mut self, q: &[u32; P]) -> [u32; P] {
+        let mut k = [0; P];
+        let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
+
+        let offsets = self
+            .offsets
+            .iter()
+            .map(|o| unsafe { self.tree.as_ptr().add(*o) })
+            .collect_vec();
+
+        for h in (1..offsets.len() - 1).rev() {
+            let o = unsafe { *offsets.get_unchecked(h) };
+            let o2 = unsafe { *offsets.get_unchecked(h - 1) };
+            for i in 0..P {
+                let jump_to = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
+                k[i] = k[i] * (B + 1) + jump_to * 64;
+                prefetch_ptr(unsafe { o2.byte_add(k[i]) });
+            }
+        }
+
+        let o = unsafe { *offsets.get_unchecked(0) };
+        std::array::from_fn(|i| {
+            let mut index = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
+            if index == B {
+                index = N;
+            }
+            unsafe { (o.byte_add(k[i]) as *const u32).add(index).read() }
+        })
+    }
+
 }
 
 #[cfg(test)]
