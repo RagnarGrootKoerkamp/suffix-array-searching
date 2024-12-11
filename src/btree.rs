@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 use std::simd::prelude::*;
 
+pub(super) const MAX: u32 = i32::MAX as u32;
+
 #[repr(align(64))]
 #[derive(Clone, Copy, Debug)]
 pub struct BTreeNode<const B: usize, const PAD: usize> {
@@ -47,6 +49,10 @@ impl<const B: usize, const PAD: usize> BTree<B, PAD> {
         };
         let mut i: usize = 0;
         let k = 0;
+        // SIMD operations fail for values outside this range.
+        for &v in &vals {
+            assert!(v <= MAX);
+        }
         btree.to_btree(&vals, &mut i, k);
         btree
     }
@@ -60,7 +66,7 @@ impl<const B: usize, const PAD: usize> BTree<B, PAD> {
         if k < num_blocks {
             for j in 0..B {
                 self.to_btree(a, i, Self::go_to(k, j));
-                self.tree[k].data[j] = a.get(*i).unwrap_or(&u32::MAX).clone();
+                self.tree[k].data[j] = a.get(*i).unwrap_or(&MAX).clone();
                 *i += 1;
             }
             self.to_btree(a, i, Self::go_to(k, B));
@@ -80,7 +86,7 @@ impl<const B: usize, const PAD: usize> BTree<B, PAD> {
         // completely naive
         let mut k = 0;
         let btree_blocks = self.tree.len();
-        let mut ans = u32::MAX;
+        let mut ans = MAX;
         while k < btree_blocks {
             let mut jump_to = 0;
             for j in 0..B {
@@ -102,7 +108,7 @@ impl<const B: usize, const PAD: usize> BTree<B, PAD> {
         // completely naive
         let mut k = 0;
         let btree_blocks = self.tree.len();
-        let mut ans = u32::MAX;
+        let mut ans = MAX;
         while k < btree_blocks {
             let mut jump_to = 0;
             for j in 0..B {
@@ -121,7 +127,7 @@ impl<const B: usize, const PAD: usize> BTree<B, PAD> {
         // completely naive
         let mut k = 0;
         let btree_blocks = self.tree.len();
-        let mut ans = u32::MAX;
+        let mut ans = MAX;
         while k < btree_blocks {
             let jump_to = self.tree[k].find(q);
             if jump_to < B {
@@ -156,7 +162,7 @@ mod tests {
     #[test]
     fn test_btree_search_bottom_layer() {
         let mut vals: Vec<u32> = (1..2000).collect();
-        vals.push(u32::MAX);
+        vals.push(MAX);
         let q = 452;
         let mut btree = BTree::<16, 0>::new(vals.clone());
         let btree_res = btree.search(q);
@@ -169,7 +175,7 @@ mod tests {
     #[test]
     fn test_btree_search_top_node() {
         let mut vals: Vec<u32> = (1..2000).collect();
-        vals.push(u32::MAX);
+        vals.push(MAX);
         let q = 289;
         let mut btree = BTree::<16, 0>::new(vals.clone());
         let btree_res = btree.search(q);
@@ -182,8 +188,8 @@ mod tests {
     #[test]
     fn test_simd_cmp() {
         let mut vals: Vec<u32> = (1..16).collect();
-        vals.push(u32::MAX);
         let btree = BTree::<16, 0>::new(vals);
+        vals.push(MAX);
         let idx = btree.tree[0].find(1);
         println!("{}", idx);
         assert!(idx == 0);
@@ -192,7 +198,7 @@ mod tests {
     #[test]
     fn test_btree_simd_bottom_layer() {
         let mut vals: Vec<u32> = (1..2000).collect();
-        vals.push(u32::MAX);
+        vals.push(MAX);
         let q = 452;
         let mut btree = BTree::<16, 0>::new(vals.clone());
         let btree_res = btree.search_simd(q);
@@ -205,7 +211,7 @@ mod tests {
     #[test]
     fn test_btree_simd_top_node() {
         let mut vals: Vec<u32> = (1..2000).collect();
-        vals.push(u32::MAX);
+        vals.push(MAX);
         let q = 289;
         let mut btree = BTree::<16, 0>::new(vals.clone());
         let btree_res = btree.search_simd(q);

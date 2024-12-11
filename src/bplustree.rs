@@ -2,6 +2,11 @@ use std::fmt::Debug;
 
 use crate::{btree::BTreeNode, prefetch_index};
 
+use crate::{
+    btree::{BTreeNode, MAX},
+    prefetch_index, prefetch_ptr,
+};
+
 #[derive(Debug)]
 pub struct BpTree<const B: usize, const PAD: usize> {
     tree: Vec<BTreeNode<B, PAD>>,
@@ -49,6 +54,11 @@ impl<const B: usize, const PAD: usize> BpTree<B, PAD> {
             cnt: 0,
             offsets: (0..=height).map(|h| Self::offset(n, h)).collect(),
         };
+
+        for &v in &vals {
+            assert!(v <= MAX);
+        }
+
         // Copy the input values to the start.
         for (i, &val) in vals.iter().enumerate() {
             bptree.tree[i / B].data[i % B] = val;
@@ -67,7 +77,7 @@ impl<const B: usize, const PAD: usize> BpTree<B, PAD> {
                 bptree.tree[bptree.offsets[h] + i / B].data[i % B] = if k * B < n {
                     bptree.tree[k].data[0]
                 } else {
-                    u32::MAX
+                    MAX
                 };
             }
         }
@@ -150,7 +160,7 @@ mod tests {
     #[test]
     fn test_bptree_search_bottom_layer() {
         let mut vals: Vec<u32> = (1..2000).collect();
-        vals.push(u32::MAX);
+        vals.push(MAX);
         let q = 452;
         let mut bptree = BpTree::<16, 0>::new(vals.clone());
         let bptree_res = bptree.search(q);
@@ -163,7 +173,7 @@ mod tests {
     #[test]
     fn test_bptree_search_top_node() {
         let mut vals: Vec<u32> = (1..2000).collect();
-        vals.push(u32::MAX);
+        vals.push(MAX);
         let q = 289;
         let mut bptree = BpTree::<16, 0>::new(vals.clone());
         let bptree_res = bptree.search(q);
@@ -176,8 +186,8 @@ mod tests {
     #[test]
     fn test_simd_cmp() {
         let mut vals: Vec<u32> = (1..16).collect();
-        vals.push(u32::MAX);
         let bptree = BpTree::<16, 0>::new(vals);
+        vals.push(MAX);
         let idx = bptree.tree[0].find(1);
         println!("{}", idx);
         assert!(idx == 0);

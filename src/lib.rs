@@ -8,6 +8,7 @@ pub mod util;
 
 use bplustree::BpTree16;
 pub use btree::BTree16;
+use btree::MAX;
 pub use experiments_sorted_arrays::{BinarySearch, Eytzinger};
 use itertools::Itertools;
 use pyo3::prelude::*;
@@ -58,14 +59,14 @@ pub fn gen_queries(n: usize) -> Vec<u32> {
         .collect()
 }
 
-/// Generate a u32 array of the given *size* in bytes, and ending in u32::MAX.
+/// Generate a u32 array of the given *size* in bytes, and ending in i32::MAX.
 pub fn gen_vals(size: usize, sort: bool) -> Vec<u32> {
     let n = size / std::mem::size_of::<u32>();
     // TODO: generate a new array
     let mut vals = (0..n - 1)
         .map(|_| rand::thread_rng().gen_range(LOWEST_GENERATED..HIGHEST_GENERATED))
         .collect_vec();
-    vals.push(u32::MAX);
+    vals.push(MAX);
     if sort {
         vals.radix_sort_unstable();
     }
@@ -184,7 +185,7 @@ impl BenchmarkSortedArray {
         let start = Instant::now();
         let queries = &gen_queries(queries);
         let mut vals = gen_vals(1 << stop_pow2, false);
-        vals[0] = u32::MAX;
+        vals[0] = MAX;
         info!("Generating took {:?}", start.elapsed());
 
         for p in start_pow2..=stop_pow2 {
