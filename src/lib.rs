@@ -22,8 +22,8 @@ pub use util::*;
 const LOWEST_GENERATED: u32 = 0;
 const HIGHEST_GENERATED: u32 = 42000000;
 
-type Fn<T> = (&'static str, fn(&mut T, u32) -> u32);
-type BFn<const B: usize, T> = (&'static str, fn(&mut T, &[u32; B]) -> [u32; B]);
+pub type Fn<T> = (&'static str, fn(&mut T, u32) -> u32);
+pub type BFn<const B: usize, T> = (&'static str, fn(&mut T, &[u32; B]) -> [u32; B]);
 
 pub fn run<T>(searcher: &mut T, search: Fn<T>, queries: &[u32]) -> Vec<u32> {
     queries

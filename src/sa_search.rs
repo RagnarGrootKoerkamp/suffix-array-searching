@@ -457,15 +457,3 @@ type F<const B: usize> = fn(&SaNaive, [&[u8]; B], &mut usize) -> [usize; B];
 fn init_color_backtrace() {
     color_backtrace::install();
 }
-
-pub fn rank_curve(seq: &Seq, k: usize) -> Vec<u32> {
-    let mut counts = vec![0; 1 << (2 * k)];
-    for i in 0..seq.len() - k + 1 {
-        let mut key = 0;
-        for j in 0..k {
-            key = key << 2 | seq[i + j] as usize;
-        }
-        counts[key] += 1;
-    }
-    counts
-}
