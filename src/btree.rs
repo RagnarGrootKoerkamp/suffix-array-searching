@@ -5,41 +5,36 @@ pub(super) const MAX: u32 = i32::MAX as u32;
 
 #[repr(align(64))]
 #[derive(Clone, Copy, Debug)]
-pub struct BTreeNode<const B: usize, const PAD: usize> {
-    pub(super) data: [u32; B],
-    pub(super) _padding: [u8; PAD],
+pub struct BTreeNode<const B: usize, const N: usize> {
+    pub(super) data: [u32; N],
 }
 
 #[derive(Debug)]
-pub struct BTree<const B: usize, const PAD: usize> {
-    tree: Vec<BTreeNode<B, PAD>>,
+pub struct BTree<const B: usize, const N: usize> {
+    tree: Vec<BTreeNode<B, N>>,
     pub cnt: usize,
 }
 
-pub type BTree16 = BTree<16, 0>;
+pub type BTree16 = BTree<16, 16>;
 
-impl<const B: usize, const PAD: usize> Default for BTreeNode<B, PAD> {
-    fn default() -> BTreeNode<B, PAD> {
-        BTreeNode {
-            data: [0; B],
-            _padding: [0; PAD],
-        }
+impl<const B: usize, const N: usize> Default for BTreeNode<B, N> {
+    fn default() -> BTreeNode<B, N> {
+        BTreeNode { data: [0; N] }
     }
 }
 
-impl<const B: usize, const PAD: usize> BTreeNode<B, PAD> {
-    /// Return the index of the first element >=q.
+impl<const B: usize, const N: usize> BTreeNode<B, N> {
     pub fn find(&self, q: u32) -> usize {
         // TODO: Make this somehow work on all sizes.
         // TODO: Experiment with size 8 and size 16 simd.
         let data_simd: Simd<u32, 16> = Simd::from_slice(&self.data[0..B]);
         let q_simd = Simd::splat(q);
         let mask = q_simd.simd_le(data_simd);
-        mask.first_set().unwrap_or(16)
+        mask.first_set().unwrap_or(B)
     }
 }
 
-impl<const B: usize, const PAD: usize> BTree<B, PAD> {
+impl<const B: usize, const N: usize> BTree<B, N> {
     pub fn new(vals: Vec<u32>) -> Self {
         // always have at least one node
         let n_blocks = vals.len().div_ceil(B);
@@ -147,7 +142,7 @@ mod tests {
     #[test]
     fn test_b_tree_k_2() {
         let vals = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let btree = BTree::<2, 0>::new(vals);
+        let btree = BTree::<2, 2>::new(vals);
         println!("{:?}", btree);
     }
 
@@ -155,7 +150,7 @@ mod tests {
     fn test_b_tree_k_3() {
         let vals = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         // let correct_output = vec![4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15];
-        let computed_out = BTree::<3, 0>::new(vals);
+        let computed_out = BTree::<3, 3>::new(vals);
         println!("{:?}", computed_out);
     }
 
@@ -164,7 +159,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 452;
-        let mut btree = BTree::<16, 0>::new(vals.clone());
+        let mut btree = BTree::<16, 16>::new(vals.clone());
         let btree_res = btree.search(q);
 
         let binsearch_res = BinarySearch::new(vals).search(q);
@@ -177,7 +172,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 289;
-        let mut btree = BTree::<16, 0>::new(vals.clone());
+        let mut btree = BTree::<16, 16>::new(vals.clone());
         let btree_res = btree.search(q);
 
         let binsearch_res = BinarySearch::new(vals).search(q);
@@ -188,8 +183,8 @@ mod tests {
     #[test]
     fn test_simd_cmp() {
         let mut vals: Vec<u32> = (1..16).collect();
-        let btree = BTree::<16, 0>::new(vals);
         vals.push(MAX);
+        let btree = BTree::<16, 16>::new(vals);
         let idx = btree.tree[0].find(1);
         println!("{}", idx);
         assert!(idx == 0);
@@ -200,7 +195,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 452;
-        let mut btree = BTree::<16, 0>::new(vals.clone());
+        let mut btree = BTree::<16, 16>::new(vals.clone());
         let btree_res = btree.search_simd(q);
 
         let binsearch_res = BinarySearch::new(vals).search(q);
@@ -213,7 +208,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 289;
-        let mut btree = BTree::<16, 0>::new(vals.clone());
+        let mut btree = BTree::<16, 16>::new(vals.clone());
         let btree_res = btree.search_simd(q);
 
         let binsearch_res = BinarySearch::new(vals).search(q);

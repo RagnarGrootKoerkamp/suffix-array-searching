@@ -6,7 +6,7 @@ pub mod experiments_sorted_arrays;
 pub mod sa_search;
 pub mod util;
 
-use bplustree::BpTree16;
+use bplustree::{BpTree15, BpTree16};
 pub use btree::BTree16;
 use btree::MAX;
 pub use experiments_sorted_arrays::{BinarySearch, Eytzinger};

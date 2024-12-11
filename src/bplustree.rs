@@ -7,16 +7,20 @@ use crate::{
     prefetch_index, prefetch_ptr,
 };
 
+// N total elements in a node.
+// B branching factor.
+// B-1 actual elements in a node.
 #[derive(Debug)]
-pub struct BpTree<const B: usize, const PAD: usize> {
-    tree: Vec<BTreeNode<B, PAD>>,
+pub struct BpTree<const B: usize, const N: usize> {
+    tree: Vec<BTreeNode<B, N>>,
     pub cnt: usize,
     offsets: Vec<usize>,
 }
 
-pub type BpTree16 = BpTree<16, 0>;
+pub type BpTree16 = BpTree<16, 16>;
+pub type BpTree15 = BpTree<15, 16>;
 
-impl<const B: usize, const PAD: usize> BpTree<B, PAD> {
+impl<const B: usize, const N: usize> BpTree<B, N> {
     fn blocks(n: usize) -> usize {
         n.div_ceil(B)
     }
@@ -44,13 +48,7 @@ impl<const B: usize, const PAD: usize> BpTree<B, PAD> {
         let height = Self::height(n);
         let n_blocks = Self::offset(n, height);
         let mut bptree = Self {
-            tree: vec![
-                BTreeNode {
-                    data: [u32::MAX; B],
-                    _padding: [0; PAD],
-                };
-                n_blocks
-            ],
+            tree: vec![BTreeNode { data: [MAX; N] }; n_blocks],
             cnt: 0,
             offsets: (0..=height).map(|h| Self::offset(n, h)).collect(),
         };
@@ -84,7 +82,7 @@ impl<const B: usize, const PAD: usize> BpTree<B, PAD> {
         bptree
     }
 
-    fn node(&self, b: usize) -> &BTreeNode<B, PAD> {
+    fn node(&self, b: usize) -> &BTreeNode<B, N> {
         unsafe { &*self.tree.get_unchecked(b) }
     }
 
@@ -145,7 +143,7 @@ mod tests {
     #[test]
     fn test_b_tree_k_2() {
         let vals = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let bptree = BpTree::<2, 0>::new(vals);
+        let bptree = BpTree::<2, 2>::new(vals);
         println!("{:?}", bptree);
     }
 
@@ -153,7 +151,7 @@ mod tests {
     fn test_b_tree_k_3() {
         let vals = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         // let correct_output = vec![4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15];
-        let computed_out = BpTree::<3, 0>::new(vals);
+        let computed_out = BpTree::<3, 3>::new(vals);
         println!("{:?}", computed_out);
     }
 
@@ -162,7 +160,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 452;
-        let mut bptree = BpTree::<16, 0>::new(vals.clone());
+        let mut bptree = BpTree::<16, 16>::new(vals.clone());
         let bptree_res = bptree.search(q);
 
         let binsearch_res = BinarySearch::new(vals).search(q);
@@ -175,7 +173,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 289;
-        let mut bptree = BpTree::<16, 0>::new(vals.clone());
+        let mut bptree = BpTree::<16, 16>::new(vals.clone());
         let bptree_res = bptree.search(q);
 
         let binsearch_res = BinarySearch::new(vals).search(q);
@@ -186,10 +184,10 @@ mod tests {
     #[test]
     fn test_simd_cmp() {
         let mut vals: Vec<u32> = (1..16).collect();
-        let bptree = BpTree::<16, 0>::new(vals);
         vals.push(MAX);
+        let bptree = BpTree::<16, 16>::new(vals);
         let idx = bptree.tree[0].find(1);
         println!("{}", idx);
-        assert!(idx == 0);
+        assert_eq!(idx, 0);
     }
 }
