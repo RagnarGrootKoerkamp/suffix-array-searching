@@ -1,12 +1,14 @@
 #![feature(array_chunks, portable_simd)]
 
+pub mod bplustree;
 pub mod btree;
 pub mod experiments_sorted_arrays;
 pub mod sa_search;
 pub mod util;
 
-use btree::BTree16;
-use experiments_sorted_arrays::{BinarySearch, Eytzinger};
+use bplustree::BpTree16;
+pub use btree::BTree16;
+pub use experiments_sorted_arrays::{BinarySearch, Eytzinger};
 use itertools::Itertools;
 use pyo3::prelude::*;
 use rand::Rng;
@@ -22,14 +24,14 @@ const HIGHEST_GENERATED: u32 = 42000000;
 
 type Fn<T> = (&'static str, fn(&mut T, u32) -> u32);
 
-fn run<T>(searcher: &mut T, search: Fn<T>, queries: &[u32]) -> Vec<u32> {
+pub fn run<T>(searcher: &mut T, search: Fn<T>, queries: &[u32]) -> Vec<u32> {
     queries
         .into_iter()
         .map(|q| search.1(searcher, *q))
         .collect()
 }
 
-fn bench<T>(searcher: &mut T, search: Fn<T>, queries: &[u32]) -> f64 {
+pub fn bench<T>(searcher: &mut T, search: Fn<T>, queries: &[u32]) -> f64 {
     info!("Benching {}", search.0);
     let start = Instant::now();
     for q in queries {
@@ -39,14 +41,14 @@ fn bench<T>(searcher: &mut T, search: Fn<T>, queries: &[u32]) -> f64 {
     elapsed.as_nanos() as f64 / queries.len() as f64
 }
 
-fn gen_queries(n: usize) -> Vec<u32> {
+pub fn gen_queries(n: usize) -> Vec<u32> {
     (0..n)
         .map(|_| rand::thread_rng().gen_range(LOWEST_GENERATED..HIGHEST_GENERATED))
         .collect()
 }
 
 /// Generate a u32 array of the given *size* in bytes, and ending in u32::MAX.
-fn gen_vals(size: usize, sort: bool) -> Vec<u32> {
+pub fn gen_vals(size: usize, sort: bool) -> Vec<u32> {
     let n = size / std::mem::size_of::<u32>();
     // TODO: generate a new array
     let mut vals = (0..n - 1)
@@ -64,6 +66,7 @@ struct BenchmarkSortedArray {
     bs: Vec<Fn<BinarySearch>>,
     eyt: Vec<Fn<Eytzinger>>,
     bt: Vec<Fn<BTree16>>,
+    bp: Vec<Fn<BpTree16>>,
 }
 
 impl BenchmarkSortedArray {
@@ -105,10 +108,20 @@ impl BenchmarkSortedArray {
                 }
             }
 
-            let bt = &mut BTree16::new(vals);
+            let bt = &mut BTree16::new(vals.clone());
 
             for &f in &self.bt {
                 let new_results = run(bt, f, queries);
+                if results != new_results {
+                    correct = false;
+                    eprintln!("{} failed", f.0);
+                }
+            }
+
+            let bp = &mut BpTree16::new(vals);
+
+            for &f in &self.bp {
+                let new_results = run(bp, f, queries);
                 if results != new_results {
                     correct = false;
                     eprintln!("{} failed", f.0);
@@ -144,8 +157,10 @@ impl BenchmarkSortedArray {
             ("bt_loop", BTree16::search_loop),
             ("bt_simd", BTree16::search_simd),
         ];
+        let bp: Vec<(&'static str, fn(&mut BpTree16, u32) -> u32)> =
+            vec![("bp_search", BpTree16::search)];
 
-        BenchmarkSortedArray { bs, eyt, bt }
+        BenchmarkSortedArray { bs, eyt, bt, bp }
     }
 
     fn benchmark(
@@ -182,17 +197,28 @@ impl BenchmarkSortedArray {
             let eyt = &mut Eytzinger::new(vals[..len].to_vec());
 
             for &f in &self.eyt {
-                let c0 = bs.cnt;
+                let c0 = eyt.cnt;
                 let t = bench(eyt, f, queries);
-                results.entry(f.0).or_default().push((size, t, bs.cnt - c0));
+                results
+                    .entry(f.0)
+                    .or_default()
+                    .push((size, t, eyt.cnt - c0));
             }
 
             let bt = &mut BTree16::new(vals[..len].to_vec());
 
             for &f in &self.bt {
-                let c0 = bs.cnt;
+                let c0 = bt.cnt;
                 let t = bench(bt, f, queries);
-                results.entry(f.0).or_default().push((size, t, bs.cnt - c0));
+                results.entry(f.0).or_default().push((size, t, bt.cnt - c0));
+            }
+
+            let bp = &mut BpTree16::new(vals[..len].to_vec());
+
+            for &f in &self.bp {
+                let c0 = bp.cnt;
+                let t = bench(bp, f, queries);
+                results.entry(f.0).or_default().push((size, t, bp.cnt - c0));
             }
         }
         results

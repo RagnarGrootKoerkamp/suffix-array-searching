@@ -4,8 +4,8 @@ use std::simd::prelude::*;
 #[repr(align(64))]
 #[derive(Clone, Copy, Debug)]
 pub struct BTreeNode<const B: usize, const PAD: usize> {
-    data: [u32; B],
-    _padding: [u8; PAD],
+    pub(super) data: [u32; B],
+    pub(super) _padding: [u8; PAD],
 }
 
 #[derive(Debug)]
@@ -27,7 +27,7 @@ impl<const B: usize, const PAD: usize> Default for BTreeNode<B, PAD> {
 
 impl<const B: usize, const PAD: usize> BTreeNode<B, PAD> {
     /// Return the index of the first element >=q.
-    fn find(&self, q: u32) -> usize {
+    pub fn find(&self, q: u32) -> usize {
         // TODO: Make this somehow work on all sizes.
         // TODO: Experiment with size 8 and size 16 simd.
         let data_simd: Simd<u32, 16> = Simd::from_slice(&self.data[0..B]);
@@ -42,7 +42,7 @@ impl<const B: usize, const PAD: usize> BTree<B, PAD> {
         // always have at least one node
         let n_blocks = vals.len().div_ceil(B);
         let mut btree = Self {
-            tree: vec![BTreeNode::<B, PAD>::default(); n_blocks],
+            tree: vec![BTreeNode::default(); n_blocks],
             cnt: 0,
         };
         let mut i: usize = 0;
