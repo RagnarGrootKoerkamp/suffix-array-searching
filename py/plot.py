@@ -2,82 +2,44 @@
 import sa_layout
 import numpy as np
 import matplotlib.pyplot as plt
-
-# placeholder for now to see some results
-START_POW2 = 5
-STOP_POW2 = 28
-
-L1 = 32768
-L2 = 524288
-L3 = 4194304
-
-# Ragnar's config.
-if True:
-    L2 = 262144
-    L3 = 12582912
-    STOP_POW2 = 28
-
-NUM_QUERIES = 1000000
-to_try = [
-    "basic_binsearch",
-    "basic_binsearch_branchless",
-    "eytzinger",
-    "eytzinger_prefetched",
-    # "btree_basic_16",
-    # "btree_branchless_16",
-    # "btree_simd_16",
-]
-
-# def plot_results(sizes, names, timings, comparisons, filename="plot.pdf"):
-#     fig, ax = plt.subplots()
-#     for name, timing in zip(names, timings):
-#         ax.plot(4 * np.array(sizes), timing, label=name)
-#     # Customize the plot
-#     ax.set_title("Performance plot")
-#     ax.set_xlabel("size of inputs")
-#     ax.set_ylabel("time in ns")
-#     ax.set_xscale("log", base=2)
-#     ax.legend()
-#     ax.grid(True)  # Show grid for readability
-#     fig.savefig(filename, bbox_inches="tight")
+from pathlib import Path
 
 
-def plot_results(benchmark, names, filename):
-    timings = [benchmark[name][0] for name in names]
-    comparisons = [benchmark[name][1] for name in names]
+def caches():
+    sizes = []
+    # Note: index1 for me is the L1 instruction cache.
+    # Note: All read strings are eg 32K.
+    for i in [0, 2, 3]:
+        t = Path(f"/sys/devices/system/cpu/cpu0/cache/index{i}/size").read_text()
+        sizes.append(int(t[:-2]) * 1024)
+    return sizes
+
+
+def plot_results(results, out):
     fig, ax = plt.subplots()
-    for name, timing in zip(names, timings):
-        ax.plot(4 * np.array(sizes), timing, label=name)
+    print(results)
+    for name, rs in results.items():
+        ax.plot([r[0] for r in rs], [r[1] for r in rs], label=name)
     # Customize the plot
     ax.set_title("Performance plot")
     ax.set_xlabel("size of inputs")
     ax.set_ylabel("time in ns")
     ax.set_xscale("log", base=2)
-    ax.axvline(x=L1, linestyle="--", color="blue")
-    ax.axvline(x=L2, linestyle="--", color="blue")
-    ax.axvline(x=L3, linestyle="--", color="blue")
+    for L in caches():
+        ax.axvline(x=L, linestyle="--", color="blue")
     ax.legend()
     ax.grid(True)  # Show grid for readability
-    fig.savefig(filename, bbox_inches="tight")
+    fig.savefig(out, bbox_inches="tight")
+    fig.show()
 
 
 b = sa_layout.BenchmarkSortedArray()
-sizes = [2**x for x in range(START_POW2, STOP_POW2)]
-timings = []
-comparisons = []
-print("START BENCHING")
 
-for name in to_try:
-    b.add_func_to_bm(name)
+# placeholder for now to see some results
+START_POW2 = 5
+STOP_POW2 = 28
+NUM_QUERIES = 1000000
 
-benchmarks = b.benchmark(START_POW2, STOP_POW2, NUM_QUERIES)
+results = b.benchmark(START_POW2, STOP_POW2, NUM_QUERIES)
 
-binsearches = [
-    "basic_binsearch",
-    "basic_binsearch_branchless",
-    "eytzinger",
-    "eytzinger_prefetched",
-    # "btree_basic_16",
-    # "btree_simd_16",
-]
-plot_results(benchmarks, binsearches, "plot.png")
+plot_results(results, "plot.svg")

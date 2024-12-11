@@ -1,19 +1,12 @@
 use std::{
-    arch::x86_64::_pext_u64,
-    cmp::Ordering::{Greater, Less},
-    iter::repeat,
     ops::{Index, Range},
-    path::PathBuf,
     simd::{cmp::SimdPartialEq, Simd},
     slice::from_raw_parts,
 };
 
 use crate::util::*;
-use clap::Parser;
 use itertools::Itertools;
-use log::{debug, info};
-use rand::SeedableRng;
-use rand_chacha::ChaCha8Rng;
+use tracing::info;
 
 pub struct SaNaive<'a> {
     t: &'a Seq,
@@ -87,7 +80,7 @@ impl<'t> SaNaive<'t> {
         unsafe { self.t.get_unchecked(i as usize..) }
     }
 
-    pub fn prefix(&self, q: &Seq) -> usize {
+    pub fn prefix(&self, _q: &Seq) -> usize {
         return 0;
     }
 

@@ -16,7 +16,6 @@ panic = 'abort'
 [dependencies]
 clap = { version = "4.5.7", features = ["derive"] }
 itertools = "0.13.0"
-log = "0.4.21"
 needletail = "0.5.1"
 rand = "0.8.5"
 rand_chacha = "0.3.1"
@@ -30,3 +29,5 @@ pyo3 = { version = "0.22.2", features = ["extension-module"] }
 num-traits = "0.2.19"
 rdst = "0.20.14"
 size = "0.4.1"
+tracing =  "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }

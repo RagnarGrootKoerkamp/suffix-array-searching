@@ -1,12 +1,11 @@
 #![feature(portable_simd)]
 use clap::Parser;
-use log::{debug, info};
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use sa_layout::*;
 use std::{iter::repeat, path::PathBuf};
+use tracing::{debug, info};
 mod experiments;
-mod experiments_sorted_arrays;
 
 #[derive(Parser)]
 struct Args {

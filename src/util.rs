@@ -1,14 +1,6 @@
 use rand::Rng;
-use std::{
-    arch::x86_64::_pext_u64,
-    cmp::Ordering::{Greater, Less},
-    iter::repeat,
-    ops::{Index, Range},
-    path::PathBuf,
-    simd::{cmp::SimdPartialEq, Simd},
-    slice::from_raw_parts,
-};
-use std::{path::Path, ptr, str::FromStr};
+use std::path::Path;
+use std::{arch::x86_64::_pext_u64, ops::Range, sync::LazyLock};
 
 pub type Seq = [u8];
 pub type Sequence = Vec<u8>;
@@ -174,3 +166,19 @@ pub fn read_human_genome_with_sa() -> (Sequence, SA) {
     let sa = build_sa(&seq);
     (seq, sa)
 }
+
+fn init_trace() {
+    use tracing::level_filters::LevelFilter;
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+        .with(
+            tracing_subscriber::EnvFilter::builder()
+                .with_default_directive(LevelFilter::TRACE.into())
+                .from_env_lossy(),
+        )
+        .init();
+}
+
+pub static INIT_TRACE: LazyLock<()> = LazyLock::new(init_trace);
