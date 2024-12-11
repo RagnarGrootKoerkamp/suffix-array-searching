@@ -29,7 +29,7 @@ def plot_results(results, out):
         ax.axvline(x=L, linestyle="--", color="blue")
     ax.legend()
     ax.grid(True)  # Show grid for readability
-    # fig.savefig(out, bbox_inches="tight")
+    fig.savefig(out, bbox_inches="tight")
     fig.show()
 
 

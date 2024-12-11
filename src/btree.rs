@@ -1,13 +1,11 @@
-use num_traits::bounds::Bounded;
 use std::fmt::Debug;
 use std::simd::prelude::*;
-use std::simd::SimdElement;
 
 #[repr(align(64))]
 #[derive(Clone, Copy, Debug)]
 pub struct BTreeNode<const B: usize, const PAD: usize> {
     data: [u32; B],
-    padding: [u8; PAD],
+    _padding: [u8; PAD],
 }
 
 #[derive(Debug)]
@@ -22,7 +20,7 @@ impl<const B: usize, const PAD: usize> Default for BTreeNode<B, PAD> {
     fn default() -> BTreeNode<B, PAD> {
         BTreeNode {
             data: [0; B],
-            padding: [0; PAD],
+            _padding: [0; PAD],
         }
     }
 }
@@ -32,12 +30,10 @@ impl<const B: usize, const PAD: usize> BTreeNode<B, PAD> {
     fn find(&self, q: u32) -> usize {
         // TODO: Make this somehow work on all sizes.
         // TODO: Experiment with size 8 and size 16 simd.
-        const MASK_SIZE: usize = 16;
-        assert!(B == MASK_SIZE);
-        let data_simd: Simd<u32, 16> = Simd::<u32, MASK_SIZE>::from_slice(&self.data[0..MASK_SIZE]);
-        let q_simd = Simd::<u32, MASK_SIZE>::splat(q);
-        let mask = q_simd.simd_lt(data_simd);
-        mask.first_set().unwrap()
+        let data_simd: Simd<u32, 16> = Simd::from_slice(&self.data[0..B]);
+        let q_simd = Simd::splat(q);
+        let mask = q_simd.simd_le(data_simd);
+        mask.first_set().unwrap_or(16)
     }
 }
 
@@ -67,7 +63,7 @@ impl<const B: usize, const PAD: usize> BTree<B, PAD> {
                 self.tree[k].data[j] = a.get(*i).unwrap_or(&u32::MAX).clone();
                 *i += 1;
             }
-            self.to_btree(a, i, BTree::<B, PAD>::go_to(k, B));
+            self.to_btree(a, i, Self::go_to(k, B));
         }
     }
 
@@ -82,81 +78,65 @@ impl<const B: usize, const PAD: usize> BTree<B, PAD> {
     // basic searching with no vectorized magic inside the nodes
     pub fn search(&mut self, q: u32) -> u32 {
         // completely naive
-        let mut mask = 1 << B;
         let mut k = 0;
-        let mut res_block = usize::max_value();
         let btree_blocks = self.tree.len();
-        let mut jump_to = 0;
+        let mut ans = u32::MAX;
         while k < btree_blocks {
-            jump_to = 0;
+            let mut jump_to = 0;
             for j in 0..B {
                 let compare_to = self.get(k, j);
-                // FIXME: bad early stop
-                if q == compare_to {
-                    return self.get(k, jump_to);
-                }
                 if q <= compare_to {
                     break;
                 }
                 jump_to += 1;
             }
-            res_block = k;
-            k = BTree::<B, PAD>::go_to(k, jump_to);
+            if jump_to < B {
+                ans = self.get(k, jump_to);
+            }
+            k = Self::go_to(k, jump_to);
         }
-        self.get(res_block, jump_to)
+        ans
+    }
+
+    pub fn search_loop(&mut self, q: u32) -> u32 {
+        // completely naive
+        let mut k = 0;
+        let btree_blocks = self.tree.len();
+        let mut ans = u32::MAX;
+        while k < btree_blocks {
+            let mut jump_to = 0;
+            for j in 0..B {
+                let compare_to = self.get(k, j);
+                jump_to += (q > compare_to) as usize;
+            }
+            if jump_to < B {
+                ans = self.get(k, jump_to);
+            }
+            k = Self::go_to(k, jump_to);
+        }
+        ans
     }
 
     pub fn search_simd(&mut self, q: u32) -> u32 {
         // completely naive
-        let mut mask = 1 << B;
         let mut k = 0;
-        let mut res_block = usize::max_value();
         let btree_blocks = self.tree.len();
-        let mut jump_to = 0;
+        let mut ans = u32::MAX;
         while k < btree_blocks {
-            jump_to = 0;
-            for j in 0..B {
-                let compare_to = self.get(k, j);
-                // FIXME: bad early stop
-                if q == compare_to {
-                    return self.get(k, jump_to);
-                }
-                if q <= compare_to {
-                    break;
-                }
-                jump_to += 1;
+            let jump_to = self.tree[k].find(q);
+            if jump_to < B {
+                ans = self.get(k, jump_to);
             }
-            res_block = k;
-            k = BTree::<B, PAD>::go_to(k, jump_to);
+            k = Self::go_to(k, jump_to);
         }
-        self.get(res_block, jump_to)
+        ans
     }
 }
 
-// pub fn btree_search_branchless<const B: usize>(btree: &[u32], q: u32, cnt: &mut usize) -> usize {
-//     let mut mask = 1 << B;
-//     let mut k = 0;
-//     let mut res = usize::MAX;
-//     let btree_blocks = btree.len() / B;
-
-//     while k < btree_blocks {
-//         let mut jump_to = 0;
-//         // I'm searching for the first element that is <= to the searched one
-//         for j in 0..B {
-//             let compare_to = get(&btree, k * B + j);
-//             jump_to += usize::from(q >= compare_to)
-//         }
-//         if jump_to < B {
-//             res = k * B + jump_to;
-//         }
-//         k = go_to::<B>(k, jump_to);
-//     }
-//     return res;
-// }
-
+#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::experiments_sorted_arrays::{self, BinarySearch};
+    use crate::experiments_sorted_arrays::BinarySearch;
 
     #[test]
     fn test_b_tree_k_2() {
@@ -168,7 +148,7 @@ mod tests {
     #[test]
     fn test_b_tree_k_3() {
         let vals = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-        let correct_output = vec![4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15];
+        // let correct_output = vec![4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15];
         let computed_out = BTree::<3, 0>::new(vals);
         println!("{:?}", computed_out);
     }
@@ -204,8 +184,9 @@ mod tests {
         let mut vals: Vec<u32> = (1..16).collect();
         vals.push(u32::MAX);
         let btree = BTree::<16, 0>::new(vals);
-        println!("{}", btree.tree[0].find(1));
-        assert!(false);
+        let idx = btree.tree[0].find(1);
+        println!("{}", idx);
+        assert!(idx == 0);
     }
 
     #[test]

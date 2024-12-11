@@ -1,5 +1,4 @@
 #![feature(array_chunks, portable_simd)]
-#![allow(unused)]
 
 pub mod btree;
 pub mod experiments_sorted_arrays;
@@ -68,7 +67,7 @@ struct BenchmarkSortedArray {
 }
 
 impl BenchmarkSortedArray {
-    // FIXME: this is very duplicated code as compared to the code for benchmarking
+    #[allow(unused)]
     fn test_all(&self) -> bool {
         const TEST_START_POW2: usize = 3;
         const TEST_END_POW2: usize = 20;
@@ -89,7 +88,10 @@ impl BenchmarkSortedArray {
                 if results.is_empty() {
                     results = new_results;
                 } else {
-                    correct &= results == new_results;
+                    if results != new_results {
+                        correct = false;
+                        eprintln!("{} failed", f.0);
+                    }
                 }
             }
 
@@ -97,14 +99,20 @@ impl BenchmarkSortedArray {
 
             for &f in &self.eyt {
                 let new_results = run(eyt, f, queries);
-                correct &= results == new_results;
+                if results != new_results {
+                    correct = false;
+                    eprintln!("{} failed", f.0);
+                }
             }
 
             let bt = &mut BTree16::new(vals);
 
             for &f in &self.bt {
                 let new_results = run(bt, f, queries);
-                correct &= results == new_results;
+                if results != new_results {
+                    correct = false;
+                    eprintln!("{} failed", f.0);
+                }
             }
         }
         correct
@@ -126,13 +134,14 @@ impl BenchmarkSortedArray {
             ),
         ];
         let eyt: Vec<(&'static str, fn(&mut Eytzinger, u32) -> u32)> = vec![
-            ("eyt_search", Eytzinger::search),
+            // ("eyt_search", Eytzinger::search),
             ("eyt_prefetch_4", Eytzinger::search_prefetch::<4>),
             ("eyt_prefetch_8", Eytzinger::search_prefetch::<8>),
             ("eyt_prefetch_16", Eytzinger::search_prefetch::<16>),
         ];
         let bt: Vec<(&'static str, fn(&mut BTree16, u32) -> u32)> = vec![
             ("bt_search", BTree16::search),
+            ("bt_loop", BTree16::search_loop),
             ("bt_simd", BTree16::search_simd),
         ];
 

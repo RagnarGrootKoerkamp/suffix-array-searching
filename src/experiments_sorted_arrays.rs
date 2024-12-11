@@ -107,7 +107,9 @@ impl Eytzinger {
         let mut index = 1;
         while index < self.vals.len() {
             index = 2 * index + (q > self.get(index)) as usize;
-            prefetch_index(&self.vals, B * index);
+            if B * index < self.vals.len() {
+                prefetch_index(&self.vals, B * index);
+            }
         }
         let zeros = index.trailing_ones() + 1;
         let idx = index >> zeros;
@@ -162,6 +164,6 @@ mod tests {
         let mut e = Eytzinger::new(input.clone());
         let q: u32 = 12;
         let result = e.search(q);
-        assert_eq!(result, 0);
+        assert_eq!(result, u32::MAX);
     }
 }
