@@ -267,68 +267,125 @@ impl BenchmarkSortedArray {
             vals[..len].radix_sort_unstable();
             info!("Sorting took {:?}", start.elapsed());
 
-            let bs = &mut BinarySearch::new(vals[..len].to_vec());
+            // let bs = &mut BinarySearch::new(vals[..len].to_vec());
 
-            for &f in &self.bs {
-                let c0 = bs.cnt;
-                let t = bench(bs, f, queries);
-                results.entry(f.0).or_default().push((size, t, bs.cnt - c0));
-            }
+            // for &f in &self.bs {
+            //     let c0 = bs.cnt;
+            //     let t = bench(bs, f, queries);
+            //     results.entry(f.0).or_default().push((size, t, bs.cnt - c0));
+            // }
 
-            let eyt = &mut Eytzinger::new(vals[..len].to_vec());
+            // let eyt = &mut Eytzinger::new(vals[..len].to_vec());
 
-            for &f in &self.eyt {
-                let c0 = eyt.cnt;
-                let t = bench(eyt, f, queries);
-                results
-                    .entry(f.0)
-                    .or_default()
-                    .push((size, t, eyt.cnt - c0));
-            }
+            // for &f in &self.eyt {
+            //     let c0 = eyt.cnt;
+            //     let t = bench(eyt, f, queries);
+            //     results
+            //         .entry(f.0)
+            //         .or_default()
+            //         .push((size, t, eyt.cnt - c0));
+            // }
 
-            let bt = &mut BTree16::new(vals[..len].to_vec());
+            // let bt = &mut BTree16::new(vals[..len].to_vec());
 
-            for &f in &self.bt {
-                let c0 = bt.cnt;
-                let t = bench(bt, f, queries);
-                results.entry(f.0).or_default().push((size, t, bt.cnt - c0));
-            }
+            // for &f in &self.bt {
+            //     let c0 = bt.cnt;
+            //     let t = bench(bt, f, queries);
+            //     results.entry(f.0).or_default().push((size, t, bt.cnt - c0));
+            // }
+
+            // let bp = &mut BpTree16::new(vals[..len].to_vec());
+
+            // for &f in &self.bp {
+            //     let c0 = bp.cnt;
+            //     let t = bench(bp, f, queries);
+            //     results.entry(f.0).or_default().push((size, t, bp.cnt - c0));
+            // }
+
+            // let f: BFn<4, _> = ("bp_batch4", BpTree16::batch::<4>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+
+            // let f: BFn<8, _> = ("bp_batch8", BpTree16::batch::<8>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+
+            // let f: BFn<16, _> = ("bp_batch16", BpTree16::batch::<16>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+
+            // let f: BFn<32, _> = ("bp_batch32", BpTree16::batch::<32>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+
+            // let f: BFn<64, _> = ("bp_batch64", BpTree16::batch::<64>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+
+            // let f: BFn<128, _> = ("bp_batch128", BpTree16::batch::<128>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+
+            // let f: BFn<4, _> = ("bp_batch_ptr4", BpTree16::batch_ptr::<4>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+
+            // let f: BFn<8, _> = ("bp_batch_ptr8", BpTree16::batch_ptr::<8>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+
+            // let f: BFn<16, _> = ("bp_batch_ptr16", BpTree16::batch_ptr::<16>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+
+            // let f: BFn<32, _> = ("bp_batch_ptr32", BpTree16::batch_ptr::<32>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+
+            // let f: BFn<64, _> = ("bp_batch_ptr64", BpTree16::batch_ptr::<64>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+
+            // let f: BFn<128, _> = ("bp_batch_ptr128", BpTree16::batch_ptr::<128>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
 
             let bp = &mut BpTree16::new(vals[..len].to_vec());
 
-            for &f in &self.bp {
-                let c0 = bp.cnt;
-                let t = bench(bp, f, queries);
-                results.entry(f.0).or_default().push((size, t, bp.cnt - c0));
-            }
-
-            let f: BFn<4, _> = ("bp_batch4", BpTree16::batch::<4>);
+            let f: BFn<128, _> = ("bp_batch_prefetch", BpTree16::batch_prefetch::<128>);
             let t = bench_batch(bp, f, queries);
             results.entry(f.0).or_default().push((size, t, 0));
-            let f: BFn<4, _> = ("bp_batch4pf", BpTree16::batch_prefetch::<4>);
+            let f: BFn<128, _> = ("bp_batch_ptr", BpTree16::batch_ptr::<128>);
             let t = bench_batch(bp, f, queries);
             results.entry(f.0).or_default().push((size, t, 0));
-
-            let f: BFn<8, _> = ("bp_batch8", BpTree16::batch::<8>);
+            let f: BFn<128, _> = ("bp_batch_ptr2", BpTree16::batch_ptr2::<128>);
             let t = bench_batch(bp, f, queries);
             results.entry(f.0).or_default().push((size, t, 0));
-            let f: BFn<8, _> = ("bp_batch8pf", BpTree16::batch_prefetch::<8>);
+            let f: BFn<128, _> = ("bp_batch_ptr3", BpTree16::batch_ptr3::<128>);
             let t = bench_batch(bp, f, queries);
             results.entry(f.0).or_default().push((size, t, 0));
 
-            let f: BFn<16, _> = ("bp_batch16", BpTree16::batch::<16>);
-            let t = bench_batch(bp, f, queries);
-            results.entry(f.0).or_default().push((size, t, 0));
-            let f: BFn<16, _> = ("bp_batch16pf", BpTree16::batch_prefetch::<16>);
-            let t = bench_batch(bp, f, queries);
-            results.entry(f.0).or_default().push((size, t, 0));
+            // let f: BFn<32, _> = ("bp_batch_ptr3_32", BpTree16::batch_ptr3::<32>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+            // let f: BFn<64, _> = ("bp_batch_ptr3_64", BpTree16::batch_ptr3::<64>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+            // let f: BFn<256, _> = ("bp_batch_ptr3_256", BpTree16::batch_ptr3::<256>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
 
-            let f: BFn<32, _> = ("bp_batch32", BpTree16::batch::<32>);
-            let t = bench_batch(bp, f, queries);
-            results.entry(f.0).or_default().push((size, t, 0));
-            let f: BFn<32, _> = ("bp_batch32pf", BpTree16::batch_prefetch::<32>);
-            let t = bench_batch(bp, f, queries);
-            results.entry(f.0).or_default().push((size, t, 0));
+            // let bp = &mut BpTree15::new(vals[..len].to_vec());
+
+            // let f: BFn<128, _> = ("bp15_batch_prefetch", BpTree15::batch_prefetch::<128>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+            // let f: BFn<128, _> = ("bp15_batch_ptr", BpTree15::batch_ptr::<128>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+            // let f: BFn<128, _> = ("bp15_batch_ptr2", BpTree15::batch_ptr2::<128>);
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
         }
         results
     }
