@@ -23,11 +23,16 @@ def plot_results(results, out):
     # Customize the plot
     ax.set_title("Performance plot")
     ax.set_xlabel("Array size (bytes)")
+    secax = ax.secondary_xaxis("top", functions=(lambda x: 4 * x, lambda x: x / 4))
+    # log locator
+    secax.xaxis.set_major_locator(plt.LogLocator(base=2))
+    secax.set_xlabel("Array length (u32)")
     ax.set_ylabel("Time per query (ns)")
     ax.set_xscale("log", base=2)
+
     for L in caches():
         ax.axvline(x=L, linestyle="--", color="blue")
-    ax.legend()
+    ax.legend(loc="upper left")
     ax.grid(True)  # Show grid for readability
     ax.set_ylim(0, 200)
     fig.savefig(out, bbox_inches="tight")
