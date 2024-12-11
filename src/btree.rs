@@ -1,3 +1,4 @@
+use std::arch::x86_64::{_mm256_movemask_epi8, _mm256_packs_epi32};
 use std::fmt::Debug;
 use std::simd::prelude::*;
 
@@ -25,12 +26,35 @@ impl<const B: usize, const N: usize> Default for BTreeNode<B, N> {
 
 impl<const B: usize, const N: usize> BTreeNode<B, N> {
     pub fn find(&self, q: u32) -> usize {
-        // TODO: Make this somehow work on all sizes.
-        // TODO: Experiment with size 8 and size 16 simd.
-        let data_simd: Simd<u32, 16> = Simd::from_slice(&self.data[0..B]);
+        self.find_popcnt(q)
+    }
+
+    pub fn find_ctz(&self, q: u32) -> usize {
+        let data_simd: Simd<u32, 16> = Simd::from_slice(&self.data[0..N]);
         let q_simd = Simd::splat(q);
         let mask = q_simd.simd_le(data_simd);
         mask.first_set().unwrap_or(B)
+    }
+
+    /// Return the index of the first element >=q.
+    /// Assumes that all elements fit in an i32, since SIMD doesn't have
+    /// unsigned comparisons.
+    pub fn find_popcnt(&self, q: u32) -> usize {
+        let low: Simd<u32, 8> = Simd::from_slice(&self.data[0..N / 2]);
+        let high: Simd<u32, 8> = Simd::from_slice(&self.data[N / 2..N]);
+        let q_simd = Simd::<_, 8>::splat(q);
+        // Merge the two masks, and convert to a single shuffled(!) mask.
+        // But that's OK since popcount doesn't care about order.
+        // TODO: Can we do this using portable SIMD?
+        unsafe {
+            let q_simd: Simd<i32, 8> = t(q_simd);
+            let mask_low = q_simd.simd_gt(t(low));
+            let mask_high = q_simd.simd_gt(t(high));
+            use std::mem::transmute as t;
+            let merged = _mm256_packs_epi32(t(mask_low), t(mask_high));
+            let mask = _mm256_movemask_epi8(t(merged));
+            mask.count_ones() as usize / 2
+        }
     }
     /// Return the index of the first element >=q.
     /// This first does a single comparison to choose the left or right half of the array,
