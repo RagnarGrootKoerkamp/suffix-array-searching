@@ -32,6 +32,16 @@ pub fn run<T>(searcher: &mut T, search: Fn<T>, queries: &[u32]) -> Vec<u32> {
         .map(|q| search.1(searcher, *q))
         .collect()
 }
+pub fn run_batch<const B: usize, T>(
+    searcher: &mut T,
+    search: BFn<B, T>,
+    queries: &[u32],
+) -> Vec<u32> {
+    queries
+        .array_chunks::<B>()
+        .flat_map(|qs| search.1(searcher, qs))
+        .collect()
+}
 
 pub fn bench<T>(searcher: &mut T, search: Fn<T>, queries: &[u32]) -> f64 {
     info!("Benching {}", search.0);
@@ -84,12 +94,12 @@ struct BenchmarkSortedArray {
 impl BenchmarkSortedArray {
     #[allow(unused)]
     fn test_all(&self) -> bool {
-        const TEST_START_POW2: usize = 3;
+        const TEST_START_POW2: usize = 6;
         const TEST_END_POW2: usize = 20;
-        const TEST_QUERIES: usize = 10000;
+        const TEST_QUERIES: usize = 10000usize.next_multiple_of(128);
 
         let mut correct = true;
-        for pow2 in TEST_START_POW2..TEST_END_POW2 + 1 {
+        for pow2 in TEST_START_POW2..=TEST_END_POW2 {
             let size = 2usize.pow(pow2 as u32);
             let vals = gen_vals(size, true);
             let queries = &gen_queries(TEST_QUERIES);
@@ -105,7 +115,6 @@ impl BenchmarkSortedArray {
                 } else {
                     if results != new_results {
                         correct = false;
-                        eprintln!("{} failed", f.0);
                     }
                 }
             }
@@ -116,7 +125,6 @@ impl BenchmarkSortedArray {
                 let new_results = run(eyt, f, queries);
                 if results != new_results {
                     correct = false;
-                    eprintln!("{} failed", f.0);
                 }
             }
 
@@ -126,17 +134,15 @@ impl BenchmarkSortedArray {
                 let new_results = run(bt, f, queries);
                 if results != new_results {
                     correct = false;
-                    eprintln!("{} failed", f.0);
                 }
             }
 
-            let bp = &mut BpTree16::new(vals);
+            let bp = &mut BpTree16::new(vals.clone());
 
             for &f in &self.bp {
                 let new_results = run(bp, f, queries);
                 if results != new_results {
                     correct = false;
-                    eprintln!("{} failed", f.0);
                 }
             }
         }
