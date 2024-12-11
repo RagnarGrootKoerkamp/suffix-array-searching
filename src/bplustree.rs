@@ -1,12 +1,11 @@
 use std::fmt::Debug;
 
-use crate::btree::BTreeNode;
+use crate::{btree::BTreeNode, prefetch_index};
 
 #[derive(Debug)]
 pub struct BpTree<const B: usize, const PAD: usize> {
     tree: Vec<BTreeNode<B, PAD>>,
     pub cnt: usize,
-    height: usize,
     offsets: Vec<usize>,
 }
 
@@ -48,7 +47,6 @@ impl<const B: usize, const PAD: usize> BpTree<B, PAD> {
                 n_blocks
             ],
             cnt: 0,
-            height,
             offsets: (0..=height).map(|h| Self::offset(n, h)).collect(),
         };
         // Copy the input values to the start.
@@ -76,10 +74,6 @@ impl<const B: usize, const PAD: usize> BpTree<B, PAD> {
         bptree
     }
 
-    fn go_to(k: usize, j: usize) -> usize {
-        k * (B + 1) + j + 1
-    }
-
     fn node(&self, b: usize) -> &BTreeNode<B, PAD> {
         unsafe { &*self.tree.get_unchecked(b) }
     }
@@ -89,15 +83,47 @@ impl<const B: usize, const PAD: usize> BpTree<B, PAD> {
     }
 
     pub fn search(&mut self, q: u32) -> u32 {
-        // completely naive
         let mut k = 0;
-        for h in (1..=self.height - 1).rev() {
-            let jump_to = self.node(self.offsets[h] + k).find(q);
+        for o in self.offsets[1..self.offsets.len() - 1].into_iter().rev() {
+            let jump_to = self.node(o + k).find(q);
             k = k * (B + 1) + jump_to;
         }
 
         let index = self.node(k).find(q);
-        self.node(k + index / B).data[index % B]
+        self.get(k + index / B, index % B)
+    }
+
+    pub fn batch<const P: usize>(&mut self, q: &[u32; P]) -> [u32; P] {
+        let mut k = [0; P];
+        for o in self.offsets[1..self.offsets.len() - 1].into_iter().rev() {
+            for i in 0..P {
+                let jump_to = self.node(o + k[i]).find(q[i]);
+                k[i] = k[i] * (B + 1) + jump_to;
+            }
+        }
+
+        std::array::from_fn(|i| {
+            let index = self.node(k[i]).find(q[i]);
+            self.get(k[i] + index / B, index % B)
+        })
+    }
+
+    pub fn batch_prefetch<const P: usize>(&mut self, q: &[u32; P]) -> [u32; P] {
+        let mut k = [0; P];
+        for h in (1..self.offsets.len() - 1).rev() {
+            let o = unsafe { self.offsets.get_unchecked(h) };
+            let o2 = unsafe { self.offsets.get_unchecked(h - 1) };
+            for i in 0..P {
+                let jump_to = self.node(o + k[i]).find(q[i]);
+                k[i] = k[i] * (B + 1) + jump_to;
+                prefetch_index(&self.tree, o2 + k[i]);
+            }
+        }
+
+        std::array::from_fn(|i| {
+            let index = self.node(k[i]).find(q[i]);
+            self.get(k[i] + index / B, index % B)
+        })
     }
 }
 

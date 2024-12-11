@@ -23,6 +23,7 @@ const LOWEST_GENERATED: u32 = 0;
 const HIGHEST_GENERATED: u32 = 42000000;
 
 type Fn<T> = (&'static str, fn(&mut T, u32) -> u32);
+type BFn<const B: usize, T> = (&'static str, fn(&mut T, &[u32; B]) -> [u32; B]);
 
 pub fn run<T>(searcher: &mut T, search: Fn<T>, queries: &[u32]) -> Vec<u32> {
     queries
@@ -36,6 +37,16 @@ pub fn bench<T>(searcher: &mut T, search: Fn<T>, queries: &[u32]) -> f64 {
     let start = Instant::now();
     for q in queries {
         black_box(search.1(searcher, *q));
+    }
+    let elapsed = start.elapsed();
+    elapsed.as_nanos() as f64 / queries.len() as f64
+}
+
+pub fn bench_batch<const B: usize, T>(searcher: &mut T, search: BFn<B, T>, queries: &[u32]) -> f64 {
+    info!("Benching {}", search.0);
+    let start = Instant::now();
+    for qs in queries.array_chunks::<B>() {
+        black_box(search.1(searcher, qs));
     }
     let elapsed = start.elapsed();
     elapsed.as_nanos() as f64 / queries.len() as f64
@@ -138,7 +149,7 @@ impl BenchmarkSortedArray {
     fn new() -> Self {
         *INIT_TRACE;
 
-        let bs: Vec<(&'static str, fn(&mut BinarySearch, u32) -> u32)> = vec![
+        let bs: Vec<Fn<_>> = vec![
             ("bs_search", BinarySearch::search),
             ("bs_branchless", BinarySearch::search_branchless),
             (
@@ -146,19 +157,18 @@ impl BenchmarkSortedArray {
                 BinarySearch::search_branchless_prefetch,
             ),
         ];
-        let eyt: Vec<(&'static str, fn(&mut Eytzinger, u32) -> u32)> = vec![
-            // ("eyt_search", Eytzinger::search),
+        let eyt: Vec<Fn<_>> = vec![
+            ("eyt_search", Eytzinger::search),
             ("eyt_prefetch_4", Eytzinger::search_prefetch::<4>),
             ("eyt_prefetch_8", Eytzinger::search_prefetch::<8>),
             ("eyt_prefetch_16", Eytzinger::search_prefetch::<16>),
         ];
-        let bt: Vec<(&'static str, fn(&mut BTree16, u32) -> u32)> = vec![
+        let bt: Vec<Fn<_>> = vec![
             ("bt_search", BTree16::search),
             ("bt_loop", BTree16::search_loop),
             ("bt_simd", BTree16::search_simd),
         ];
-        let bp: Vec<(&'static str, fn(&mut BpTree16, u32) -> u32)> =
-            vec![("bp_search", BpTree16::search)];
+        let bp: Vec<Fn<_>> = vec![("bp_search", BpTree16::search)];
 
         BenchmarkSortedArray { bs, eyt, bt, bp }
     }
@@ -220,6 +230,34 @@ impl BenchmarkSortedArray {
                 let t = bench(bp, f, queries);
                 results.entry(f.0).or_default().push((size, t, bp.cnt - c0));
             }
+
+            let f: BFn<4, _> = ("bp_batch4", BpTree16::batch::<4>);
+            let t = bench_batch(bp, f, queries);
+            results.entry(f.0).or_default().push((size, t, 0));
+            let f: BFn<4, _> = ("bp_batch4pf", BpTree16::batch_prefetch::<4>);
+            let t = bench_batch(bp, f, queries);
+            results.entry(f.0).or_default().push((size, t, 0));
+
+            let f: BFn<8, _> = ("bp_batch8", BpTree16::batch::<8>);
+            let t = bench_batch(bp, f, queries);
+            results.entry(f.0).or_default().push((size, t, 0));
+            let f: BFn<8, _> = ("bp_batch8pf", BpTree16::batch_prefetch::<8>);
+            let t = bench_batch(bp, f, queries);
+            results.entry(f.0).or_default().push((size, t, 0));
+
+            let f: BFn<16, _> = ("bp_batch16", BpTree16::batch::<16>);
+            let t = bench_batch(bp, f, queries);
+            results.entry(f.0).or_default().push((size, t, 0));
+            let f: BFn<16, _> = ("bp_batch16pf", BpTree16::batch_prefetch::<16>);
+            let t = bench_batch(bp, f, queries);
+            results.entry(f.0).or_default().push((size, t, 0));
+
+            let f: BFn<32, _> = ("bp_batch32", BpTree16::batch::<32>);
+            let t = bench_batch(bp, f, queries);
+            results.entry(f.0).or_default().push((size, t, 0));
+            let f: BFn<32, _> = ("bp_batch32pf", BpTree16::batch_prefetch::<32>);
+            let t = bench_batch(bp, f, queries);
+            results.entry(f.0).or_default().push((size, t, 0));
         }
         results
     }
