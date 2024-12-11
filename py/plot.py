@@ -21,11 +21,9 @@ def plot_results(results, out):
     for name, rs in sorted(results.items()):
         ax.plot([r[0] for r in rs], [r[1] for r in rs], label=name)
     # Customize the plot
-    ax.set_title("Performance plot")
     ax.set_xlabel("Array size (bytes)")
     secax = ax.secondary_xaxis("top", functions=(lambda x: 4 * x, lambda x: x / 4))
-    # log locator
-    secax.xaxis.set_major_locator(plt.LogLocator(base=2))
+    secax.set_xscale("log", base=2)
     secax.set_xlabel("Array length (u32)")
     ax.set_ylabel("Time per query (ns)")
     ax.set_xscale("log", base=2)
