@@ -148,64 +148,39 @@ impl BenchmarkSortedArray {
 
             let f: BFn<128, _> = ("bp_batch", BpTree16::batch::<128>);
             let new_results = run_batch(bp, f, queries);
-            assert_eq!(results.len(), new_results.len(), "{}", f.0);
-            assert_eq!(results, new_results, "{}", f.0);
-            if results != new_results {
-                correct = false;
-            }
+            assert_eq!(results, new_results, "{}\n{:?}", f.0, vals);
 
             let f: BFn<128, _> = ("bp_batch_prefetch", BpTree16::batch_prefetch::<128>);
             let new_results = run_batch(bp, f, queries);
             assert_eq!(results.len(), new_results.len(), "{}", f.0);
             assert_eq!(results, new_results, "{}", f.0);
-            if results != new_results {
-                correct = false;
-            }
 
             let f: BFn<128, _> = ("bp_batch_ptr", BpTree16::batch_ptr::<128>);
             let new_results = run_batch(bp, f, queries);
             assert_eq!(results.len(), new_results.len(), "{}", f.0);
             assert_eq!(results, new_results, "{}", f.0);
-            if results != new_results {
-                correct = false;
-            }
 
             let f: BFn<128, _> = ("bp_batch_ptr", BpTree16::batch_ptr2::<128>);
             let new_results = run_batch(bp, f, queries);
             assert_eq!(results, new_results, "{}", f.0);
-            if results != new_results {
-                correct = false;
-            }
 
             let bp = &mut BpTree15::new(vals.clone());
 
             let f: BFn<128, _> = ("bp_batch", BpTree15::batch::<128>);
             let new_results = run_batch(bp, f, queries);
             assert_eq!(results, new_results, "{}", f.0);
-            if results != new_results {
-                correct = false;
-            }
 
             let f: BFn<128, _> = ("bp_batch_prefetch", BpTree15::batch_prefetch::<128>);
             let new_results = run_batch(bp, f, queries);
             assert_eq!(results, new_results, "{}", f.0);
-            if results != new_results {
-                correct = false;
-            }
 
             let f: BFn<128, _> = ("bp_batch_ptr", BpTree15::batch_ptr::<128>);
             let new_results = run_batch(bp, f, queries);
             assert_eq!(results, new_results, "{}", f.0);
-            if results != new_results {
-                correct = false;
-            }
 
             let f: BFn<128, _> = ("bp_batch_ptr", BpTree15::batch_ptr2::<128>);
             let new_results = run_batch(bp, f, queries);
             assert_eq!(results, new_results, "{}", f.0);
-            if results != new_results {
-                correct = false;
-            }
         }
         correct
     }
