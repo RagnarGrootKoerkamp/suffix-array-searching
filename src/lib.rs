@@ -1,11 +1,12 @@
 #![feature(array_chunks, portable_simd)]
 #![allow(unused)]
 
-// pub mod btree;
+pub mod btree;
 pub mod experiments_sorted_arrays;
 pub mod sa_search;
 pub mod util;
 
+use btree::BTree16;
 use experiments_sorted_arrays::{BinarySearch, Eytzinger};
 use itertools::Itertools;
 use pyo3::prelude::*;
@@ -63,6 +64,7 @@ fn gen_vals(size: usize, sort: bool) -> Vec<u32> {
 struct BenchmarkSortedArray {
     bs: Vec<Fn<BinarySearch>>,
     eyt: Vec<Fn<Eytzinger>>,
+    bt: Vec<Fn<BTree16>>,
 }
 
 impl BenchmarkSortedArray {
@@ -91,15 +93,18 @@ impl BenchmarkSortedArray {
                 }
             }
 
-            let eyt = &mut Eytzinger::new(vals);
+            let eyt = &mut Eytzinger::new(vals.clone());
 
             for &f in &self.eyt {
                 let new_results = run(eyt, f, queries);
-                if results.is_empty() {
-                    results = new_results;
-                } else {
-                    correct &= results == new_results;
-                }
+                correct &= results == new_results;
+            }
+
+            let bt = &mut BTree16::new(vals);
+
+            for &f in &self.bt {
+                let new_results = run(bt, f, queries);
+                correct &= results == new_results;
             }
         }
         correct
@@ -126,8 +131,12 @@ impl BenchmarkSortedArray {
             ("eyt_prefetch_8", Eytzinger::search_prefetch::<8>),
             ("eyt_prefetch_16", Eytzinger::search_prefetch::<16>),
         ];
+        let bt: Vec<(&'static str, fn(&mut BTree16, u32) -> u32)> = vec![
+            ("bt_search", BTree16::search),
+            ("bt_simd", BTree16::search_simd),
+        ];
 
-        BenchmarkSortedArray { bs, eyt }
+        BenchmarkSortedArray { bs, eyt, bt }
     }
 
     fn benchmark(
@@ -166,6 +175,14 @@ impl BenchmarkSortedArray {
             for &f in &self.eyt {
                 let c0 = bs.cnt;
                 let t = bench(eyt, f, queries);
+                results.entry(f.0).or_default().push((size, t, bs.cnt - c0));
+            }
+
+            let bt = &mut BTree16::new(vals[..len].to_vec());
+
+            for &f in &self.bt {
+                let c0 = bs.cnt;
+                let t = bench(bt, f, queries);
                 results.entry(f.0).or_default().push((size, t, bs.cnt - c0));
             }
         }

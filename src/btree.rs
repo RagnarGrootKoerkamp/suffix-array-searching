@@ -5,81 +5,82 @@ use std::simd::SimdElement;
 
 #[repr(align(64))]
 #[derive(Clone, Copy, Debug)]
-pub struct BTreeNode<
-    T: Ord + Copy + Default + Bounded + Debug + SimdElement,
-    const B: usize,
-    const PAD: usize,
-> {
-    data: [T; B],
+pub struct BTreeNode<const B: usize, const PAD: usize> {
+    data: [u32; B],
     padding: [u8; PAD],
 }
 
 #[derive(Debug)]
-pub struct BTree<
-    T: Ord + Copy + Default + Bounded + Debug + SimdElement,
-    const B: usize,
-    const PAD: usize,
-> {
-    tree: Vec<BTreeNode<T, B, PAD>>,
+pub struct BTree<const B: usize, const PAD: usize> {
+    tree: Vec<BTreeNode<B, PAD>>,
+    pub cnt: usize,
 }
 
-impl<T: Ord + Copy + Default + Bounded + Debug + SimdElement, const B: usize, const PAD: usize>
-    BTreeNode<T, B, PAD>
-{
-    pub fn new() -> BTreeNode<T, B, PAD> {
+pub type BTree16 = BTree<16, 0>;
+
+impl<const B: usize, const PAD: usize> Default for BTreeNode<B, PAD> {
+    fn default() -> BTreeNode<B, PAD> {
         BTreeNode {
-            data: [T::max_value(); B],
+            data: [0; B],
             padding: [0; PAD],
         }
     }
 }
 
-impl<T: Ord + Copy + Default + Bounded + Debug + SimdElement, const B: usize, const PAD: usize>
-    BTree<T, B, PAD>
-where
-    Simd<T, 16>: SimdPartialOrd,
-    Simd<T, 16>: SimdPartialEq<Mask = Mask<T::Mask, 16>>,
-{
-    fn go_to(k: usize, j: usize) -> usize {
-        k * (B + 1) + j + 1
+impl<const B: usize, const PAD: usize> BTreeNode<B, PAD> {
+    /// Return the index of the first element >=q.
+    fn find(&self, q: u32) -> usize {
+        // TODO: Make this somehow work on all sizes.
+        // TODO: Experiment with size 8 and size 16 simd.
+        const MASK_SIZE: usize = 16;
+        assert!(B == MASK_SIZE);
+        let data_simd: Simd<u32, 16> = Simd::<u32, MASK_SIZE>::from_slice(&self.data[0..MASK_SIZE]);
+        let q_simd = Simd::<u32, MASK_SIZE>::splat(q);
+        let mask = q_simd.simd_lt(data_simd);
+        mask.first_set().unwrap()
+    }
+}
+
+impl<const B: usize, const PAD: usize> BTree<B, PAD> {
+    pub fn new(vals: Vec<u32>) -> Self {
+        // always have at least one node
+        let n_blocks = vals.len().div_ceil(B);
+        let mut btree = Self {
+            tree: vec![BTreeNode::<B, PAD>::default(); n_blocks],
+            cnt: 0,
+        };
+        let mut i: usize = 0;
+        let k = 0;
+        btree.to_btree(&vals, &mut i, k);
+        btree
     }
 
     // recursive function to create a btree
     // a is the original sorted array
-    // i is the current
     // k is the number of the block
     // i is the position in the original array
-    fn to_btree(a: &[T], t: &mut Vec<BTreeNode<T, B, PAD>>, i: &mut usize, k: usize) {
+    fn to_btree(&mut self, a: &[u32], i: &mut usize, k: usize) {
         let num_blocks = (a.len() + B - 1) / B;
         if k < num_blocks {
             for j in 0..B {
-                BTree::<T, B, PAD>::to_btree(a, t, i, BTree::<T, B, PAD>::go_to(k, j));
-                if *i < a.len() {
-                    t[k].data[j] = a[*i];
-                }
-                // FIXME: figure out a way to get a default vlaue
+                self.to_btree(a, i, Self::go_to(k, j));
+                self.tree[k].data[j] = a.get(*i).unwrap_or(&u32::MAX).clone();
                 *i += 1;
             }
-            BTree::to_btree(a, t, i, BTree::<T, B, PAD>::go_to(k, B));
+            self.to_btree(a, i, BTree::<B, PAD>::go_to(k, B));
         }
     }
 
-    pub fn new(array: &[T]) -> BTree<T, B, PAD> {
-        // always have at least one node
-        let n_blocks = (array.len() + B) / B;
-        let mut btree = vec![BTreeNode::<T, B, PAD>::new(); n_blocks];
-        let mut i: usize = 0;
-        let k = 0;
-        BTree::<T, B, PAD>::to_btree(&array, &mut btree, &mut i, k);
-        BTree { tree: btree }
+    fn go_to(k: usize, j: usize) -> usize {
+        k * (B + 1) + j + 1
     }
 
-    fn get(&self, b: usize, i: usize) -> T {
+    fn get(&self, b: usize, i: usize) -> u32 {
         unsafe { *self.tree.get_unchecked(b).data.get_unchecked(i) }
     }
 
     // basic searching with no vectorized magic inside the nodes
-    pub fn search(&self, q: T, cnt: &mut usize) -> T {
+    pub fn search(&mut self, q: u32) -> u32 {
         // completely naive
         let mut mask = 1 << B;
         let mut k = 0;
@@ -100,23 +101,12 @@ where
                 jump_to += 1;
             }
             res_block = k;
-            k = BTree::<T, B, PAD>::go_to(k, jump_to);
+            k = BTree::<B, PAD>::go_to(k, jump_to);
         }
-        return self.get(res_block, jump_to);
+        self.get(res_block, jump_to)
     }
 
-    fn cmp(&self, q: T, node: &BTreeNode<T, B, PAD>) -> usize {
-        // TODO: make this somehow work on all sizes
-        const MASK_SIZE: usize = 16;
-        assert!(B == MASK_SIZE);
-        let data_simd: Simd<T, 16> = Simd::<T, MASK_SIZE>::from_slice(&node.data[0..MASK_SIZE]);
-        let q_simd = Simd::<T, MASK_SIZE>::splat(q);
-        let mask = q_simd.simd_lt(data_simd);
-        //usize::try_from(mask.to_int().reduce_sum().abs()).unwrap()
-        mask.first_set().unwrap()
-    }
-
-    pub fn search_simd(&self, q: T, cnt: &mut usize) -> T {
+    pub fn search_simd(&mut self, q: u32) -> u32 {
         // completely naive
         let mut mask = 1 << B;
         let mut k = 0;
@@ -137,17 +127,11 @@ where
                 jump_to += 1;
             }
             res_block = k;
-            k = BTree::<T, B, PAD>::go_to(k, jump_to);
+            k = BTree::<B, PAD>::go_to(k, jump_to);
         }
-        return self.get(res_block, jump_to);
+        self.get(res_block, jump_to)
     }
 }
-
-pub type BTreeSearch<T, const COUNT: usize, const PAD: usize> =
-    fn(&[BTreeNode<T, COUNT, PAD>], T, &mut usize) -> usize;
-// takes as input a sorted array, returns a BTree
-pub type ToBTree<T, const COUNT: usize, const PAD: usize> =
-    fn(input: Vec<T>) -> Vec<BTreeNode<T, COUNT, PAD>>;
 
 // pub fn btree_search_branchless<const B: usize>(btree: &[u32], q: u32, cnt: &mut usize) -> usize {
 //     let mut mask = 1 << B;
@@ -172,84 +156,80 @@ pub type ToBTree<T, const COUNT: usize, const PAD: usize> =
 
 mod tests {
     use super::*;
-    use crate::experiments_sorted_arrays;
+    use crate::experiments_sorted_arrays::{self, BinarySearch};
 
     #[test]
     fn test_b_tree_k_2() {
-        let orig_array = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let computed_out = BTree::<u32, 2, 0>::new(&orig_array);
-        println!("{:?}", computed_out);
+        let vals = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let btree = BTree::<2, 0>::new(vals);
+        println!("{:?}", btree);
     }
 
     #[test]
     fn test_b_tree_k_3() {
-        let orig_array = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+        let vals = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let correct_output = vec![4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15];
-        let computed_out = BTree::<u32, 3, 0>::new(&orig_array);
+        let computed_out = BTree::<3, 0>::new(vals);
         println!("{:?}", computed_out);
     }
 
     #[test]
     fn test_btree_search_bottom_layer() {
-        let mut array: Vec<u32> = (1..2000).collect();
-        array.push(u32::MAX);
+        let mut vals: Vec<u32> = (1..2000).collect();
+        vals.push(u32::MAX);
         let q = 452;
-        let mut cnt: usize = 0;
-        let btree = BTree::<u32, 16, 0>::new(&array);
-        let btree_res = btree.search(q, &mut cnt);
+        let mut btree = BTree::<16, 0>::new(vals.clone());
+        let btree_res = btree.search(q);
 
-        let binsearch_res = array[experiments_sorted_arrays::binary_search(&array, q, &mut cnt)];
+        let binsearch_res = BinarySearch::new(vals).search(q);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }
 
     #[test]
     fn test_btree_search_top_node() {
-        let mut array: Vec<u32> = (1..2000).collect();
-        array.push(u32::MAX);
+        let mut vals: Vec<u32> = (1..2000).collect();
+        vals.push(u32::MAX);
         let q = 289;
-        let mut cnt: usize = 0;
-        let btree = BTree::<u32, 16, 0>::new(&array);
-        let btree_res = btree.search(q, &mut cnt);
+        let mut btree = BTree::<16, 0>::new(vals.clone());
+        let btree_res = btree.search(q);
 
-        let binsearch_res = array[experiments_sorted_arrays::binary_search(&array, q, &mut cnt)];
+        let binsearch_res = BinarySearch::new(vals).search(q);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }
 
     #[test]
     fn test_simd_cmp() {
-        let mut array: Vec<u32> = (1..16).collect();
-        array.push(u32::MAX);
-        let btree = BTree::<u32, 16, 0>::new(&array);
-        println!("{}", btree.cmp(1, &btree.tree[0]));
+        let mut vals: Vec<u32> = (1..16).collect();
+        vals.push(u32::MAX);
+        let btree = BTree::<16, 0>::new(vals);
+        println!("{}", btree.tree[0].find(1));
         assert!(false);
     }
 
     #[test]
     fn test_btree_simd_bottom_layer() {
-        let mut array: Vec<u32> = (1..2000).collect();
-        array.push(u32::MAX);
+        let mut vals: Vec<u32> = (1..2000).collect();
+        vals.push(u32::MAX);
         let q = 452;
-        let mut cnt: usize = 0;
-        let btree = BTree::<u32, 16, 0>::new(&array);
-        let btree_res = btree.search_simd(q, &mut cnt);
+        let mut btree = BTree::<16, 0>::new(vals.clone());
+        let btree_res = btree.search_simd(q);
 
-        let binsearch_res = array[experiments_sorted_arrays::binary_search(&array, q, &mut cnt)];
+        let binsearch_res = BinarySearch::new(vals).search(q);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }
 
     #[test]
     fn test_btree_simd_top_node() {
-        let mut array: Vec<u32> = (1..2000).collect();
-        array.push(u32::MAX);
+        let mut vals: Vec<u32> = (1..2000).collect();
+        vals.push(u32::MAX);
         let q = 289;
-        let mut cnt: usize = 0;
-        let btree = BTree::<u32, 16, 0>::new(&array);
-        let btree_res = btree.search_simd(q, &mut cnt);
+        let mut btree = BTree::<16, 0>::new(vals.clone());
+        let btree_res = btree.search_simd(q);
 
-        let binsearch_res = array[experiments_sorted_arrays::binary_search(&array, q, &mut cnt)];
+        let binsearch_res = BinarySearch::new(vals).search(q);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }

@@ -16,20 +16,20 @@ def caches():
 
 
 def plot_results(results, out):
+    plt.close("all")
     fig, ax = plt.subplots()
-    print(results)
-    for name, rs in results.items():
+    for name, rs in sorted(results.items()):
         ax.plot([r[0] for r in rs], [r[1] for r in rs], label=name)
     # Customize the plot
     ax.set_title("Performance plot")
-    ax.set_xlabel("size of inputs")
-    ax.set_ylabel("time in ns")
+    ax.set_xlabel("Array size (bytes)")
+    ax.set_ylabel("Time per query (ns)")
     ax.set_xscale("log", base=2)
     for L in caches():
         ax.axvline(x=L, linestyle="--", color="blue")
     ax.legend()
     ax.grid(True)  # Show grid for readability
-    fig.savefig(out, bbox_inches="tight")
+    # fig.savefig(out, bbox_inches="tight")
     fig.show()
 
 

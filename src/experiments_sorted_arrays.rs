@@ -68,6 +68,16 @@ pub struct Eytzinger {
 }
 
 impl Eytzinger {
+    pub fn new(vals: Vec<u32>) -> Eytzinger {
+        let mut e = Eytzinger {
+            vals: vec![0; vals.len() + 1], // +1 for one-based indexing
+            cnt: 0,
+        };
+        e.vals[0] = u32::MAX;
+        e._to_eytzinger(&vals, &mut 0, 1);
+        e
+    }
+
     /// A recursive function to actually perform the Eytzinger transformation
     /// NOTE: This is not in-place.
     fn _to_eytzinger(&mut self, a: &[u32], i: &mut usize, k: usize) {
@@ -77,16 +87,6 @@ impl Eytzinger {
             *i += 1;
             self._to_eytzinger(a, i, 2 * k + 1);
         }
-    }
-
-    pub fn new(vals: Vec<u32>) -> Eytzinger {
-        let mut e = Eytzinger {
-            vals: vec![0; vals.len() + 1], // +1 for one-based indexing
-            cnt: 0,
-        };
-        e.vals[0] = u32::MAX;
-        e._to_eytzinger(&vals, &mut 0, 1);
-        e
     }
 
     fn get(&self, index: usize) -> u32 {
