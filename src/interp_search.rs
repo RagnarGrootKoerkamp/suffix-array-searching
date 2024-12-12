@@ -21,6 +21,9 @@ impl InterpolationSearch {
         let mut l_val: usize = self.get(l).try_into().unwrap();
         let mut r_val: usize = self.get(r).try_into().unwrap();
         let q_val = q.try_into().unwrap();
+        if q_val <= l_val {
+            return self.get(l);
+        }
         assert!(
             r_val.checked_mul(r).is_some(),
             "Too large K causes integer overflow."
