@@ -3,6 +3,7 @@
 pub mod bplustree;
 pub mod btree;
 pub mod experiments_sorted_arrays;
+pub mod interp_search;
 pub mod sa_search;
 pub mod util;
 
@@ -10,6 +11,7 @@ use bplustree::{BpTree15, BpTree16, BpTree16R};
 pub use btree::BTree16;
 use btree::MAX;
 pub use experiments_sorted_arrays::{BinarySearch, Eytzinger};
+pub use interp_search::InterpolationSearch;
 use itertools::Itertools;
 use pyo3::prelude::*;
 use rand::Rng;
@@ -115,6 +117,7 @@ pub fn gen_vals(size: usize, sort: bool) -> Vec<u32> {
 #[pyclass]
 struct BenchmarkSortedArray {
     bs: Vec<Fn<BinarySearch>>,
+    is: Vec<Fn<InterpolationSearch>>,
     eyt: Vec<Fn<Eytzinger>>,
     bt: Vec<Fn<BTree16>>,
     bp: Vec<Fn<BpTree16>>,
@@ -152,6 +155,14 @@ impl BenchmarkSortedArray {
 
             for &f in &self.eyt {
                 let new_results = run(eyt, f, queries);
+                if results != new_results {
+                    correct = false;
+                }
+            }
+
+            let is = &mut InterpolationSearch::new(vals.clone());
+            for &f in &self.is {
+                let new_results = run(is, f, queries);
                 if results != new_results {
                     correct = false;
                 }
@@ -246,6 +257,7 @@ impl BenchmarkSortedArray {
                 BinarySearch::search_branchless_prefetch,
             ),
         ];
+        let is: Vec<Fn<_>> = vec![("interp_search", InterpolationSearch::search)];
         let eyt: Vec<Fn<_>> = vec![
             ("eyt_search", Eytzinger::search),
             ("eyt_prefetch_4", Eytzinger::search_prefetch::<4>),
@@ -262,7 +274,13 @@ impl BenchmarkSortedArray {
             ("bp_search_split", BpTree16::search_split),
         ];
 
-        BenchmarkSortedArray { bs, eyt, bt, bp }
+        BenchmarkSortedArray {
+            bs,
+            is,
+            eyt,
+            bt,
+            bp,
+        }
     }
 
     fn benchmark(
