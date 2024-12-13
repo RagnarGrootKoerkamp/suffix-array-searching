@@ -241,7 +241,7 @@ impl BenchmarkSortedArray {
             assert_eq!(last_results, new_last_results, "{}\n{vals:?}", f.0);
 
             info!("Building B+Tree16R-FWD");
-            let bpr = &mut BpTree16R::new_fwd(vals.clone(), false);
+            let bpr = &mut BpTree16R::new_fwd(vals.clone(), false, false);
 
             let f: BFn<128, _> = ("bpr_batch_ptr3_rev", BpTree16R::batch_ptr3::<128, false>);
             let new_results = run_batch(bpr, f, queries);
@@ -255,7 +255,7 @@ impl BenchmarkSortedArray {
             assert_eq!(last_results, new_last_results, "{}\n{vals:?}", f.0);
 
             info!("Building B+Tree16R-FWD-Full");
-            let bpr = &mut BpTree16R::new_fwd(vals.clone(), true);
+            let bpr = &mut BpTree16R::new_fwd(vals.clone(), true, false);
 
             let f: BFn<128, _> = ("bprf_batch_ptr3_rev", BpTree16R::batch_ptr3::<128, false>);
             let new_results = run_batch(bpr, f, queries);
@@ -545,7 +545,7 @@ impl BenchmarkSortedArray {
             // }
 
             info!("Building B+Tree16R-FWD");
-            let bp = &mut BpTree16R::new_fwd(vals[..len].to_vec(), false);
+            let bp = &mut BpTree16R::new_fwd(vals[..len].to_vec(), false, false);
 
             let f: BFn<128, _> = ("bpf_batch_ptr3_rev", BpTree16R::batch_ptr3::<128, false>);
             let t = bench_batch(bp, f, queries);

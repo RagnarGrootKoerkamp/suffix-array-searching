@@ -14,7 +14,7 @@ use crate::{
 //      rather than the smallest elements of the last B children.
 #[derive(Debug)]
 pub struct BpTree<const B: usize, const N: usize, const REV: bool> {
-    tree: Vec<BTreeNode<B, N>>,
+    tree: &'static mut [BTreeNode<B, N>],
     pub cnt: usize,
     offsets: Vec<usize>,
 }
@@ -50,7 +50,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         k * (B + 1) + j + 1
     }
 
-    pub fn new_fwd(vals: Vec<u32>, full_array: bool) -> Self {
+    pub fn new_fwd(vals: Vec<u32>, full_array: bool, hugepage: bool) -> Self {
         let n = vals.len();
         let height = Self::height(n);
         let n_blocks = if full_array {
@@ -63,10 +63,25 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
             Self::offset(n, height)
         };
 
-        eprintln!("Allocating tree of {} blocks ..", n_blocks);
-        let tree = vec![BTreeNode { data: [0; N] }; n_blocks];
+        eprintln!("Allocating AND LEAKING tree of {} blocks ..", n_blocks);
+        let tree = if !hugepage {
+            let mut tree = Vec::with_capacity(n_blocks);
+            // Set the length to the entire thing.
+            unsafe { tree.set_len(n_blocks) };
+            tree.leak()
+        } else {
+            let size = n_blocks * std::mem::size_of::<BTreeNode<B, N>>();
+            // Round up to 2MB
+            let size = size.next_multiple_of(2 * 1024 * 1024);
+            let mem = Box::leak(Box::new(
+                alloc_madvise::Memory::allocate(size, false, true).unwrap(),
+            ));
+            let mem_mut: &mut [usize] = mem.as_mut();
+            let (_pref, mem_mut, _suf) = unsafe { mem_mut.align_to_mut::<BTreeNode<B, N>>() };
+            mem_mut
+        };
         eprintln!("Allocating DONE");
-        let mut bptree = Self {
+        let bptree = Self {
             tree,
             cnt: 0,
             offsets: if full_array {
@@ -101,6 +116,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         for (i, &val) in vals.iter().enumerate() {
             bptree.tree[o + i / B].data[i % B] = val;
         }
+        drop(vals);
 
         // Initialize layers; copied from Algorithmica.
         // https://en.algorithmica.org/hpc/data-structures/s-tree/#construction-1
@@ -152,7 +168,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         let height = Self::height(n);
         let n_blocks = Self::offset(n, height);
         let mut bptree = Self {
-            tree: vec![BTreeNode { data: [MAX; N] }; n_blocks],
+            tree: vec![BTreeNode { data: [MAX; N] }; n_blocks].leak(),
             cnt: 0,
             offsets: (0..=height).map(|h| Self::offset(n, h)).collect(),
         };
