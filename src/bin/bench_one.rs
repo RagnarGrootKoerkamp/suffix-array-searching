@@ -11,7 +11,7 @@ struct Args {
     stop: usize,
 
     #[clap(long)]
-    iters: usize,
+    queries: usize,
 
     #[clap(long)]
     fname: String,
@@ -20,7 +20,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
     let bench = BenchmarkSortedArray::new();
-    let results = bench.benchmark_one(args.fname, args.start, args.stop, args.iters);
+    let results = bench.benchmark_one(args.fname, args.start, args.stop, args.queries);
     for (size, timing) in results {
         println!("{} {}", size, timing);
     }

@@ -3,7 +3,6 @@ import subprocess
 import shlex
 
 def parse_output(cmd_output: str) -> list[tuple[int, float]]:
-    print(cmd_output)
     lines = [line.split() for line in cmd_output.split("\n")]
     lines = list(filter(lambda line: len(line) == 2, lines))
     return [(int(arr[0]), float(arr[1])) for arr in lines]
