@@ -368,6 +368,37 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
             unsafe { (o.byte_add(k[i]) as *const u32).add(index).read() }
         })
     }
+
+    pub fn batch_ptr3_full<const P: usize, const LAST: bool>(&mut self, q: &[u32; P]) -> [u32; P] {
+        let mut k = [0; P];
+        let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
+
+        let o = self.tree.as_ptr();
+
+        for _h in (1..self.offsets.len()).rev() {
+            for i in 0..P {
+                let jump_to = if !LAST {
+                    unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
+                } else {
+                    unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
+                };
+                k[i] = k[i] * (B + 1) + jump_to + 64;
+                prefetch_ptr(unsafe { o.byte_add(k[i]) });
+            }
+        }
+
+        std::array::from_fn(|i| {
+            let mut index = if !LAST {
+                unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
+            } else {
+                unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
+            };
+            if !REV && index == B {
+                index = N;
+            }
+            unsafe { (o.byte_add(k[i]) as *const u32).add(index).read() }
+        })
+    }
 }
 
 #[cfg(test)]
