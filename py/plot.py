@@ -40,15 +40,15 @@ def plot_results(results, out):
     fig.savefig(out, bbox_inches="tight")
     plt.show()
 
+if __name__ == "__main__":
+    b = sa_layout.BenchmarkSortedArray()
 
-b = sa_layout.BenchmarkSortedArray()
+    # placeholder for now to see some results
+    START_POW2 = 5
+    STOP_POW2 = 28
+    NUM_QUERIES = 1000000
 
-# placeholder for now to see some results
-START_POW2 = 5
-STOP_POW2 = 28
-NUM_QUERIES = 1000000
+    print("Starting benchmarks..")
+    results = b.benchmark(START_POW2, STOP_POW2, NUM_QUERIES)
 
-print("Starting benchmarks..")
-results = b.benchmark(START_POW2, STOP_POW2, NUM_QUERIES)
-
-plot_results(results, "plot.svg")
+    plot_results(results, "plot.svg")
