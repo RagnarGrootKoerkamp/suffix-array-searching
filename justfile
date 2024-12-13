@@ -30,3 +30,11 @@ py:
 
 cpufreq:
     sudo cpupower frequency-set --governor powersave -d 2.6GHz -u 2.6GHz
+
+
+mevi_init:
+     sudo sysctl -w vm.unprivileged_userfaultfd=1
+mevi:
+    cargo build -r --example stat
+    export RUST_LOG=warn
+    mevi ./target/release/examples/stat
