@@ -22,7 +22,7 @@ use tracing::info;
 pub use util::*;
 
 const LOWEST_GENERATED: u32 = 0;
-const HIGHEST_GENERATED: u32 = 42000000;
+const HIGHEST_GENERATED: u32 = 1 << 30;
 
 pub type Fn<T> = (&'static str, fn(&mut T, u32) -> u32);
 pub type BFn<const B: usize, T> = (&'static str, fn(&mut T, &[u32; B]) -> [u32; B]);
@@ -126,7 +126,7 @@ impl BenchmarkSortedArray {
     #[allow(unused)]
     fn test_all(&self) -> bool {
         const TEST_START_POW2: usize = 6;
-        const TEST_END_POW2: usize = 20;
+        const TEST_END_POW2: usize = 26;
         const TEST_QUERIES: usize = 10000usize.next_multiple_of(128);
 
         let mut correct = true;
