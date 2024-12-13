@@ -267,6 +267,20 @@ impl BenchmarkSortedArray {
             );
             let new_results = run_batch(bpr, f, queries);
             assert_eq!(results, new_results, "{}\n{vals:?}", f.0);
+
+            info!("Building B+Tree16R-FWD-Full-HUGE");
+            let bpr = &mut BpTree16R::new_fwd(vals.clone(), true, true);
+
+            let f: BFn<128, _> = ("bprfh_batch_ptr3_rev", BpTree16R::batch_ptr3::<128, false>);
+            let new_results = run_batch(bpr, f, queries);
+            assert_eq!(results, new_results, "{}\n{vals:?}", f.0);
+
+            let f: BFn<128, _> = (
+                "bprfh_batch_ptr3_rev",
+                BpTree16R::batch_ptr3_full::<128, false>,
+            );
+            let new_results = run_batch(bpr, f, queries);
+            assert_eq!(results, new_results, "{}\n{vals:?}", f.0);
         }
         correct
     }
@@ -531,7 +545,7 @@ impl BenchmarkSortedArray {
             // }
 
             info!("Building B+Tree16R-FWD");
-            let bp = &mut BpTree16R::new_fwd(vals[..len].to_vec(), false);
+            let bp = &mut BpTree16R::new_fwd(vals[..len].to_vec(), false, false);
 
             let f: BFn<128, _> = ("bpf_batch_ptr3_rev", BpTree16R::batch_ptr3::<128, false>);
             let t = bench_batch(bp, f, queries);
@@ -550,29 +564,40 @@ impl BenchmarkSortedArray {
             let f: BFn<128, _> = ("bpf_batch_ptr3_rev", BpTree16R::batch_ptr3::<128, false>);
             let t = bench_batch(bp, f, queries);
             results.entry(f.0).or_default().push((size, t, 0));
-            let f: BFn<128, _> = (
-                "bpf_batch_ptr3_rev_last",
-                BpTree16R::batch_ptr3::<128, true>,
-            );
-            let t = bench_batch(bp, f, queries);
-            results.entry(f.0).or_default().push((size, t, 0));
 
-            info!("Building B+Tree16R-FWD-Full");
-            let bp = &mut BpTree16R::new_fwd(vals[..len].to_vec(), true);
+            // info!("Building B+Tree16R-FWD-Full");
+            // let bp = &mut BpTree16R::new_fwd(vals[..len].to_vec(), true, false);
+
+            // let f: BFn<128, _> = (
+            //     "bpffull_batch_ptr3_rev",
+            //     BpTree16R::batch_ptr3::<128, false>,
+            // );
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+
+            // let f: BFn<128, _> = (
+            //     "bpffull_batch_ptr3_rev_full",
+            //     BpTree16R::batch_ptr3_full::<128, false>,
+            // );
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
+
+            info!("Building B+Tree16R-FWD-HUGE");
+            let bp = &mut BpTree16R::new_fwd(vals[..len].to_vec(), false, true);
 
             let f: BFn<128, _> = (
-                "bpffull_batch_ptr3_rev",
+                "bpfhuge_batch_ptr3_rev",
                 BpTree16R::batch_ptr3::<128, false>,
             );
             let t = bench_batch(bp, f, queries);
             results.entry(f.0).or_default().push((size, t, 0));
 
-            let f: BFn<128, _> = (
-                "bpffull_batch_ptr3_rev_full",
-                BpTree16R::batch_ptr3_full::<128, false>,
-            );
-            let t = bench_batch(bp, f, queries);
-            results.entry(f.0).or_default().push((size, t, 0));
+            // let f: BFn<128, _> = (
+            //     "bpffullhuge_batch_ptr3_rev_full",
+            //     BpTree16R::batch_ptr3_full::<128, false>,
+            // );
+            // let t = bench_batch(bp, f, queries);
+            // results.entry(f.0).or_default().push((size, t, 0));
 
             // let f: BFn<32, _> = ("bp_batch_ptr3_32", BpTree16::batch_ptr3::<32>);
             // let t = bench_batch(bp, f, queries);
