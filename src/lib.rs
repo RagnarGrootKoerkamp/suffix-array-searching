@@ -4,7 +4,6 @@ pub mod bplustree;
 pub mod btree;
 pub mod experiments_sorted_arrays;
 pub mod interp_search;
-pub mod sa_search;
 pub mod util;
 
 use bplustree::{BpTree15, BpTree16, BpTree16R};
