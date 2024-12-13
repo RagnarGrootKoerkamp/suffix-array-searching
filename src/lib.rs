@@ -114,7 +114,7 @@ pub fn gen_vals(size: usize, sort: bool) -> Vec<u32> {
 }
 
 #[pyclass]
-struct BenchmarkSortedArray {
+pub struct BenchmarkSortedArray {
     bs: Vec<Fn<BinarySearch>>,
     is: Vec<Fn<InterpolationSearch>>,
     eyt: Vec<Fn<Eytzinger>>,
@@ -245,7 +245,7 @@ impl BenchmarkSortedArray {
 #[pymethods]
 impl BenchmarkSortedArray {
     #[new]
-    fn new() -> Self {
+    pub fn new() -> Self {
         *INIT_TRACE;
 
         let bs: Vec<Fn<_>> = vec![
@@ -282,6 +282,79 @@ impl BenchmarkSortedArray {
         }
     }
 
+    pub fn benchmark_one(
+        &self,
+        fname: String,
+        start_pow2: usize,
+        stop_pow2: usize,
+        queries: usize,
+    ) -> Vec<(usize, f64)> {
+        let mut results = Vec::new();
+        let start = Instant::now();
+        let queries = &gen_queries(queries);
+        let mut vals = gen_vals(1 << stop_pow2, false);
+        vals[0] = MAX;
+        info!("Generating took {:?}", start.elapsed());
+        for p in start_pow2..=stop_pow2 {
+            let size = 1 << p;
+            info!("Benchmarking size {}", size);
+            let len = size / std::mem::size_of::<u32>();
+            // Sort the fist size elements of vals.
+            let start = Instant::now();
+            vals[..len].radix_sort_unstable();
+            info!("Sorting took {:?}", start.elapsed());
+            // TODO: find the given function
+            for &f in &self.bs {
+                let (name, _f) = f;
+                if fname == name {
+                    let bs = &mut BinarySearch::new(vals[..len].to_vec());
+                    let t = bench(bs, (name, _f), queries);
+                    results.push((size, t));
+                }
+            }
+
+            for &f in &self.is {
+                let (name, _f) = f;
+                if fname == name {
+                    let is = &mut InterpolationSearch::new(vals[..len].to_vec());
+                    let t = bench(is, (name, _f), queries);
+                    results.push((size, t));
+                }
+            }
+
+            for &f in &self.eyt {
+                let (name, _f) = f;
+                if fname == name {
+                    let eyt = &mut Eytzinger::new(vals[..len].to_vec());
+                    let t = bench(eyt, (name, _f), queries);
+                    results.push((size, t));
+                }
+            }
+
+            for &f in &self.bt {
+                let (name, _f) = f;
+                if fname == name {
+                    let bt = &mut BTree16::new(vals[..len].to_vec());
+                    let t = bench(bt, (name, _f), queries);
+                    results.push((size, t));
+                }
+            }
+
+            for &f in &self.bp {
+                let (name, _f) = f;
+                if fname == name {
+                    let bt = &mut BpTree16::new(vals[..len].to_vec());
+                    let t = bench(bt, (name, _f), queries);
+                    results.push((size, t));
+                }
+            }
+        }
+        if results.len() > (stop_pow2 - start_pow2 + 1) {
+            panic!("The function with the same name must exist multiple times!")
+        }
+        results
+    }
+
     fn benchmark(
         &self,
         start_pow2: usize,
@@ -295,7 +368,6 @@ impl BenchmarkSortedArray {
         let mut vals = gen_vals(1 << stop_pow2, false);
         vals[0] = MAX;
         info!("Generating took {:?}", start.elapsed());
-
         for p in start_pow2..=stop_pow2 {
             let size = 1 << p;
             info!("Benchmarking size {}", size);
@@ -304,7 +376,6 @@ impl BenchmarkSortedArray {
             let start = Instant::now();
             vals[..len].radix_sort_unstable();
             info!("Sorting took {:?}", start.elapsed());
-
             // let bs = &mut BinarySearch::new(vals[..len].to_vec());
 
             // for &f in &self.bs {
