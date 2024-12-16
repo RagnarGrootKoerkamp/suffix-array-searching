@@ -1,6 +1,7 @@
 from matplotlib import pyplot as plt
 from pathlib import Path
 
+
 def caches():
     sizes = []
     # Note: index1 for me is the L1 instruction cache.
@@ -9,6 +10,7 @@ def caches():
         t = Path(f"/sys/devices/system/cpu/cpu0/cache/index{i}/size").read_text()
         sizes.append(int(t[:-2]) * 1024)
     return sizes
+
 
 def plot_results(results, out):
     plt.close("all")
@@ -26,6 +28,7 @@ def plot_results(results, out):
     secax = ax.secondary_xaxis("top", functions=(lambda x: x / 4, lambda x: x * 4))
     secax.set_xscale("log", base=2)
     secax.set_xlabel("Array length (u32)")
+    ax.set_ylim(ymin=0)
 
     for L in caches():
         ax.axvline(x=L, linestyle="--", color="blue")
