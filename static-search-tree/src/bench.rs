@@ -48,7 +48,7 @@ impl SearchFunctions {
         ];
         let bp = const {
             [
-                &BpTree::search(),
+                &BpTree::search() as &dyn SearchScheme<INDEX = _>,
                 &BpTree::search_split(),
                 &BpTree::search_batch::<4>(),
                 &BpTree::search_batch::<8>(),
@@ -62,16 +62,16 @@ impl SearchFunctions {
                 &BpTree::search_batch_ptr3::<128, false>(),
                 &BpTree::search_batch_no_prefetch::<64, false, 1>(),
                 &BpTree::search_batch_no_prefetch::<64, false, 2>(),
-                &BpTree::search_interleave::<64, false>(),
+                // &BpTree::search_interleave::<64, false>(),
                 // &BpTree::search_batch_ptr3::<128, true>(),
                 // &BpTree::search_interleave::<64, true>(),
-            ] as [&dyn SearchScheme<INDEX = _>; _]
+            ]
         }
         .to_vec();
 
         let bp15 = const {
             [
-                &BpTree::search(),
+                &BpTree::search() as &dyn SearchScheme<INDEX = _>,
                 &BpTree::search_split(),
                 &BpTree::search_batch::<128>(),
                 &BpTree::search_batch_prefetch::<128>(),
@@ -80,10 +80,10 @@ impl SearchFunctions {
                 &BpTree::search_batch_ptr3::<128, false>(),
                 &BpTree::search_batch_no_prefetch::<128, false, 1>(),
                 &BpTree::search_batch_no_prefetch::<128, false, 2>(),
-                &BpTree::search_interleave::<64, false>(),
+                // &BpTree::search_interleave::<64, false>(),
                 // &BpTree::search_batch_ptr3::<128, true>(),
                 // &BpTree::search_interleave::<64, true>(),
-            ] as [&dyn SearchScheme<INDEX = _>; _]
+            ]
         }
         .to_vec();
 
@@ -95,16 +95,16 @@ impl SearchFunctions {
                 // &BpTree::search_batch_prefetch::<128>(),
                 // &BpTree::search_batch_ptr::<128>(),
                 // &BpTree::search_batch_ptr2::<128>(),
-                &BpTree::search_batch_ptr3::<32, false>(),
+                &BpTree::search_batch_ptr3::<32, false>() as &dyn SearchScheme<INDEX = _>,
                 &BpTree::search_batch_ptr3::<64, false>(),
                 &BpTree::search_batch_ptr3::<128, false>(),
                 &BpTree::search_batch_ptr3::<256, false>(),
                 &BpTree::search_batch_no_prefetch::<128, false, 1>(),
                 &BpTree::search_batch_no_prefetch::<128, false, 2>(),
-                &BpTree::search_interleave::<64, false>(),
+                // &BpTree::search_interleave::<64, false>(),
                 // &BpTree::search_batch_ptr3::<128, true>(),
                 // &BpTree::search_interleave::<64, true>(),
-            ] as [&dyn SearchScheme<INDEX = _>; _]
+            ]
         }
         .to_vec();
 
