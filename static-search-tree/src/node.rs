@@ -20,6 +20,7 @@ impl<const B: usize, const N: usize> BTreeNode<B, N> {
         self.find_popcnt(q)
     }
 
+    #[allow(unused)]
     pub fn find_ctz(&self, q: u32) -> usize {
         let data_simd: Simd<u32, 16> = Simd::from_slice(&self.data[0..N]);
         let q_simd = Simd::splat(q);

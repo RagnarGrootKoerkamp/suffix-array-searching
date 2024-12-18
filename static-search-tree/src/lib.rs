@@ -1,6 +1,6 @@
 #![feature(array_chunks, portable_simd, generic_arg_infer)]
 
-pub mod bench;
+mod bench;
 pub mod binary_search;
 pub mod bplustree;
 pub mod btree;
@@ -9,10 +9,9 @@ pub mod interp_search;
 mod node;
 pub mod util;
 
-pub use btree::BTree16;
-pub use eytzinger::Eytzinger;
-pub use interp_search::InterpolationSearch;
-pub use util::*;
+use util::*;
+
+pub use bench::{bench_scheme, BenchmarkSortedArray};
 
 #[ctor::ctor]
 fn init_color_backtrace() {

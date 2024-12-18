@@ -1,6 +1,6 @@
 #![feature(portable_simd)]
 use clap::Parser;
-use static_search_tree::bench::BenchmarkSortedArray;
+use static_search_tree::BenchmarkSortedArray;
 
 #[derive(Parser)]
 struct Args {

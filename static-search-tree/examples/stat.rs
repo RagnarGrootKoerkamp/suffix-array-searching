@@ -1,7 +1,6 @@
-#![allow(unused)]
-use bench::{bench_batch, bench_scheme, BFn};
-use bplustree::{BpTree16, BpTree16R, BpTreeSearchBatchNoPrefetch};
+use bplustree::{BpTree16R, BpTreeSearchBatchNoPrefetch};
 use static_search_tree::*;
+use util::*;
 
 fn main() {
     const TEST_START_POW2: usize = 31;

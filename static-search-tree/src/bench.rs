@@ -14,27 +14,6 @@ use std::collections::HashMap;
 use std::hint::black_box;
 use std::time::Instant;
 
-pub type Fn<T> = (&'static str, fn(&T, u32) -> u32);
-pub type BFn<const B: usize, T> = (&'static str, fn(&T, &[u32; B]) -> [u32; B]);
-pub type IFn<T> = (&'static str, fn(&T, &[u32]));
-
-pub fn run<T>(searcher: &T, search: Fn<T>, queries: &[u32]) -> Vec<u32> {
-    queries
-        .into_iter()
-        .map(|q| search.1(searcher, *q))
-        .collect()
-}
-pub fn run_batch<const B: usize, T>(searcher: &T, search: BFn<B, T>, queries: &[u32]) -> Vec<u32> {
-    queries
-        .array_chunks::<B>()
-        .flat_map(|qs| search.1(searcher, qs))
-        .collect()
-}
-
-pub fn run_all<T>(searcher: &T, search: IFn<T>, queries: &[u32]) {
-    search.1(searcher, queries)
-}
-
 pub fn bench_scheme<I: SearchIndex>(
     index: &I,
     scheme: &dyn SearchScheme<INDEX = I>,
@@ -47,35 +26,7 @@ pub fn bench_scheme<I: SearchIndex>(
     elapsed.as_nanos() as f64 / qs.len() as f64
 }
 
-pub fn bench<T>(searcher: &T, search: Fn<T>, queries: &[u32]) -> f64 {
-    info!("Benching {}", search.0);
-    let start = Instant::now();
-    for q in queries {
-        black_box(search.1(searcher, *q));
-    }
-    let elapsed = start.elapsed();
-    elapsed.as_nanos() as f64 / queries.len() as f64
-}
-
-pub fn bench_batch<const B: usize, T>(searcher: &T, search: BFn<B, T>, queries: &[u32]) -> f64 {
-    info!("Benching {}", search.0);
-    let start = Instant::now();
-    for qs in queries.array_chunks::<B>() {
-        black_box(search.1(searcher, qs));
-    }
-    let elapsed = start.elapsed();
-    elapsed.as_nanos() as f64 / queries.len() as f64
-}
-
-pub fn bench_all<T>(searcher: &T, search: IFn<T>, queries: &[u32]) -> f64 {
-    info!("Benching {}", search.0);
-    let start = Instant::now();
-    black_box(search.1(searcher, queries));
-    let elapsed = start.elapsed();
-    elapsed.as_nanos() as f64 / queries.len() as f64
-}
-
-pub fn bench_batch_par<I: SearchIndex + Sync>(
+pub fn bench_scheme_par<I: SearchIndex + Sync>(
     index: &I,
     scheme: &dyn SearchScheme<INDEX = I>,
     qs: &[u32],
@@ -402,7 +353,7 @@ impl BenchmarkSortedArray {
             let strings = ["", "t1", "t2", "t3", "t4", "t5", "t6"];
             for threads in 1..=6 {
                 let scheme = BpTree::search_batch_no_prefetch::<128, false, 1>();
-                let t = bench_scheme(&bpr, &scheme, qs);
+                let t = bench_scheme_par(&bpr, &scheme, qs, threads);
                 results.entry(strings[threads]).or_default().push((size, t));
             }
         }
