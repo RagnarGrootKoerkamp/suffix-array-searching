@@ -260,6 +260,8 @@ fn sa_layout(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod test {
+    use std::any::type_name;
+
     use super::*;
 
     #[test]
@@ -268,7 +270,7 @@ mod test {
 
         const TEST_START_POW2: usize = 6;
         const TEST_END_POW2: usize = 26;
-        const TEST_QUERIES: usize = 10000usize.next_multiple_of(128);
+        const TEST_QUERIES: usize = 10000usize.next_multiple_of(256);
 
         let correct = &mut true;
         for pow2 in TEST_START_POW2..=TEST_END_POW2 {
@@ -287,6 +289,7 @@ mod test {
                 results: &mut Vec<u32>,
                 correct: &mut bool,
             ) {
+                eprintln!("Building index for {:?}", type_name::<I>());
                 map_idx(schemes, &I::new(vals), qs, results, correct);
             }
 
@@ -298,6 +301,7 @@ mod test {
                 correct: &mut bool,
             ) {
                 for scheme in schemes {
+                    eprintln!("Testing scheme {:?}", scheme.name());
                     let new_results = index.query(qs, scheme);
                     if results.is_empty() {
                         *results = new_results;
@@ -315,12 +319,20 @@ mod test {
             map(&fs.bp, &vals, qs, results, correct);
             map(&fs.bp15, &vals, qs, results, correct);
             map(&fs.bpr, &vals, qs, results, correct);
+            eprintln!(
+                "Building index for {:?} fwd(false)",
+                type_name::<BpTree16R>()
+            );
             map_idx(
                 &fs.bpr,
                 &BpTree16R::new_fwd(&vals, false),
                 qs,
                 results,
                 correct,
+            );
+            eprintln!(
+                "Building index for {:?} fwd(true)",
+                type_name::<BpTree16R>()
             );
             map_idx(
                 &fs.bpr,

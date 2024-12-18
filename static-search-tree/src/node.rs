@@ -115,12 +115,12 @@ impl<const B: usize, const N: usize> BTreeNode<B, N> {
     /// This may reduce the pressure on SIMD registers.
     pub fn find_split(&self, q: u32) -> usize {
         let idx;
-        if q <= self.data[B / 2] {
+        if q <= self.data[N / 2] {
             idx = 0;
         } else {
-            idx = B / 2;
+            idx = N / 2;
         }
-        let half_simd = Simd::<u32, 8>::from_slice(&self.data[idx..idx + B / 2]);
+        let half_simd = Simd::<u32, 8>::from_slice(&self.data[idx..idx + N / 2]);
         let q_simd = Simd::splat(q);
         let mask = q_simd.simd_le(half_simd);
         idx + mask.first_set().unwrap_or(8)

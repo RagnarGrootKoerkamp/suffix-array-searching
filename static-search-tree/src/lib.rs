@@ -60,6 +60,9 @@ impl<I> SearchScheme for &dyn SearchScheme<INDEX = I> {
 
 fn batched<const P: usize>(qs: &[u32], f: impl Fn(&[u32; P]) -> [u32; P]) -> Vec<u32> {
     let it = qs.array_chunks();
-    assert!(it.remainder().is_empty());
+    assert!(
+        it.remainder().is_empty(),
+        "For now, batched queries cannot handle leftovers"
+    );
     it.flat_map(f).collect()
 }
