@@ -1,4 +1,5 @@
 #![allow(unused)]
+use bench::{bench_batch, BFn};
 use bplustree::{BpTree16, BpTree16R};
 use static_search_tree::*;
 
