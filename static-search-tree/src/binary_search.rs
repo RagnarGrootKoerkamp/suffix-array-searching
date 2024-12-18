@@ -3,10 +3,11 @@
 use crate::{prefetch_index, SearchIndex, SearchScheme};
 
 pub struct SortedVec {
-    vals: Vec<u32>,
+    pub(super) vals: Vec<u32>,
 }
+
 impl SortedVec {
-    fn get(&self, index: usize) -> u32 {
+    pub(super) fn get(&self, index: usize) -> u32 {
         unsafe { *self.vals.get_unchecked(index) }
     }
 }

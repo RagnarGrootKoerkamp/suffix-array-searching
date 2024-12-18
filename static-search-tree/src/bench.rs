@@ -106,7 +106,6 @@ pub fn bench_batch_par<const B: usize, T: Send + Sync>(
 #[pyclass]
 pub struct BenchmarkSortedArray {
     bs: Vec<&'static dyn SearchScheme<INDEX = SortedVec>>,
-    is: Vec<Fn<InterpolationSearch>>,
     eyt: Vec<&'static dyn SearchScheme<INDEX = Eytzinger>>,
     bt: Vec<Fn<BTree16>>,
     bp: Vec<Fn<BpTree16>>,
@@ -151,14 +150,6 @@ impl BenchmarkSortedArray {
 
             map(&self.bs, &vals, qs, &mut results, &mut correct);
             map(&self.eyt, &vals, qs, &mut results, &mut correct);
-
-            let is = &InterpolationSearch::new(vals.clone());
-            for &f in &self.is {
-                let new_results = run(is, f, qs);
-                if results != new_results {
-                    correct = false;
-                }
-            }
 
             let bt = &BTree16::new(vals.clone());
 
@@ -277,8 +268,8 @@ impl BenchmarkSortedArray {
             &BinarySearch as &dyn SearchScheme<INDEX = _>,
             &BinarySearchBranchless,
             &BinarySearchBranchlessPrefetch,
+            &InterpolationSearch,
         ];
-        let is: Vec<Fn<_>> = vec![("interp_search", InterpolationSearch::search)];
         let eyt = vec![
             &EytzingerSearch as &dyn SearchScheme<INDEX = _>,
             &EytzingerPrefetch::<4>,
@@ -295,13 +286,7 @@ impl BenchmarkSortedArray {
             ("bp_search_split", BpTree16::search_split),
         ];
 
-        BenchmarkSortedArray {
-            bs,
-            is,
-            eyt,
-            bt,
-            bp,
-        }
+        BenchmarkSortedArray { bs, eyt, bt, bp }
     }
 
     pub fn benchmark_one(
@@ -345,15 +330,6 @@ impl BenchmarkSortedArray {
 
             map(&self.bs, &fname, &vals, queries, &mut results);
             map(&self.eyt, &fname, &vals, queries, &mut results);
-
-            for &f in &self.is {
-                let (name, _f) = f;
-                if fname == name {
-                    let is = &InterpolationSearch::new(vals[..len].to_vec());
-                    let t = bench(is, (name, _f), queries);
-                    results.push((size, t));
-                }
-            }
 
             for &f in &self.bt {
                 let (name, _f) = f;
