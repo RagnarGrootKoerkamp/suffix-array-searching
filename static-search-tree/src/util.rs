@@ -76,7 +76,7 @@ pub fn bench_scheme<I: SearchIndex>(
 ) -> f64 {
     info!("Benching {}", scheme.name());
     let start = Instant::now();
-    black_box(index.query(qs, &scheme));
+    black_box(index.query(qs, scheme));
     let elapsed = start.elapsed();
     elapsed.as_nanos() as f64 / qs.len() as f64
 }
@@ -94,7 +94,7 @@ pub fn bench_scheme_par<I: SearchIndex + Sync>(
     rayon::scope(|scope| {
         for idx in 0..threads {
             let index = &index;
-            let scheme = &scheme;
+            // let scheme = scheme;
             scope.spawn(move |_| {
                 let start_idx = idx * chunk_size;
                 let end = ((idx + 1) * chunk_size).min(qs.len());

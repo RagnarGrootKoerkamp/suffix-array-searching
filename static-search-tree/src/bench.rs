@@ -212,7 +212,7 @@ impl SearchFunctions {
                 size: usize,
                 results: &mut Results,
             ) {
-                for scheme in schemes {
+                for &scheme in schemes {
                     let t = bench_scheme(index, scheme, qs);
                     results.entry(scheme.name()).or_default().push((size, t));
                 }
@@ -300,7 +300,7 @@ mod test {
                 results: &mut Vec<u32>,
                 correct: &mut bool,
             ) {
-                for scheme in schemes {
+                for &scheme in schemes {
                     eprintln!("Testing scheme {:?}", scheme.name());
                     let new_results = index.query(qs, scheme);
                     if new_results.is_empty() {
