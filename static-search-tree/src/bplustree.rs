@@ -1,9 +1,9 @@
-use std::{fmt::Debug, hint::black_box, iter::zip, simd::Simd};
+use std::{fmt::Debug, iter::zip, simd::Simd};
 
 use itertools::Itertools;
 
 use crate::node::{BTreeNode, MAX};
-use crate::{prefetch_index, prefetch_ptr};
+use crate::{batched, prefetch_index, prefetch_ptr, SearchIndex, SearchScheme};
 
 // N total elements in a node.
 // B branching factor.
@@ -20,6 +20,45 @@ pub struct BpTree<const B: usize, const N: usize, const REV: bool> {
 pub type BpTree16 = BpTree<16, 16, false>;
 pub type BpTree15 = BpTree<15, 16, false>;
 pub type BpTree16R = BpTree<16, 16, true>;
+
+/// Helper functions for constructing searcher objects with the same generics.
+impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
+    pub const fn search() -> BpTreeSearch<B, N, REV> {
+        BpTreeSearch
+    }
+    pub const fn search_split() -> BpTreeSearchSplit<B, N, REV> {
+        BpTreeSearchSplit
+    }
+    pub const fn search_batch<const P: usize>() -> BpTreeSearchBatch<B, N, REV, P> {
+        BpTreeSearchBatch
+    }
+    pub const fn search_batch_prefetch<const P: usize>() -> BpTreeSearchBatchPrefetch<B, N, REV, P>
+    {
+        BpTreeSearchBatchPrefetch
+    }
+    pub const fn search_batch_ptr<const P: usize>() -> BpTreeSearchBatchPtr<B, N, REV, P> {
+        BpTreeSearchBatchPtr
+    }
+    pub const fn search_batch_ptr2<const P: usize>() -> BpTreeSearchBatchPtr2<B, N, REV, P> {
+        BpTreeSearchBatchPtr2
+    }
+    pub const fn search_batch_ptr3<const P: usize, const LAST: bool>(
+    ) -> BpTreeSearchBatchPtr3<B, N, REV, P, LAST> {
+        BpTreeSearchBatchPtr3
+    }
+    pub const fn search_batch_ptr3_full<const P: usize, const LAST: bool>(
+    ) -> BpTreeSearchBatchPtr3Full<B, N, REV, P, LAST> {
+        BpTreeSearchBatchPtr3Full
+    }
+    pub const fn search_batch_no_prefetch<const P: usize, const LAST: bool, const SKIP: usize>(
+    ) -> BpTreeSearchBatchNoPrefetch<B, N, REV, P, LAST, SKIP> {
+        BpTreeSearchBatchNoPrefetch
+    }
+    pub const fn search_interleave<const P: usize, const LAST: bool>(
+    ) -> BpTreeSearchInterleave<B, N, REV, P, LAST> {
+        BpTreeSearchInterleave
+    }
+}
 
 impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
     fn blocks(n: usize) -> usize {
@@ -48,7 +87,15 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         k * (B + 1) + j + 1
     }
 
-    pub fn new_fwd(vals: Vec<u32>, full_array: bool) -> Self {
+    fn node(&self, b: usize) -> &BTreeNode<B, N> {
+        unsafe { &*self.tree.get_unchecked(b) }
+    }
+
+    fn get(&self, b: usize, i: usize) -> u32 {
+        unsafe { *self.tree.get_unchecked(b).data.get_unchecked(i) }
+    }
+
+    pub fn new_fwd(vals: &[u32], full_array: bool) -> Self {
         let n = vals.len();
         let height = Self::height(n);
         let n_blocks = if full_array {
@@ -87,7 +134,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         // eprintln!("Height: {}, n_blocks: {}", height, n_blocks);
         // eprintln!("FWD {:?}", bptree.offsets);
 
-        for &v in &vals {
+        for &v in vals {
             assert!(v <= MAX);
         }
 
@@ -144,8 +191,10 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         // }
         bptree
     }
+}
 
-    pub fn new(vals: Vec<u32>) -> Self {
+impl<const B: usize, const N: usize, const REV: bool> SearchIndex for BpTree<B, N, REV> {
+    fn new(vals: &[u32]) -> Self {
         let n = vals.len();
         let height = Self::height(n);
         let n_blocks = Self::offset(n, height);
@@ -156,7 +205,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         };
         // eprintln!("REV {:?}", bptree.offsets);
 
-        for &v in &vals {
+        for &v in vals {
             assert!(v <= MAX);
         }
 
@@ -198,273 +247,376 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         bptree.offsets.pop();
         bptree
     }
+}
 
-    fn node(&self, b: usize) -> &BTreeNode<B, N> {
-        unsafe { &*self.tree.get_unchecked(b) }
-    }
+pub struct BpTreeSearch<const B: usize, const N: usize, const REV: bool>;
+impl<const B: usize, const N: usize, const REV: bool> SearchScheme for BpTreeSearch<B, N, REV> {
+    type INDEX = BpTree<B, N, REV>;
 
-    fn get(&self, b: usize, i: usize) -> u32 {
-        unsafe { *self.tree.get_unchecked(b).data.get_unchecked(i) }
-    }
-
-    pub fn search(&self, q: u32) -> u32 {
+    fn query_one(&self, index: &Self::INDEX, q: u32) -> u32 {
         assert!(!REV);
         let mut k = 0;
-        for o in self.offsets[1..self.offsets.len()].into_iter().rev() {
-            let jump_to = self.node(o + k).find(q);
+        for o in index.offsets[1..index.offsets.len()].into_iter().rev() {
+            let jump_to = index.node(o + k).find(q);
             k = k * (B + 1) + jump_to;
         }
 
-        let index = self.node(k).find(q);
-        self.get(k + index / B, index % B)
+        let idx = index.node(k).find(q);
+        index.get(k + idx / B, idx % B)
     }
+}
 
-    pub fn search_split(&self, q: u32) -> u32 {
+pub struct BpTreeSearchSplit<const B: usize, const N: usize, const REV: bool>;
+impl<const B: usize, const N: usize, const REV: bool> SearchScheme
+    for BpTreeSearchSplit<B, N, REV>
+{
+    type INDEX = BpTree<B, N, REV>;
+
+    fn query_one(&self, index: &Self::INDEX, q: u32) -> u32 {
         assert!(!REV);
         let mut k = 0;
-        for o in self.offsets[1..self.offsets.len()].into_iter().rev() {
-            let jump_to = self.node(o + k).find_split(q);
+        for o in index.offsets[1..index.offsets.len()].into_iter().rev() {
+            let jump_to = index.node(o + k).find_split(q);
             k = k * (B + 1) + jump_to;
         }
 
-        let index = self.node(k).find(q);
-        self.get(k + index / B, index % B)
+        let idx = index.node(k).find(q);
+        index.get(k + idx / B, idx % B)
     }
+}
 
-    pub fn batch<const P: usize>(&self, q: &[u32; P]) -> [u32; P] {
-        assert!(!REV);
-        let mut k = [0; P];
-        for o in self.offsets[1..self.offsets.len()].into_iter().rev() {
-            for i in 0..P {
-                let jump_to = self.node(o + k[i]).find(q[i]);
-                k[i] = k[i] * (B + 1) + jump_to;
+pub struct BpTreeSearchBatch<const B: usize, const N: usize, const REV: bool, const P: usize>;
+impl<const B: usize, const N: usize, const REV: bool, const P: usize> SearchScheme
+    for BpTreeSearchBatch<B, N, REV, P>
+{
+    type INDEX = BpTree<B, N, REV>;
+
+    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+        batched(qs, |qb: &[u32; P]| {
+            assert!(!REV);
+            let mut k = [0; P];
+            for o in index.offsets[1..index.offsets.len()].into_iter().rev() {
+                for i in 0..P {
+                    let jump_to = index.node(o + k[i]).find(qb[i]);
+                    k[i] = k[i] * (B + 1) + jump_to;
+                }
             }
-        }
 
-        std::array::from_fn(|i| {
-            let index = self.node(k[i]).find(q[i]);
-            self.get(k[i] + index / B, index % B)
+            std::array::from_fn::<_, P, _>(|i| {
+                let idx = index.node(k[i]).find(qb[i]);
+                index.get(k[i] + idx / B, idx % B)
+            })
         })
     }
+}
 
-    pub fn batch_prefetch<const P: usize>(&self, q: &[u32; P]) -> [u32; P] {
-        assert!(!REV);
-        let mut k = [0; P];
-        let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
-        for h in (1..self.offsets.len()).rev() {
-            let o = unsafe { self.offsets.get_unchecked(h) };
-            let o2 = unsafe { self.offsets.get_unchecked(h - 1) };
-            for i in 0..P {
-                let jump_to = self.node(o + k[i]).find_splat(q_simd[i]);
-                k[i] = k[i] * (B + 1) + jump_to;
-                prefetch_index(&self.tree, o2 + k[i]);
+pub struct BpTreeSearchBatchPrefetch<
+    const B: usize,
+    const N: usize,
+    const REV: bool,
+    const P: usize,
+>;
+impl<const B: usize, const N: usize, const REV: bool, const P: usize> SearchScheme
+    for BpTreeSearchBatchPrefetch<B, N, REV, P>
+{
+    type INDEX = BpTree<B, N, REV>;
+
+    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+        batched(qs, |qb: &[u32; P]| {
+            assert!(!REV);
+            let mut k = [0; P];
+            let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
+            for h in (1..index.offsets.len()).rev() {
+                let o = unsafe { index.offsets.get_unchecked(h) };
+                let o2 = unsafe { index.offsets.get_unchecked(h - 1) };
+                for i in 0..P {
+                    let jump_to = index.node(o + k[i]).find_splat(q_simd[i]);
+                    k[i] = k[i] * (B + 1) + jump_to;
+                    prefetch_index(&index.tree, o2 + k[i]);
+                }
             }
-        }
 
-        std::array::from_fn(|i| {
-            let index = self.node(k[i]).find_splat(q_simd[i]);
-            self.get(k[i] + index / B, index % B)
+            std::array::from_fn(|i| {
+                let idx = index.node(k[i]).find_splat(q_simd[i]);
+                index.get(k[i] + idx / B, idx % B)
+            })
         })
     }
+}
 
-    pub fn batch_ptr<const P: usize>(&self, q: &[u32; P]) -> [u32; P] {
-        assert!(!REV);
-        let mut k = [0; P];
-        let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
+pub struct BpTreeSearchBatchPtr<const B: usize, const N: usize, const REV: bool, const P: usize>;
+impl<const B: usize, const N: usize, const REV: bool, const P: usize> SearchScheme
+    for BpTreeSearchBatchPtr<B, N, REV, P>
+{
+    type INDEX = BpTree<B, N, REV>;
 
-        let offsets = self
-            .offsets
-            .iter()
-            .map(|o| unsafe { self.tree.as_ptr().add(*o) })
-            .collect_vec();
+    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+        batched(qs, |qb: &[u32; P]| {
+            assert!(!REV);
+            let mut k = [0; P];
+            let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
 
-        for h in (1..offsets.len()).rev() {
-            let o = unsafe { *offsets.get_unchecked(h) };
-            let o2 = unsafe { *offsets.get_unchecked(h - 1) };
-            for i in 0..P {
-                let jump_to = unsafe { *o.add(k[i]) }.find_splat(q_simd[i]);
-                k[i] = k[i] * (B + 1) + jump_to;
-                prefetch_ptr(unsafe { o2.add(k[i]) });
+            let offsets = index
+                .offsets
+                .iter()
+                .map(|o| unsafe { index.tree.as_ptr().add(*o) })
+                .collect_vec();
+
+            for h in (1..offsets.len()).rev() {
+                let o = unsafe { *offsets.get_unchecked(h) };
+                let o2 = unsafe { *offsets.get_unchecked(h - 1) };
+                for i in 0..P {
+                    let jump_to = unsafe { *o.add(k[i]) }.find_splat(q_simd[i]);
+                    k[i] = k[i] * (B + 1) + jump_to;
+                    prefetch_ptr(unsafe { o2.add(k[i]) });
+                }
             }
-        }
 
-        std::array::from_fn(|i| {
-            let index = self.node(k[i]).find_splat(q_simd[i]);
-            self.get(k[i] + index / B, index % B)
+            std::array::from_fn(|i| {
+                let idx = index.node(k[i]).find_splat(q_simd[i]);
+                index.get(k[i] + idx / B, idx % B)
+            })
         })
     }
+}
 
-    pub fn batch_ptr2<const P: usize>(&self, q: &[u32; P]) -> [u32; P] {
-        assert!(!REV);
-        let mut k = [0; P];
-        let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
+pub struct BpTreeSearchBatchPtr2<const B: usize, const N: usize, const REV: bool, const P: usize>;
+impl<const B: usize, const N: usize, const REV: bool, const P: usize> SearchScheme
+    for BpTreeSearchBatchPtr2<B, N, REV, P>
+{
+    type INDEX = BpTree<B, N, REV>;
 
-        let offsets = self
-            .offsets
-            .iter()
-            .map(|o| unsafe { self.tree.as_ptr().add(*o) })
-            .collect_vec();
+    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+        batched(qs, |qb: &[u32; P]| {
+            assert!(!REV);
+            let mut k = [0; P];
+            let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
 
-        for h in (1..offsets.len()).rev() {
-            let o = unsafe { *offsets.get_unchecked(h) };
-            let o2 = unsafe { *offsets.get_unchecked(h - 1) };
-            for i in 0..P {
-                let jump_to = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
-                k[i] = k[i] * (B + 1) + jump_to * 64;
-                prefetch_ptr(unsafe { o2.byte_add(k[i]) });
+            let offsets = index
+                .offsets
+                .iter()
+                .map(|o| unsafe { index.tree.as_ptr().add(*o) })
+                .collect_vec();
+
+            for h in (1..offsets.len()).rev() {
+                let o = unsafe { *offsets.get_unchecked(h) };
+                let o2 = unsafe { *offsets.get_unchecked(h - 1) };
+                for i in 0..P {
+                    let jump_to = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
+                    k[i] = k[i] * (B + 1) + jump_to * 64;
+                    prefetch_ptr(unsafe { o2.byte_add(k[i]) });
+                }
             }
-        }
 
-        let o = unsafe { *offsets.get_unchecked(0) };
-        std::array::from_fn(|i| {
-            let mut index = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
-            if !REV && index == B {
-                index = N;
-            }
-            unsafe { (o.byte_add(k[i]) as *const u32).add(index).read() }
+            let o = unsafe { *offsets.get_unchecked(0) };
+            std::array::from_fn(|i| {
+                let mut idx = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
+                if !REV && idx == B {
+                    idx = N;
+                }
+                unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
+            })
         })
     }
+}
 
-    pub fn batch_ptr3<const P: usize, const LAST: bool>(&self, q: &[u32; P]) -> [u32; P] {
-        self.batch_ptr3_par::<P, LAST>(q)
-    }
+pub struct BpTreeSearchBatchPtr3<
+    const B: usize,
+    const N: usize,
+    const REV: bool,
+    const P: usize,
+    const LAST: bool,
+>;
+impl<const B: usize, const N: usize, const REV: bool, const P: usize, const LAST: bool> SearchScheme
+    for BpTreeSearchBatchPtr3<B, N, REV, P, LAST>
+{
+    type INDEX = BpTree<B, N, REV>;
 
-    pub fn batch_ptr3_par<const P: usize, const LAST: bool>(&self, q: &[u32; P]) -> [u32; P] {
-        let mut k = [0; P];
-        let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
+    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+        batched(qs, |qb: &[u32; P]| {
+            let mut k = [0; P];
+            let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
 
-        let offsets = self
-            .offsets
-            .iter()
-            .map(|o| unsafe { self.tree.as_ptr().add(*o) })
-            .collect_vec();
+            let offsets = index
+                .offsets
+                .iter()
+                .map(|o| unsafe { index.tree.as_ptr().add(*o) })
+                .collect_vec();
 
-        for h in (1..offsets.len()).rev() {
-            let o = unsafe { *offsets.get_unchecked(h) };
-            let o2 = unsafe { *offsets.get_unchecked(h - 1) };
-            for i in 0..P {
-                let jump_to = if !LAST {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
+            for h in (1..offsets.len()).rev() {
+                let o = unsafe { *offsets.get_unchecked(h) };
+                let o2 = unsafe { *offsets.get_unchecked(h - 1) };
+                for i in 0..P {
+                    let jump_to = if !LAST {
+                        unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
+                    } else {
+                        unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
+                    };
+                    k[i] = k[i] * (B + 1) + jump_to;
+                    prefetch_ptr(unsafe { o2.byte_add(k[i]) });
+                }
+            }
+
+            let o = unsafe { *offsets.get_unchecked(0) };
+            std::array::from_fn(|i| {
+                let mut idx = if !LAST {
+                    unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
                 } else {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
+                    unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
                 };
-                k[i] = k[i] * (B + 1) + jump_to;
-                prefetch_ptr(unsafe { o2.byte_add(k[i]) });
-            }
-        }
-
-        let o = unsafe { *offsets.get_unchecked(0) };
-        std::array::from_fn(|i| {
-            let mut index = if !LAST {
-                unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
-            } else {
-                unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
-            };
-            if !REV && index == B {
-                index = N;
-            }
-            unsafe { (o.byte_add(k[i]) as *const u32).add(index).read() }
+                if !REV && idx == B {
+                    idx = N;
+                }
+                unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
+            })
         })
     }
+}
 
-    pub fn batch_ptr3_full<const P: usize, const LAST: bool>(&self, q: &[u32; P]) -> [u32; P] {
-        let mut k = [0; P];
-        let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
+pub struct BpTreeSearchBatchPtr3Full<
+    const B: usize,
+    const N: usize,
+    const REV: bool,
+    const P: usize,
+    const LAST: bool,
+>;
+impl<const B: usize, const N: usize, const REV: bool, const P: usize, const LAST: bool> SearchScheme
+    for BpTreeSearchBatchPtr3Full<B, N, REV, P, LAST>
+{
+    type INDEX = BpTree<B, N, REV>;
 
-        let o = self.tree.as_ptr();
+    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+        batched(qs, |qb: &[u32; P]| {
+            let mut k = [0; P];
+            let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
 
-        for _h in (1..self.offsets.len()).rev() {
-            for i in 0..P {
-                let jump_to = if !LAST {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
+            let o = index.tree.as_ptr();
+
+            for _h in (1..index.offsets.len()).rev() {
+                for i in 0..P {
+                    let jump_to = if !LAST {
+                        unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
+                    } else {
+                        unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
+                    };
+                    k[i] = k[i] * (B + 1) + jump_to + 64;
+                    prefetch_ptr(unsafe { o.byte_add(k[i]) });
+                }
+            }
+
+            std::array::from_fn(|i| {
+                let mut idx = if !LAST {
+                    unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
                 } else {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
+                    unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
                 };
-                k[i] = k[i] * (B + 1) + jump_to + 64;
-                prefetch_ptr(unsafe { o.byte_add(k[i]) });
-            }
-        }
-
-        std::array::from_fn(|i| {
-            let mut index = if !LAST {
-                unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
-            } else {
-                unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
-            };
-            if !REV && index == B {
-                index = N;
-            }
-            unsafe { (o.byte_add(k[i]) as *const u32).add(index).read() }
+                if !REV && idx == B {
+                    idx = N;
+                }
+                unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
+            })
         })
     }
+}
 
-    pub fn batch_no_prefetch<const P: usize, const LAST: bool, const SKIP: usize>(
-        &self,
-        q: &[u32; P],
-    ) -> [u32; P] {
-        let mut k = [0; P];
-        let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
+pub struct BpTreeSearchBatchNoPrefetch<
+    const B: usize,
+    const N: usize,
+    const REV: bool,
+    const P: usize,
+    const LAST: bool,
+    const SKIP: usize,
+>;
+impl<
+        const B: usize,
+        const N: usize,
+        const REV: bool,
+        const P: usize,
+        const LAST: bool,
+        const SKIP: usize,
+    > SearchScheme for BpTreeSearchBatchNoPrefetch<B, N, REV, P, LAST, SKIP>
+{
+    type INDEX = BpTree<B, N, REV>;
 
-        let offsets = self
+    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+        batched(qs, |qb: &[u32; P]| {
+            let mut k = [0; P];
+            let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
+
+            let offsets = index
+                .offsets
+                .iter()
+                .map(|o| unsafe { index.tree.as_ptr().add(*o) })
+                .collect_vec();
+
+            let lim = offsets.len().saturating_sub(SKIP).max(1);
+
+            for h in (lim..offsets.len()).rev() {
+                let o = unsafe { *offsets.get_unchecked(h) };
+                // let o2 = unsafe { *offsets.get_unchecked(h - 1) };
+                for i in 0..P {
+                    let jump_to = if !LAST {
+                        unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
+                    } else {
+                        unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
+                    };
+                    k[i] = k[i] * (B + 1) + jump_to;
+                    // prefetch_ptr(unsafe { o2.byte_add(k[i]) });
+                }
+            }
+
+            for h in (1..lim).rev() {
+                let o = unsafe { *offsets.get_unchecked(h) };
+                let o2 = unsafe { *offsets.get_unchecked(h - 1) };
+                for i in 0..P {
+                    let jump_to = if !LAST {
+                        unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
+                    } else {
+                        unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
+                    };
+                    k[i] = k[i] * (B + 1) + jump_to;
+                    prefetch_ptr(unsafe { o2.byte_add(k[i]) });
+                }
+            }
+
+            let o = unsafe { *offsets.get_unchecked(0) };
+            std::array::from_fn(|i| {
+                let mut idx = if !LAST {
+                    unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
+                } else {
+                    unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
+                };
+                if !REV && idx == B {
+                    idx = N;
+                }
+                unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
+            })
+        })
+    }
+}
+
+pub struct BpTreeSearchInterleave<
+    const B: usize,
+    const N: usize,
+    const REV: bool,
+    const P: usize,
+    const LAST: bool,
+>;
+impl<const B: usize, const N: usize, const REV: bool, const P: usize, const LAST: bool> SearchScheme
+    for BpTreeSearchInterleave<B, N, REV, P, LAST>
+{
+    type INDEX = BpTree<B, N, REV>;
+
+    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+        if index.offsets.len() % 2 != 0 {
+            return vec![];
+        }
+        assert!(index.offsets.len() % 2 == 0);
+
+        let offsets = index
             .offsets
             .iter()
-            .map(|o| unsafe { self.tree.as_ptr().add(*o) })
-            .collect_vec();
-
-        let lim = offsets.len().saturating_sub(SKIP).max(1);
-
-        for h in (lim..offsets.len()).rev() {
-            let o = unsafe { *offsets.get_unchecked(h) };
-            // let o2 = unsafe { *offsets.get_unchecked(h - 1) };
-            for i in 0..P {
-                let jump_to = if !LAST {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
-                } else {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
-                };
-                k[i] = k[i] * (B + 1) + jump_to;
-                // prefetch_ptr(unsafe { o2.byte_add(k[i]) });
-            }
-        }
-
-        for h in (1..lim).rev() {
-            let o = unsafe { *offsets.get_unchecked(h) };
-            let o2 = unsafe { *offsets.get_unchecked(h - 1) };
-            for i in 0..P {
-                let jump_to = if !LAST {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
-                } else {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
-                };
-                k[i] = k[i] * (B + 1) + jump_to;
-                prefetch_ptr(unsafe { o2.byte_add(k[i]) });
-            }
-        }
-
-        let o = unsafe { *offsets.get_unchecked(0) };
-        std::array::from_fn(|i| {
-            let mut index = if !LAST {
-                unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
-            } else {
-                unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
-            };
-            if !REV && index == B {
-                index = N;
-            }
-            unsafe { (o.byte_add(k[i]) as *const u32).add(index).read() }
-        })
-    }
-
-    pub fn interleave<const P: usize, const LAST: bool>(&self, q: &[u32]) {
-        if self.offsets.len() % 2 != 0 {
-            return;
-        }
-        assert!(self.offsets.len() % 2 == 0);
-
-        let offsets = self
-            .offsets
-            .iter()
-            .map(|o| unsafe { self.tree.as_ptr().add(*o) })
+            .map(|o| unsafe { index.tree.as_ptr().add(*o) })
             .collect_vec();
 
         let mut k1 = &mut [0; P];
@@ -476,9 +628,10 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         // 2. do 2nd half of first P queries, and first half of next; repeat
         // 3. last half of last P queries.
 
-        let hh = self.offsets.len() / 2;
+        let hh = index.offsets.len() / 2;
 
-        let mut chunks = q.array_chunks::<P>();
+        let mut chunks = qs.array_chunks::<P>();
+        let mut out = Vec::with_capacity(qs.len());
 
         let c1 = chunks.next().unwrap();
         let mut q_simd1 = &mut [Simd::<u32, 8>::splat(0); P];
@@ -558,17 +711,17 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
                 k1[i] = k1[i] * (B + 1) + jump_to;
                 prefetch_ptr(unsafe { o12.byte_add(k1[i]) });
 
-                let mut index = if !LAST {
+                let mut idx = if !LAST {
                     unsafe { *o.byte_add(k2[i]) }.find_splat(q_simd2[i])
                 } else {
                     unsafe { *o.byte_add(k2[i]) }.find_splat_last(q_simd2[i])
                 };
-                if !REV && index == B {
-                    index = N;
+                if !REV && idx == B {
+                    idx = N;
                 }
-                unsafe { (o.byte_add(k2[i]) as *const u32).add(index).read() }
+                unsafe { (o.byte_add(k2[i]) as *const u32).add(idx).read() }
             });
-            black_box(ans);
+            out.extend_from_slice(&ans);
         }
 
         // 3
@@ -589,17 +742,18 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         // h=0
         let o = unsafe { *offsets.get_unchecked(0) };
         let ans: [u32; P] = std::array::from_fn(|i| {
-            let mut index = if !LAST {
+            let mut idx = if !LAST {
                 unsafe { *o.byte_add(k1[i]) }.find_splat(q_simd1[i])
             } else {
                 unsafe { *o.byte_add(k1[i]) }.find_splat_last(q_simd1[i])
             };
-            if !REV && index == B {
-                index = N;
+            if !REV && idx == B {
+                idx = N;
             }
-            unsafe { (o.byte_add(k1[i]) as *const u32).add(index).read() }
+            unsafe { (o.byte_add(k1[i]) as *const u32).add(idx).read() }
         });
-        black_box(ans);
+        out.extend_from_slice(&ans);
+        out
     }
 }
 
@@ -614,7 +768,7 @@ mod tests {
     #[test]
     fn test_b_tree_k_2() {
         let vals = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let bptree = BpTree::<2, 2, false>::new(vals);
+        let bptree = BpTree::<2, 2, false>::new(&vals);
         println!("{:?}", bptree);
     }
 
@@ -622,7 +776,7 @@ mod tests {
     fn test_b_tree_k_3() {
         let vals = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         // let correct_output = vec![4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15];
-        let computed_out = BpTree::<3, 3, false>::new(vals);
+        let computed_out = BpTree::<3, 3, false>::new(&vals);
         println!("{:?}", computed_out);
     }
 
@@ -631,10 +785,10 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 452;
-        let bptree = BpTree::<16, 16, false>::new(vals.clone());
-        let bptree_res = bptree.search(q);
+        let bptree = BpTree::<16, 16, false>::new(&vals);
+        let bptree_res = bptree.query_one(q, &BpTreeSearch);
 
-        let bin_res = SortedVec::new(&vals).query_one(q, BinarySearch);
+        let bin_res = SortedVec::new(&vals).query_one(q, &BinarySearch);
         println!("{bptree_res}, {bin_res}");
         assert!(bptree_res == bin_res);
     }
@@ -644,10 +798,10 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 289;
-        let bptree = BpTree::<16, 16, false>::new(vals.clone());
-        let bptree_res = bptree.search(q);
+        let bptree = BpTree::<16, 16, false>::new(&vals);
+        let bptree_res = bptree.query_one(q, &BpTreeSearch);
 
-        let bin_res = SortedVec::new(&vals).query_one(q, BinarySearch);
+        let bin_res = SortedVec::new(&vals).query_one(q, &BinarySearch);
         println!("{bptree_res}, {bin_res}");
         assert!(bptree_res == bin_res);
     }
@@ -656,7 +810,7 @@ mod tests {
     fn test_simd_cmp() {
         let mut vals: Vec<u32> = (1..16).collect();
         vals.push(MAX);
-        let bptree = BpTree::<16, 16, false>::new(vals);
+        let bptree = BpTree::<16, 16, false>::new(&vals);
         let idx = bptree.tree[0].find(1);
         println!("{}", idx);
         assert_eq!(idx, 0);

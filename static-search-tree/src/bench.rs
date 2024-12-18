@@ -1,7 +1,7 @@
 use crate::binary_search::{
     BinarySearch, BinarySearchBranchless, BinarySearchBranchlessPrefetch, SortedVec,
 };
-use crate::bplustree::{BpTree15, BpTree16, BpTree16R};
+use crate::bplustree::{BpTree, BpTree15, BpTree16, BpTree16R};
 use crate::btree::{BTree16, BTreeSearch, BTreeSearchLoop, BTreeSearchSimd};
 use crate::eytzinger::{Eytzinger, EytzingerPrefetch, EytzingerSearch};
 use crate::interp_search::InterpolationSearch;
@@ -42,7 +42,7 @@ pub fn bench_scheme<I: SearchIndex>(
 ) -> f64 {
     info!("Benching {}", scheme.name());
     let start = Instant::now();
-    black_box(index.query(qs, scheme));
+    black_box(index.query(qs, &scheme));
     let elapsed = start.elapsed();
     elapsed.as_nanos() as f64 / qs.len() as f64
 }
@@ -75,32 +75,31 @@ pub fn bench_all<T>(searcher: &T, search: IFn<T>, queries: &[u32]) -> f64 {
     elapsed.as_nanos() as f64 / queries.len() as f64
 }
 
-pub fn bench_batch_par<const B: usize, T: Send + Sync>(
-    searcher: &T,
-    search: BFn<B, T>,
-    queries: &[u32],
+pub fn bench_batch_par<I: SearchIndex + Sync>(
+    index: &I,
+    scheme: &dyn SearchScheme<INDEX = I>,
+    qs: &[u32],
     threads: usize,
 ) -> f64 {
-    info!("Benching {}", search.0);
-    let chunk_size = queries.len().div_ceil(threads).next_multiple_of(B);
+    info!("Benching {}", scheme.name());
+    let chunk_size = qs.len().div_ceil(threads);
     let start = Instant::now();
 
     rayon::scope(|scope| {
         for idx in 0..threads {
-            let searcher = &searcher;
-            let search = &search;
+            let index = &index;
+            let scheme = &scheme;
             scope.spawn(move |_| {
                 let start_idx = idx * chunk_size;
-                let end = ((idx + 1) * chunk_size).min(queries.len());
-                for qs in queries[start_idx..end].array_chunks::<B>() {
-                    black_box(search.1(searcher, qs));
-                }
+                let end = ((idx + 1) * chunk_size).min(qs.len());
+                let qs_thread = &qs[start_idx..end];
+                black_box(index.query(qs_thread, scheme));
             });
         }
     });
 
     let elapsed = start.elapsed();
-    elapsed.as_nanos() as f64 / queries.len() as f64
+    elapsed.as_nanos() as f64 / qs.len() as f64
 }
 
 #[pyclass]
@@ -108,7 +107,9 @@ pub struct BenchmarkSortedArray {
     bs: Vec<&'static dyn SearchScheme<INDEX = SortedVec>>,
     eyt: Vec<&'static dyn SearchScheme<INDEX = Eytzinger>>,
     bt: Vec<&'static dyn SearchScheme<INDEX = BTree16>>,
-    bp: Vec<Fn<BpTree16>>,
+    bp: Vec<&'static dyn SearchScheme<INDEX = BpTree16>>,
+    bp15: Vec<&'static dyn SearchScheme<INDEX = BpTree15>>,
+    bpr: Vec<&'static dyn SearchScheme<INDEX = BpTree16R>>,
 }
 
 impl BenchmarkSortedArray {
@@ -118,15 +119,16 @@ impl BenchmarkSortedArray {
         const TEST_END_POW2: usize = 26;
         const TEST_QUERIES: usize = 10000usize.next_multiple_of(128);
 
-        let mut correct = true;
+        let correct = &mut true;
         for pow2 in TEST_START_POW2..=TEST_END_POW2 {
             let size = 2usize.pow(pow2 as u32);
             let vals = gen_vals(size, true);
             eprintln!("LEN: {}", vals.len());
             let qs = &gen_queries(TEST_QUERIES);
 
-            let mut results = vec![];
+            let results = &mut vec![];
 
+            // Helper to extract type `I` and build the index.
             fn map<I: SearchIndex>(
                 schemes: &Vec<&dyn SearchScheme<INDEX = I>>,
                 vals: &[u32],
@@ -134,9 +136,17 @@ impl BenchmarkSortedArray {
                 results: &mut Vec<u32>,
                 correct: &mut bool,
             ) {
-                let index = &I::new(vals);
+                map_idx(schemes, &I::new(vals), qs, results, correct);
+            }
 
-                for &scheme in schemes {
+            fn map_idx<I: SearchIndex>(
+                schemes: &Vec<&(dyn SearchScheme<INDEX = I>)>,
+                index: &I,
+                qs: &[u32],
+                results: &mut Vec<u32>,
+                correct: &mut bool,
+            ) {
+                for scheme in schemes {
                     let new_results = index.query(qs, scheme);
                     if results.is_empty() {
                         *results = new_results;
@@ -148,105 +158,28 @@ impl BenchmarkSortedArray {
                 }
             }
 
-            map(&self.bs, &vals, qs, &mut results, &mut correct);
-            map(&self.eyt, &vals, qs, &mut results, &mut correct);
-            map(&self.bt, &vals, qs, &mut results, &mut correct);
-
-            let bp = &BpTree16::new(vals.clone());
-
-            for &f in &self.bp {
-                let new_results = run(bp, f, qs);
-                if results != new_results {
-                    correct = false;
-                }
-            }
-
-            let f: BFn<128, _> = ("bp_batch", BpTree16::batch::<128>);
-            let new_results = run_batch(bp, f, qs);
-            assert_eq!(results, new_results, "{}\n{:?}", f.0, vals);
-
-            let f: BFn<128, _> = ("bp_batch_prefetch", BpTree16::batch_prefetch::<128>);
-            let new_results = run_batch(bp, f, qs);
-            assert_eq!(results.len(), new_results.len(), "{}", f.0);
-            assert_eq!(results, new_results, "{}", f.0);
-
-            let f: BFn<128, _> = ("bp_batch_ptr", BpTree16::batch_ptr::<128>);
-            let new_results = run_batch(bp, f, qs);
-            assert_eq!(results.len(), new_results.len(), "{}", f.0);
-            assert_eq!(results, new_results, "{}", f.0);
-
-            let f: BFn<128, _> = ("bp_batch_ptr", BpTree16::batch_ptr2::<128>);
-            let new_results = run_batch(bp, f, qs);
-            assert_eq!(results, new_results, "{}", f.0);
-
-            let f: BFn<128, _> = ("bp_batch_ptr3", BpTree16::batch_ptr3::<128, false>);
-            let new_results = run_batch(bp, f, qs);
-            assert_eq!(results, new_results, "{}\n{vals:?}", f.0);
-
-            let f: BFn<128, _> = ("bp_batch_ptr3_last", BpTree16::batch_ptr3::<128, true>);
-            let last_results = run_batch(bp, f, qs);
-
-            let bp = &BpTree15::new(vals.clone());
-
-            let f: BFn<128, _> = ("bp_batch", BpTree15::batch::<128>);
-            let new_results = run_batch(bp, f, qs);
-            assert_eq!(results, new_results, "{}", f.0);
-
-            let f: BFn<128, _> = ("bp_batch_prefetch", BpTree15::batch_prefetch::<128>);
-            let new_results = run_batch(bp, f, qs);
-            assert_eq!(results, new_results, "{}", f.0);
-
-            let f: BFn<128, _> = ("bp_batch_ptr", BpTree15::batch_ptr::<128>);
-            let new_results = run_batch(bp, f, qs);
-            assert_eq!(results, new_results, "{}", f.0);
-
-            let f: BFn<128, _> = ("bp_batch_ptr", BpTree15::batch_ptr2::<128>);
-            let new_results = run_batch(bp, f, qs);
-            assert_eq!(results, new_results, "{}", f.0);
-
-            info!("Building B+Tree16R");
-            let bpr = &BpTree16R::new(vals.clone());
-
-            let f: BFn<128, _> = ("bp_batch_ptr3_rev", BpTree16R::batch_ptr3::<128, false>);
-            let new_results = run_batch(bpr, f, qs);
-            assert_eq!(results, new_results, "{}\n{vals:?}", f.0);
-
-            let f: BFn<128, _> = ("bp_batch_ptr3_rev_last", BpTree16R::batch_ptr3::<128, true>);
-            let new_last_results = run_batch(bpr, f, qs);
-            assert_eq!(last_results, new_last_results, "{}\n{vals:?}", f.0);
-
-            info!("Building B+Tree16R-FWD");
-            let bpr = &BpTree16R::new_fwd(vals.clone(), false);
-
-            let f: BFn<128, _> = ("bpr_batch_ptr3_rev", BpTree16R::batch_ptr3::<128, false>);
-            let new_results = run_batch(bpr, f, qs);
-            assert_eq!(results, new_results, "{}\n{vals:?}", f.0);
-
-            let f: BFn<128, _> = (
-                "bpr_batch_ptr3_rev_last",
-                BpTree16R::batch_ptr3::<128, true>,
+            map(&self.bs, &vals, qs, results, correct);
+            map(&self.eyt, &vals, qs, results, correct);
+            map(&self.bt, &vals, qs, results, correct);
+            map(&self.bp, &vals, qs, results, correct);
+            map(&self.bp15, &vals, qs, results, correct);
+            map(&self.bpr, &vals, qs, results, correct);
+            map_idx(
+                &self.bpr,
+                &BpTree16R::new_fwd(&vals, false),
+                qs,
+                results,
+                correct,
             );
-            let new_last_results = run_batch(bpr, f, qs);
-            assert_eq!(last_results, new_last_results, "{}\n{vals:?}", f.0);
-
-            info!("Building B+Tree16R-FWD-Full");
-            let bpr = &BpTree16R::new_fwd(vals.clone(), true);
-
-            let f: BFn<128, _> = ("bprf_batch_ptr3_rev", BpTree16R::batch_ptr3::<128, false>);
-            let new_results = run_batch(bpr, f, qs);
-            assert_eq!(results, new_results, "{}\n{vals:?}", f.0);
-
-            let f: BFn<128, _> = (
-                "bprf_batch_ptr3_rev",
-                BpTree16R::batch_ptr3_full::<128, false>,
+            map_idx(
+                &self.bpr,
+                &BpTree16R::new_fwd(&vals, true),
+                qs,
+                results,
+                correct,
             );
-            let new_results = run_batch(bpr, f, qs);
-            assert_eq!(results, new_results, "{}\n{vals:?}", f.0);
-
-            let f: IFn<_> = ("bprf_interleave", BpTree16R::interleave::<64, false>);
-            run_all(bpr, f, qs);
         }
-        correct
+        *correct
     }
 }
 
@@ -273,12 +206,76 @@ impl BenchmarkSortedArray {
             &BTreeSearchLoop,
             &BTreeSearchSimd,
         ];
-        let bp: Vec<Fn<_>> = vec![
-            ("bp_search", BpTree16::search),
-            ("bp_search_split", BpTree16::search_split),
-        ];
+        let bp = const {
+            [
+                &BpTree::search(),
+                &BpTree::search_split(),
+                &BpTree::search_batch::<4>(),
+                &BpTree::search_batch::<8>(),
+                &BpTree::search_batch::<16>(),
+                &BpTree::search_batch::<32>(),
+                &BpTree::search_batch::<64>(),
+                &BpTree::search_batch::<128>(),
+                &BpTree::search_batch_prefetch::<128>(),
+                &BpTree::search_batch_ptr::<128>(),
+                &BpTree::search_batch_ptr2::<128>(),
+                &BpTree::search_batch_ptr3::<128, false>(),
+                &BpTree::search_batch_no_prefetch::<64, false, 1>(),
+                &BpTree::search_batch_no_prefetch::<64, false, 2>(),
+                &BpTree::search_interleave::<64, false>(),
+                // &BpTree::search_batch_ptr3::<128, true>(),
+                // &BpTree::search_interleave::<64, true>(),
+            ] as [&dyn SearchScheme<INDEX = _>; _]
+        }
+        .to_vec();
 
-        BenchmarkSortedArray { bs, eyt, bt, bp }
+        let bp15 = const {
+            [
+                &BpTree::search(),
+                &BpTree::search_split(),
+                &BpTree::search_batch::<128>(),
+                &BpTree::search_batch_prefetch::<128>(),
+                &BpTree::search_batch_ptr::<128>(),
+                &BpTree::search_batch_ptr2::<128>(),
+                &BpTree::search_batch_ptr3::<128, false>(),
+                &BpTree::search_batch_no_prefetch::<128, false, 1>(),
+                &BpTree::search_batch_no_prefetch::<128, false, 2>(),
+                &BpTree::search_interleave::<64, false>(),
+                // &BpTree::search_batch_ptr3::<128, true>(),
+                // &BpTree::search_interleave::<64, true>(),
+            ] as [&dyn SearchScheme<INDEX = _>; _]
+        }
+        .to_vec();
+
+        let bpr = const {
+            [
+                // &BpTree::search() as &dyn SearchScheme<INDEX = _>,
+                // &BpTree::search_split(),
+                // &BpTree::search_batch::<128>(),
+                // &BpTree::search_batch_prefetch::<128>(),
+                // &BpTree::search_batch_ptr::<128>(),
+                // &BpTree::search_batch_ptr2::<128>(),
+                &BpTree::search_batch_ptr3::<32, false>(),
+                &BpTree::search_batch_ptr3::<64, false>(),
+                &BpTree::search_batch_ptr3::<128, false>(),
+                &BpTree::search_batch_ptr3::<256, false>(),
+                &BpTree::search_batch_no_prefetch::<128, false, 1>(),
+                &BpTree::search_batch_no_prefetch::<128, false, 2>(),
+                &BpTree::search_interleave::<64, false>(),
+                // &BpTree::search_batch_ptr3::<128, true>(),
+                // &BpTree::search_interleave::<64, true>(),
+            ] as [&dyn SearchScheme<INDEX = _>; _]
+        }
+        .to_vec();
+
+        BenchmarkSortedArray {
+            bs,
+            eyt,
+            bt,
+            bp,
+            bp15,
+            bpr,
+        }
     }
 
     pub fn benchmark_one(
@@ -323,15 +320,7 @@ impl BenchmarkSortedArray {
             map(&self.bs, &fname, &vals, queries, &mut results);
             map(&self.eyt, &fname, &vals, queries, &mut results);
             map(&self.bt, &fname, &vals, queries, &mut results);
-
-            for &f in &self.bp {
-                let (name, _f) = f;
-                if fname == name {
-                    let bt = &BpTree16::new(vals[..len].to_vec());
-                    let t = bench(bt, (name, _f), queries);
-                    results.push((size, t));
-                }
-            }
+            map(&self.bp, &fname, &vals, queries, &mut results);
         }
         if results.len() > (stop_pow2 - start_pow2 + 1) {
             panic!("The function with the same name must exist multiple times!")
@@ -344,11 +333,12 @@ impl BenchmarkSortedArray {
         start_pow2: usize,
         stop_pow2: usize,
         queries: usize,
-    ) -> HashMap<&str, Vec<(usize, f64, usize)>> {
-        let mut results: HashMap<&str, Vec<(usize, f64, usize)>> = HashMap::new();
+    ) -> HashMap<&str, Vec<(usize, f64)>> {
+        type Results = HashMap<&'static str, Vec<(usize, f64)>>;
+        let mut results: Results = HashMap::new();
 
         let start = Instant::now();
-        let queries = &gen_queries(queries);
+        let qs = &gen_queries(queries);
         let mut vals = gen_vals(1 << stop_pow2, false);
         vals[0] = MAX;
         info!("Generating took {:?}", start.elapsed());
@@ -358,221 +348,63 @@ impl BenchmarkSortedArray {
             let len = size / std::mem::size_of::<u32>();
             // Sort the fist size elements of vals.
             let start = Instant::now();
-            vals[..len].radix_sort_unstable();
+            let vals = &mut vals[..len];
+            vals.radix_sort_unstable();
             info!("Sorting took {:?}", start.elapsed());
 
-            // info!("Building BS");
-            // let bs = &BinarySearch::new(vals[..len].to_vec());
+            // Helper to extract type `I` and build the index.
+            fn map<I: SearchIndex>(
+                schemes: &Vec<&dyn SearchScheme<INDEX = I>>,
+                vals: &[u32],
+                qs: &[u32],
+                size: usize,
+                results: &mut Results,
+            ) {
+                map_idx(schemes, &I::new(vals), qs, size, results);
+            }
 
-            // for &f in &self.bs {
-            //     let c0 = bs.cnt;
-            //     let t = bench(bs, f, queries);
-            //     results.entry(f.0).or_default().push((size, t, bs.cnt - c0));
-            // }
+            fn map_idx<I: SearchIndex>(
+                schemes: &Vec<&(dyn SearchScheme<INDEX = I>)>,
+                index: &I,
+                qs: &[u32],
+                size: usize,
+                results: &mut Results,
+            ) {
+                for scheme in schemes {
+                    let t = bench_scheme(index, scheme, qs);
+                    results.entry(scheme.name()).or_default().push((size, t));
+                }
+            }
 
-            // info!("Building Eytzinger");
-            // let eyt = &Eytzinger::new(vals[..len].to_vec());
-
-            // for &f in &self.eyt {
-            //     let c0 = eyt.cnt;
-            //     let t = bench(eyt, f, queries);
-            //     results
-            //         .entry(f.0)
-            //         .or_default()
-            //         .push((size, t, eyt.cnt - c0));
-            // }
-
-            // info!("Building BTree16");
-            // let bt = &BTree16::new(vals[..len].to_vec());
-
-            // for &f in &self.bt {
-            //     let c0 = bt.cnt;
-            //     let t = bench(bt, f, queries);
-            //     results.entry(f.0).or_default().push((size, t, bt.cnt - c0));
-            // }
-
-            // info!("Building B+Tree16");
-            // let bp = &BpTree16::new(vals[..len].to_vec());
-
-            // for &f in &self.bp {
-            //     let c0 = bp.cnt;
-            //     let t = bench(bp, f, queries);
-            //     results.entry(f.0).or_default().push((size, t, bp.cnt - c0));
-            // }
-
-            // let f: BFn<4, _> = ("bp_batch4", BpTree16::batch::<4>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // let f: BFn<8, _> = ("bp_batch8", BpTree16::batch::<8>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // let f: BFn<16, _> = ("bp_batch16", BpTree16::batch::<16>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // let f: BFn<32, _> = ("bp_batch32", BpTree16::batch::<32>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // let f: BFn<64, _> = ("bp_batch64", BpTree16::batch::<64>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // let f: BFn<128, _> = ("bp_batch128", BpTree16::batch::<128>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // let f: BFn<4, _> = ("bp_batch_ptr4", BpTree16::batch_ptr::<4>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // let f: BFn<8, _> = ("bp_batch_ptr8", BpTree16::batch_ptr::<8>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // let f: BFn<16, _> = ("bp_batch_ptr16", BpTree16::batch_ptr::<16>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // let f: BFn<32, _> = ("bp_batch_ptr32", BpTree16::batch_ptr::<32>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // let f: BFn<64, _> = ("bp_batch_ptr64", BpTree16::batch_ptr::<64>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // let f: BFn<128, _> = ("bp_batch_ptr128", BpTree16::batch_ptr::<128>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // info!("Building B+Tree16");
-            // let bp = &BpTree16::new(vals[..len].to_vec());
-
-            // let f: BFn<128, _> = ("bp_batch_prefetch", BpTree16::batch_prefetch::<128>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-            // let f: BFn<128, _> = ("bp_batch_ptr", BpTree16::batch_ptr::<128>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-            // let f: BFn<128, _> = ("bp_batch_ptr2", BpTree16::batch_ptr2::<128>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-            // let f: BFn<128, _> = ("bp_batch_ptr3", BpTree16::batch_ptr3::<128, false>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-            // let f: BFn<128, _> = ("bp_batch_ptr3_last", BpTree16::batch_ptr3::<128, true>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // info!("Building B+Tree16R");
-            // let bp = &BpTree16R::new(vals[..len].to_vec());
-
-            // let f: BFn<128, _> = ("bp_batch_ptr3_rev", BpTree16R::batch_ptr3::<128, false>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-            // let f: BFn<128, _> = ("bp_batch_ptr3_rev_last", BpTree16R::batch_ptr3::<128, true>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // let strings = ["", "t1", "t2", "t3", "t4", "t5", "t6"];
-            // for t in 1..=6 {
-            //     let f: PFn<128, _> = (strings[t], BpTree16R::batch_ptr3_par::<128, false>);
-            //     let t = bench_batch_par(bp, f, queries, t);
-            //     results.entry(f.0).or_default().push((size, t, 0));
-            // }
-
-            info!("Building B+Tree16R-FWD");
-            let bp = &BpTree16R::new_fwd(vals[..len].to_vec(), false);
-
-            let f: BFn<128, _> = ("bpf_batch", BpTree16R::batch_ptr3::<128, false>);
-            let t = bench_batch(bp, f, queries);
-            results.entry(f.0).or_default().push((size, t, 0));
-
-            let f: BFn<128, _> = (
-                "bpf_batch_pf_1",
-                BpTree16R::batch_no_prefetch::<128, false, 1>,
+            let results = &mut results;
+            map(&self.bs, &vals, qs, size, results);
+            map(&self.eyt, &vals, qs, size, results);
+            map(&self.bt, &vals, qs, size, results);
+            map(&self.bp, &vals, qs, size, results);
+            map(&self.bp15, &vals, qs, size, results);
+            map(&self.bpr, &vals, qs, size, results);
+            map_idx(
+                &self.bpr,
+                &BpTree16R::new_fwd(&vals, false),
+                qs,
+                size,
+                results,
             );
-            let t = bench_batch(bp, f, queries);
-            results.entry(f.0).or_default().push((size, t, 0));
-
-            let f: BFn<128, _> = (
-                "bpf_batch_pf_2",
-                BpTree16R::batch_no_prefetch::<128, false, 2>,
+            map_idx(
+                &self.bpr,
+                &BpTree16R::new_fwd(&vals, true),
+                qs,
+                size,
+                results,
             );
-            let t = bench_batch(bp, f, queries);
-            results.entry(f.0).or_default().push((size, t, 0));
 
-            let f: IFn<_> = ("bpf_interleave_64", BpTree16R::interleave::<64, false>);
-            let t = bench_all(bp, f, queries);
-            results.entry(f.0).or_default().push((size, t, 0));
-
-            // let f: BFn<128, _> = (
-            //     "bpf_batch_pf_2",
-            //     BpTree16R::batch_no_prefetch::<128, false, 2>,
-            // );
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-            // let f: BFn<128, _> = (
-            //     "bpf_batch_pf_3",
-            //     BpTree16R::batch_no_prefetch::<128, false, 3>,
-            // );
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-            // let f: BFn<128, _> = (
-            //     "bpf_batch_pf_4",
-            //     BpTree16R::batch_no_prefetch::<128, false, 4>,
-            // );
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-            // let f: BFn<128, _> = (
-            //     "bpf_batch_pf_5",
-            //     BpTree16R::batch_no_prefetch::<128, false, 5>,
-            // );
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // info!("Building B+Tree16R-FWD-Full");
-            // let bp = &BpTree16R::new_fwd(vals[..len].to_vec(), true);
-
-            // let f: BFn<128, _> = (
-            //     "bpffull_batch_ptr3_rev",
-            //     BpTree16R::batch_ptr3::<128, false>,
-            // );
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // let f: BFn<128, _> = (
-            //     "bpffull_batch_ptr3_rev_full",
-            //     BpTree16R::batch_ptr3_full::<128, false>,
-            // );
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // let f: BFn<32, _> = ("bp_batch_ptr3_32", BpTree16::batch_ptr3::<32>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-            // let f: BFn<64, _> = ("bp_batch_ptr3_64", BpTree16::batch_ptr3::<64>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-            // let f: BFn<256, _> = ("bp_batch_ptr3_256", BpTree16::batch_ptr3::<256>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-
-            // info!("Building B+Tree15");
-            // let bp = &BpTree15::new(vals[..len].to_vec());
-
-            // let f: BFn<128, _> = ("bp15_batch_prefetch", BpTree15::batch_prefetch::<128>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-            // let f: BFn<128, _> = ("bp15_batch_ptr", BpTree15::batch_ptr::<128>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
-            // let f: BFn<128, _> = ("bp15_batch_ptr2", BpTree15::batch_ptr2::<128>);
-            // let t = bench_batch(bp, f, queries);
-            // results.entry(f.0).or_default().push((size, t, 0));
+            let bpr = BpTree16R::new_fwd(&vals, false);
+            let strings = ["", "t1", "t2", "t3", "t4", "t5", "t6"];
+            for threads in 1..=6 {
+                let scheme = BpTree::search_batch_no_prefetch::<128, false, 1>();
+                let t = bench_scheme(&bpr, &scheme, qs);
+                results.entry(strings[threads]).or_default().push((size, t));
+            }
         }
         results
     }

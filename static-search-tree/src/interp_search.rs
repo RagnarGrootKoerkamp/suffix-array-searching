@@ -65,8 +65,8 @@ mod tests {
     fn interppolation_vs_binsearch() {
         let input = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let q = 5;
-        let i_res = SortedVec::new(&input).query_one(q, InterpolationSearch);
-        let bin_res = SortedVec::new(&input).query_one(q, BinarySearch);
+        let i_res = SortedVec::new(&input).query_one(q, &InterpolationSearch);
+        let bin_res = SortedVec::new(&input).query_one(q, &BinarySearch);
         assert!(i_res == bin_res);
         println!("{i_res}, {bin_res}");
     }

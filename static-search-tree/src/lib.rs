@@ -1,4 +1,4 @@
-#![feature(array_chunks, portable_simd)]
+#![feature(array_chunks, portable_simd, generic_arg_infer)]
 
 pub mod bench;
 pub mod binary_search;
@@ -24,10 +24,10 @@ pub trait SearchIndex {
     fn new(vals: &[u32]) -> Self;
 
     // Convenience methods to forward to a search scheme.
-    fn query_one(&self, q: u32, scheme: impl SearchScheme<INDEX = Self>) -> u32 {
+    fn query_one(&self, q: u32, scheme: &impl SearchScheme<INDEX = Self>) -> u32 {
         scheme.query_one(&self, q)
     }
-    fn query(&self, qs: &[u32], scheme: impl SearchScheme<INDEX = Self>) -> Vec<u32> {
+    fn query(&self, qs: &[u32], scheme: &impl SearchScheme<INDEX = Self>) -> Vec<u32> {
         scheme.query(&self, qs)
     }
 }
@@ -57,4 +57,10 @@ impl<I> SearchScheme for &dyn SearchScheme<INDEX = I> {
     fn name(&self) -> &'static str {
         (*self).name()
     }
+}
+
+fn batched<const P: usize>(qs: &[u32], f: impl Fn(&[u32; P]) -> [u32; P]) -> Vec<u32> {
+    let it = qs.array_chunks();
+    assert!(it.remainder().is_empty());
+    it.flat_map(f).collect()
 }

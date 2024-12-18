@@ -164,9 +164,9 @@ mod tests {
         vals.push(MAX);
         let q = 452;
         let btree = BTree::<16, 16>::new(&vals);
-        let btree_res = btree.query_one(q, BTreeSearch);
+        let btree_res = btree.query_one(q, &BTreeSearch);
 
-        let binsearch_res = SortedVec::new(&vals).query_one(q, BinarySearch);
+        let binsearch_res = SortedVec::new(&vals).query_one(q, &BinarySearch);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }
@@ -177,9 +177,9 @@ mod tests {
         vals.push(MAX);
         let q = 289;
         let btree = BTree::<16, 16>::new(&vals);
-        let btree_res = btree.query_one(q, BTreeSearch);
+        let btree_res = btree.query_one(q, &BTreeSearch);
 
-        let binsearch_res = SortedVec::new(&vals).query_one(q, BinarySearch);
+        let binsearch_res = SortedVec::new(&vals).query_one(q, &BinarySearch);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }
@@ -200,9 +200,9 @@ mod tests {
         vals.push(MAX);
         let q = 452;
         let btree = BTree::<16, 16>::new(&vals);
-        let btree_res = btree.query_one(q, BTreeSearchSimd);
+        let btree_res = btree.query_one(q, &BTreeSearchSimd);
 
-        let binsearch_res = SortedVec::new(&vals).query_one(q, BinarySearch);
+        let binsearch_res = SortedVec::new(&vals).query_one(q, &BinarySearch);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }
@@ -213,9 +213,9 @@ mod tests {
         vals.push(MAX);
         let q = 289;
         let btree = BTree::<16, 16>::new(&vals);
-        let btree_res = btree.query_one(q, BTreeSearchSimd);
+        let btree_res = btree.query_one(q, &BTreeSearchSimd);
 
-        let binsearch_res = SortedVec::new(&vals).query_one(q, BinarySearch);
+        let binsearch_res = SortedVec::new(&vals).query_one(q, &BinarySearch);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }

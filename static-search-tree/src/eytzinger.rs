@@ -80,8 +80,8 @@ mod tests {
     fn eytzinger_vs_binsearch() {
         let input = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let q = 5;
-        let ey_res = Eytzinger::new(&input).query_one(q, EytzingerSearch);
-        let bin_res = SortedVec::new(&input).query_one(q, BinarySearch);
+        let ey_res = Eytzinger::new(&input).query_one(q, &EytzingerSearch);
+        let bin_res = SortedVec::new(&input).query_one(q, &BinarySearch);
         println!("{ey_res}, {bin_res}");
     }
 
@@ -106,7 +106,7 @@ mod tests {
     fn eyetzinger_search_test() {
         let input = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
         let q: u32 = 3;
-        let ey_res = Eytzinger::new(&input).query_one(q, EytzingerSearch);
+        let ey_res = Eytzinger::new(&input).query_one(q, &EytzingerSearch);
         assert_eq!(ey_res, 3);
     }
 
@@ -114,7 +114,7 @@ mod tests {
     fn eyetzinger_search_oob() {
         let input = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
         let q: u32 = 12;
-        let ey_res = Eytzinger::new(&input).query_one(q, EytzingerSearch);
+        let ey_res = Eytzinger::new(&input).query_one(q, &EytzingerSearch);
         assert_eq!(ey_res, u32::MAX);
     }
 }
