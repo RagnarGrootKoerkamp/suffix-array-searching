@@ -3,7 +3,7 @@ use std::{fmt::Debug, iter::zip, simd::Simd};
 use itertools::Itertools;
 
 use crate::node::{BTreeNode, MAX};
-use crate::{batched, prefetch_index, prefetch_ptr, SearchIndex, SearchScheme};
+use crate::{prefetch_index, prefetch_ptr, SearchIndex, SearchScheme};
 
 // N total elements in a node.
 // B branching factor.
@@ -247,6 +247,15 @@ impl<const B: usize, const N: usize, const REV: bool> SearchIndex for BpTree<B, 
         bptree.offsets.pop();
         bptree
     }
+}
+
+fn batched<const P: usize>(qs: &[u32], f: impl Fn(&[u32; P]) -> [u32; P]) -> Vec<u32> {
+    let it = qs.array_chunks();
+    assert!(
+        it.remainder().is_empty(),
+        "For now, batched queries cannot handle leftovers"
+    );
+    it.flat_map(f).collect()
 }
 
 pub struct BpTreeSearch<const B: usize, const N: usize, const REV: bool>;
