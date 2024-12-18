@@ -41,6 +41,17 @@ impl SearchScheme for BinarySearch {
     }
 }
 
+pub struct BinarySearchStd;
+impl SearchScheme for BinarySearchStd {
+    type INDEX = SortedVec;
+
+    /// Return the value of the first value >= query.
+    fn query_one(&self, index: &SortedVec, q: u32) -> u32 {
+        let idx = index.vals.binary_search(&q).unwrap_or_else(|i| i);
+        index.vals[idx]
+    }
+}
+
 pub struct BinarySearchBranchless;
 impl SearchScheme for BinarySearchBranchless {
     type INDEX = SortedVec;
