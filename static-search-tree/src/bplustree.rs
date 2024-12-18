@@ -631,6 +631,10 @@ impl<const B: usize, const N: usize, const REV: bool, const P: usize, const LAST
         let hh = index.offsets.len() / 2;
 
         let mut chunks = qs.array_chunks::<P>();
+        assert!(
+            chunks.remainder().is_empty(),
+            "Interleave does not process trailing bits"
+        );
         let mut out = Vec::with_capacity(qs.len());
 
         let c1 = chunks.next().unwrap();

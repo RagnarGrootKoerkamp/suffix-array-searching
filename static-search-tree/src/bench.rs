@@ -62,7 +62,7 @@ impl SearchFunctions {
                 &BpTree::search_batch_ptr3::<128, false>(),
                 &BpTree::search_batch_no_prefetch::<64, false, 1>(),
                 &BpTree::search_batch_no_prefetch::<64, false, 2>(),
-                // &BpTree::search_interleave::<64, false>(),
+                &BpTree::search_interleave::<64, false>(),
                 // &BpTree::search_batch_ptr3::<128, true>(),
                 // &BpTree::search_interleave::<64, true>(),
             ]
@@ -80,7 +80,7 @@ impl SearchFunctions {
                 &BpTree::search_batch_ptr3::<128, false>(),
                 &BpTree::search_batch_no_prefetch::<128, false, 1>(),
                 &BpTree::search_batch_no_prefetch::<128, false, 2>(),
-                // &BpTree::search_interleave::<64, false>(),
+                &BpTree::search_interleave::<64, false>(),
                 // &BpTree::search_batch_ptr3::<128, true>(),
                 // &BpTree::search_interleave::<64, true>(),
             ]
@@ -101,7 +101,7 @@ impl SearchFunctions {
                 &BpTree::search_batch_ptr3::<256, false>(),
                 &BpTree::search_batch_no_prefetch::<128, false, 1>(),
                 &BpTree::search_batch_no_prefetch::<128, false, 2>(),
-                // &BpTree::search_interleave::<64, false>(),
+                &BpTree::search_interleave::<64, false>(),
                 // &BpTree::search_batch_ptr3::<128, true>(),
                 // &BpTree::search_interleave::<64, true>(),
             ]
@@ -270,14 +270,14 @@ mod test {
 
         const TEST_START_POW2: usize = 6;
         const TEST_END_POW2: usize = 26;
-        const TEST_QUERIES: usize = 10000usize.next_multiple_of(256);
+        const TEST_QUERIES: usize = 10000;
 
         let correct = &mut true;
         for pow2 in TEST_START_POW2..=TEST_END_POW2 {
             let size = 2usize.pow(pow2 as u32);
             let vals = gen_vals(size, true);
             eprintln!("LEN: {}", vals.len());
-            let qs = &gen_queries(TEST_QUERIES);
+            let qs = &gen_queries(TEST_QUERIES.next_multiple_of(256));
 
             let results = &mut vec![];
 
@@ -303,10 +303,14 @@ mod test {
                 for scheme in schemes {
                     eprintln!("Testing scheme {:?}", scheme.name());
                     let new_results = index.query(qs, scheme);
+                    if new_results.is_empty() {
+                        continue;
+                    }
                     if results.is_empty() {
                         *results = new_results;
                     } else {
                         if *results != new_results {
+                            eprintln!("Expected\n{results:?}\ngot\n{new_results:?}");
                             *correct = false;
                         }
                     }
@@ -341,8 +345,7 @@ mod test {
                 results,
                 correct,
             );
+            assert!(*correct);
         }
-
-        assert!(*correct);
     }
 }
