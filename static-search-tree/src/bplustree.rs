@@ -608,7 +608,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::experiments_sorted_arrays::BinarySearch;
+    use crate::binary_search::BinarySearch;
 
     #[test]
     fn test_b_tree_k_2() {

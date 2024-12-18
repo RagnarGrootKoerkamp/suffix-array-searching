@@ -64,7 +64,7 @@ impl InterpolationSearch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::experiments_sorted_arrays::BinarySearch;
+    use crate::binary_search::BinarySearch;
 
     #[test]
     fn interppolation_vs_binsearch() {

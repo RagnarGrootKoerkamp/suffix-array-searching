@@ -1,7 +1,7 @@
 use crate::bplustree::{BpTree15, BpTree16, BpTree16R};
+use crate::binary_search::{BinarySearch, Eytzinger};
 use crate::btree::BTree16;
 use crate::btree::MAX;
-use crate::experiments_sorted_arrays::{BinarySearch, Eytzinger};
 use crate::interp_search::InterpolationSearch;
 use crate::util::*;
 use log::info;

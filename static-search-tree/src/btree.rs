@@ -238,7 +238,7 @@ impl<const B: usize, const N: usize> BTree<B, N> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::experiments_sorted_arrays::BinarySearch;
+    use crate::binary_search::BinarySearch;
 
     #[test]
     fn test_b_tree_k_2() {
