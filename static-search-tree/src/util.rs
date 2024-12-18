@@ -4,7 +4,7 @@ use itertools::Itertools;
 use rand::Rng;
 use rdst::RadixSort;
 
-use crate::btree::MAX;
+use crate::node::MAX;
 
 pub type Seq = [u8];
 pub type Sequence = Vec<u8>;

@@ -3,9 +3,9 @@ use crate::binary_search::{
 };
 use crate::bplustree::{BpTree15, BpTree16, BpTree16R};
 use crate::btree::BTree16;
-use crate::btree::MAX;
 use crate::eytzinger::{Eytzinger, EytzingerPrefetch, EytzingerSearch};
 use crate::interp_search::InterpolationSearch;
+use crate::node::MAX;
 use crate::{util::*, SearchIndex, SearchScheme};
 use log::info;
 use pyo3::prelude::*;

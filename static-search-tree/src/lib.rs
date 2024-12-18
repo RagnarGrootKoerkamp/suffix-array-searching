@@ -6,6 +6,7 @@ pub mod bplustree;
 pub mod btree;
 pub mod eytzinger;
 pub mod interp_search;
+mod node;
 pub mod util;
 
 pub use btree::BTree16;

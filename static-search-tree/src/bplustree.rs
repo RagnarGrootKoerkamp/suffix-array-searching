@@ -2,10 +2,8 @@ use std::{fmt::Debug, hint::black_box, iter::zip, simd::Simd};
 
 use itertools::Itertools;
 
-use crate::{
-    btree::{BTreeNode, MAX},
-    prefetch_index, prefetch_ptr,
-};
+use crate::node::{BTreeNode, MAX};
+use crate::{prefetch_index, prefetch_ptr};
 
 // N total elements in a node.
 // B branching factor.
