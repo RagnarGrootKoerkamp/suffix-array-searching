@@ -4,11 +4,12 @@ pub mod bench;
 pub mod binary_search;
 pub mod bplustree;
 pub mod btree;
+pub mod eytzinger;
 pub mod interp_search;
 pub mod util;
 
-pub use binary_search::{BinarySearch, Eytzinger};
 pub use btree::BTree16;
+pub use eytzinger::Eytzinger;
 pub use interp_search::InterpolationSearch;
 pub use util::*;
 
