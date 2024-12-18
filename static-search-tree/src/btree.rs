@@ -6,7 +6,7 @@ use std::fmt::Debug;
 
 #[derive(Debug)]
 pub struct BTree<const B: usize, const N: usize> {
-    tree: Vec<BTreeNode<B, N>>,
+    tree: Vec<BTreeNode<N>>,
     pub cnt: usize,
 }
 

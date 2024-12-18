@@ -5,17 +5,17 @@ pub(super) const MAX: u32 = i32::MAX as u32;
 
 #[repr(align(64))]
 #[derive(Clone, Copy, Debug)]
-pub struct BTreeNode<const B: usize, const N: usize> {
+pub struct BTreeNode<const N: usize> {
     pub(super) data: [u32; N],
 }
 
-impl<const B: usize, const N: usize> Default for BTreeNode<B, N> {
-    fn default() -> BTreeNode<B, N> {
+impl<const N: usize> Default for BTreeNode<N> {
+    fn default() -> BTreeNode<N> {
         BTreeNode { data: [0; N] }
     }
 }
 
-impl<const B: usize, const N: usize> BTreeNode<B, N> {
+impl<const N: usize> BTreeNode<N> {
     pub fn find(&self, q: u32) -> usize {
         self.find_popcnt(q)
     }
@@ -25,7 +25,7 @@ impl<const B: usize, const N: usize> BTreeNode<B, N> {
         let data_simd: Simd<u32, 16> = Simd::from_slice(&self.data[0..N]);
         let q_simd = Simd::splat(q);
         let mask = q_simd.simd_le(data_simd);
-        mask.first_set().unwrap_or(B)
+        mask.first_set().unwrap()
     }
 
     /// Return the index of the first element >=q.

@@ -12,7 +12,7 @@ use crate::{prefetch_index, prefetch_ptr, SearchIndex, SearchScheme};
 //      rather than the smallest elements of the last B children.
 #[derive(Debug)]
 pub struct BpTree<const B: usize, const N: usize> {
-    tree: Vec<BTreeNode<B, N>>,
+    tree: Vec<BTreeNode<N>>,
     pub cnt: usize,
     offsets: Vec<usize>,
 }
@@ -91,7 +91,7 @@ impl<const B: usize, const N: usize> BpTree<B, N> {
         k * (B + 1) + j + 1
     }
 
-    fn node(&self, b: usize) -> &BTreeNode<B, N> {
+    fn node(&self, b: usize) -> &BTreeNode<N> {
         unsafe { &*self.tree.get_unchecked(b) }
     }
 
