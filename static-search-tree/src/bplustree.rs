@@ -100,6 +100,9 @@ impl<const B: usize, const N: usize> BpTree<B, N> {
     }
 
     pub fn new_params(vals: &[u32], fwd: bool, rev: bool, full_array: bool) -> Self {
+        if full_array {
+            assert!(fwd, "Full array only makes sense in forward layout.");
+        }
         if fwd {
             let n = vals.len();
             let height = Self::height(n);
@@ -190,6 +193,12 @@ impl<const B: usize, const N: usize> BpTree<B, N> {
                     }
                 }
             }
+            // for o in &bptree.offsets {
+            //     eprintln!("Offset: {}", o);
+            // }
+            // for node in &bptree.tree {
+            //     eprintln!("{:?}", node);
+            // }
             bptree
         } else {
             let n = vals.len();
@@ -263,11 +272,12 @@ impl<const B: usize, const N: usize> SearchScheme for BpTreeSearch<B, N> {
             k = k * (B + 1) + jump_to;
         }
 
-        let mut idx = index.node(k).find(q);
+        let o = index.offsets[0];
+        let mut idx = index.node(o + k).find(q);
         if idx == B {
             idx = N;
         }
-        index.get(k + idx / N, idx % N)
+        index.get(o + k + idx / N, idx % N)
     }
 }
 
@@ -282,11 +292,12 @@ impl<const B: usize, const N: usize> SearchScheme for BpTreeSearchSplit<B, N> {
             k = k * (B + 1) + jump_to;
         }
 
-        let mut idx = index.node(k).find(q);
+        let o = index.offsets[0];
+        let mut idx = index.node(o + k).find(q);
         if idx == B {
             idx = N;
         }
-        index.get(k + idx / N, idx % N)
+        index.get(o + k + idx / N, idx % N)
     }
 }
 
@@ -304,12 +315,13 @@ impl<const B: usize, const N: usize, const P: usize> SearchScheme for BpTreeSear
                 }
             }
 
+            let o = index.offsets[0];
             std::array::from_fn::<_, P, _>(|i| {
-                let mut idx = index.node(k[i]).find(qb[i]);
+                let mut idx = index.node(o + k[i]).find(qb[i]);
                 if idx == B {
                     idx = N;
                 }
-                index.get(k[i] + idx / N, idx % N)
+                index.get(o + k[i] + idx / N, idx % N)
             })
         })
     }
@@ -335,12 +347,13 @@ impl<const B: usize, const N: usize, const P: usize> SearchScheme
                 }
             }
 
+            let o = index.offsets[0];
             std::array::from_fn(|i| {
-                let mut idx = index.node(k[i]).find(qb[i]);
+                let mut idx = index.node(o + k[i]).find(qb[i]);
                 if idx == B {
                     idx = N;
                 }
-                index.get(k[i] + idx / N, idx % N)
+                index.get(o + k[i] + idx / N, idx % N)
             })
         })
     }
@@ -373,12 +386,13 @@ impl<const B: usize, const N: usize, const P: usize> SearchScheme
                 }
             }
 
+            let o = index.offsets[0];
             std::array::from_fn(|i| {
-                let mut idx = index.node(k[i]).find(qb[i]);
+                let mut idx = index.node(o + k[i]).find(qb[i]);
                 if idx == B {
                     idx = N;
                 }
-                index.get(k[i] + idx / N, idx % N)
+                index.get(o + k[i] + idx / N, idx % N)
             })
         })
     }
