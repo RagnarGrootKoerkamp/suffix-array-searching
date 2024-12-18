@@ -259,10 +259,8 @@ fn batched<const P: usize>(qs: &[u32], f: impl Fn(&[u32; P]) -> [u32; P]) -> Vec
 }
 
 pub struct BpTreeSearch<const B: usize, const N: usize>;
-impl<const B: usize, const N: usize> SearchScheme for BpTreeSearch<B, N> {
-    type INDEX = BpTree<B, N>;
-
-    fn query_one(&self, index: &Self::INDEX, q: u32) -> u32 {
+impl<const B: usize, const N: usize> SearchScheme<BpTree<B, N>> for BpTreeSearch<B, N> {
+    fn query_one(&self, index: &BpTree<B, N>, q: u32) -> u32 {
         let mut k = 0;
         for o in index.offsets[1..index.offsets.len()].into_iter().rev() {
             let jump_to = index.node(o + k).find(q);
@@ -279,10 +277,8 @@ impl<const B: usize, const N: usize> SearchScheme for BpTreeSearch<B, N> {
 }
 
 pub struct BpTreeSearchSplit<const B: usize, const N: usize>;
-impl<const B: usize, const N: usize> SearchScheme for BpTreeSearchSplit<B, N> {
-    type INDEX = BpTree<B, N>;
-
-    fn query_one(&self, index: &Self::INDEX, q: u32) -> u32 {
+impl<const B: usize, const N: usize> SearchScheme<BpTree<B, N>> for BpTreeSearchSplit<B, N> {
+    fn query_one(&self, index: &BpTree<B, N>, q: u32) -> u32 {
         let mut k = 0;
         for o in index.offsets[1..index.offsets.len()].into_iter().rev() {
             let jump_to = index.node(o + k).find_split(q);
@@ -299,10 +295,10 @@ impl<const B: usize, const N: usize> SearchScheme for BpTreeSearchSplit<B, N> {
 }
 
 pub struct BpTreeSearchBatch<const B: usize, const N: usize, const P: usize>;
-impl<const B: usize, const N: usize, const P: usize> SearchScheme for BpTreeSearchBatch<B, N, P> {
-    type INDEX = BpTree<B, N>;
-
-    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+impl<const B: usize, const N: usize, const P: usize> SearchScheme<BpTree<B, N>>
+    for BpTreeSearchBatch<B, N, P>
+{
+    fn query(&self, index: &BpTree<B, N>, qs: &[u32]) -> Vec<u32> {
         batched(qs, |qb: &[u32; P]| {
             let mut k = [0; P];
             for o in index.offsets[1..index.offsets.len()].into_iter().rev() {
@@ -325,12 +321,10 @@ impl<const B: usize, const N: usize, const P: usize> SearchScheme for BpTreeSear
 }
 
 pub struct BpTreeSearchBatchPrefetch<const B: usize, const N: usize, const P: usize>;
-impl<const B: usize, const N: usize, const P: usize> SearchScheme
+impl<const B: usize, const N: usize, const P: usize> SearchScheme<BpTree<B, N>>
     for BpTreeSearchBatchPrefetch<B, N, P>
 {
-    type INDEX = BpTree<B, N>;
-
-    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+    fn query(&self, index: &BpTree<B, N>, qs: &[u32]) -> Vec<u32> {
         batched(qs, |qb: &[u32; P]| {
             let mut k = [0; P];
             let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
@@ -357,12 +351,10 @@ impl<const B: usize, const N: usize, const P: usize> SearchScheme
 }
 
 pub struct BpTreeSearchBatchPtr<const B: usize, const N: usize, const P: usize>;
-impl<const B: usize, const N: usize, const P: usize> SearchScheme
+impl<const B: usize, const N: usize, const P: usize> SearchScheme<BpTree<B, N>>
     for BpTreeSearchBatchPtr<B, N, P>
 {
-    type INDEX = BpTree<B, N>;
-
-    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+    fn query(&self, index: &BpTree<B, N>, qs: &[u32]) -> Vec<u32> {
         batched(qs, |qb: &[u32; P]| {
             let mut k = [0; P];
             let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
@@ -396,12 +388,10 @@ impl<const B: usize, const N: usize, const P: usize> SearchScheme
 }
 
 pub struct BpTreeSearchBatchPtr2<const B: usize, const N: usize, const P: usize>;
-impl<const B: usize, const N: usize, const P: usize> SearchScheme
+impl<const B: usize, const N: usize, const P: usize> SearchScheme<BpTree<B, N>>
     for BpTreeSearchBatchPtr2<B, N, P>
 {
-    type INDEX = BpTree<B, N>;
-
-    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+    fn query(&self, index: &BpTree<B, N>, qs: &[u32]) -> Vec<u32> {
         batched(qs, |qb: &[u32; P]| {
             let mut k = [0; P];
             let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
@@ -435,12 +425,10 @@ impl<const B: usize, const N: usize, const P: usize> SearchScheme
 }
 
 pub struct BpTreeSearchBatchPtr3<const B: usize, const N: usize, const P: usize, const LAST: bool>;
-impl<const B: usize, const N: usize, const P: usize, const LAST: bool> SearchScheme
+impl<const B: usize, const N: usize, const P: usize, const LAST: bool> SearchScheme<BpTree<B, N>>
     for BpTreeSearchBatchPtr3<B, N, P, LAST>
 {
-    type INDEX = BpTree<B, N>;
-
-    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+    fn query(&self, index: &BpTree<B, N>, qs: &[u32]) -> Vec<u32> {
         batched(qs, |qb: &[u32; P]| {
             let mut k = [0; P];
             let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
@@ -487,12 +475,10 @@ pub struct BpTreeSearchBatchPtr3Full<
     const P: usize,
     const LAST: bool,
 >;
-impl<const B: usize, const N: usize, const P: usize, const LAST: bool> SearchScheme
+impl<const B: usize, const N: usize, const P: usize, const LAST: bool> SearchScheme<BpTree<B, N>>
     for BpTreeSearchBatchPtr3Full<B, N, P, LAST>
 {
-    type INDEX = BpTree<B, N>;
-
-    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+    fn query(&self, index: &BpTree<B, N>, qs: &[u32]) -> Vec<u32> {
         batched(qs, |qb: &[u32; P]| {
             let mut k = [0; P];
             let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
@@ -534,11 +520,9 @@ pub struct BpTreeSearchBatchNoPrefetch<
     const SKIP: usize,
 >;
 impl<const B: usize, const N: usize, const P: usize, const LAST: bool, const SKIP: usize>
-    SearchScheme for BpTreeSearchBatchNoPrefetch<B, N, P, LAST, SKIP>
+    SearchScheme<BpTree<B, N>> for BpTreeSearchBatchNoPrefetch<B, N, P, LAST, SKIP>
 {
-    type INDEX = BpTree<B, N>;
-
-    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+    fn query(&self, index: &BpTree<B, N>, qs: &[u32]) -> Vec<u32> {
         batched(qs, |qb: &[u32; P]| {
             let mut k = [0; P];
             let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
@@ -596,12 +580,10 @@ impl<const B: usize, const N: usize, const P: usize, const LAST: bool, const SKI
 }
 
 pub struct BpTreeSearchInterleave<const B: usize, const N: usize, const P: usize, const LAST: bool>;
-impl<const B: usize, const N: usize, const P: usize, const LAST: bool> SearchScheme
+impl<const B: usize, const N: usize, const P: usize, const LAST: bool> SearchScheme<BpTree<B, N>>
     for BpTreeSearchInterleave<B, N, P, LAST>
 {
-    type INDEX = BpTree<B, N>;
-
-    fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
+    fn query(&self, index: &BpTree<B, N>, qs: &[u32]) -> Vec<u32> {
         if index.offsets.len() % 2 != 0 {
             return vec![];
         }

@@ -69,11 +69,7 @@ pub fn time<T>(t: &str, f: impl FnOnce() -> T) -> T {
     r
 }
 
-pub fn bench_scheme<I: SearchIndex>(
-    index: &I,
-    scheme: &dyn SearchScheme<INDEX = I>,
-    qs: &[u32],
-) -> f64 {
+pub fn bench_scheme<I: SearchIndex>(index: &I, scheme: &dyn SearchScheme<I>, qs: &[u32]) -> f64 {
     info!("Benching {}", scheme.name());
     let start = Instant::now();
     black_box(index.query(qs, scheme));
@@ -83,7 +79,7 @@ pub fn bench_scheme<I: SearchIndex>(
 
 pub fn bench_scheme_par<I: Sync>(
     index: &I,
-    scheme: &dyn SearchScheme<INDEX = I>,
+    scheme: &dyn SearchScheme<I>,
     qs: &[u32],
     threads: usize,
 ) -> f64 {

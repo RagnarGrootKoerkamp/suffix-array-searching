@@ -34,9 +34,7 @@ impl SearchIndex for Eytzinger {
 }
 
 pub struct EytzingerSearch;
-impl SearchScheme for EytzingerSearch {
-    type INDEX = Eytzinger;
-
+impl SearchScheme<Eytzinger> for EytzingerSearch {
     fn query_one(&self, index: &Eytzinger, q: u32) -> u32 {
         let mut idx = 1;
         while idx < index.vals.len() {
@@ -50,9 +48,7 @@ impl SearchScheme for EytzingerSearch {
 
 /// L: number of levels ahead to prefetch.
 pub struct EytzingerPrefetch<const L: usize>;
-impl<const L: usize> SearchScheme for EytzingerPrefetch<L> {
-    type INDEX = Eytzinger;
-
+impl<const L: usize> SearchScheme<Eytzinger> for EytzingerPrefetch<L> {
     fn query_one(&self, index: &Eytzinger, q: u32) -> u32 {
         let mut idx = 1;
         while idx < index.vals.len() {

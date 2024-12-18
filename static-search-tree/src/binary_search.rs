@@ -22,9 +22,7 @@ impl SearchIndex for SortedVec {
 }
 
 pub struct BinarySearch;
-impl SearchScheme for BinarySearch {
-    type INDEX = SortedVec;
-
+impl SearchScheme<SortedVec> for BinarySearch {
     /// Return the value of the first value >= query.
     fn query_one(&self, index: &SortedVec, q: u32) -> u32 {
         let mut l = 0;
@@ -42,9 +40,7 @@ impl SearchScheme for BinarySearch {
 }
 
 pub struct BinarySearchStd;
-impl SearchScheme for BinarySearchStd {
-    type INDEX = SortedVec;
-
+impl SearchScheme<SortedVec> for BinarySearchStd {
     /// Return the value of the first value >= query.
     fn query_one(&self, index: &SortedVec, q: u32) -> u32 {
         let idx = index.vals.binary_search(&q).unwrap_or_else(|i| i);
@@ -53,9 +49,7 @@ impl SearchScheme for BinarySearchStd {
 }
 
 pub struct BinarySearchBranchless;
-impl SearchScheme for BinarySearchBranchless {
-    type INDEX = SortedVec;
-
+impl SearchScheme<SortedVec> for BinarySearchBranchless {
     /// branchless search (but does not work branchless yet)
     fn query_one(&self, index: &SortedVec, q: u32) -> u32 {
         let mut base = 0;
@@ -70,9 +64,7 @@ impl SearchScheme for BinarySearchBranchless {
 }
 
 pub struct BinarySearchBranchlessPrefetch;
-impl SearchScheme for BinarySearchBranchlessPrefetch {
-    type INDEX = SortedVec;
-
+impl SearchScheme<SortedVec> for BinarySearchBranchlessPrefetch {
     /// branchless search with prefetching (but does not work branchless yet)
     fn query_one(&self, index: &SortedVec, q: u32) -> u32 {
         let mut base = 0;

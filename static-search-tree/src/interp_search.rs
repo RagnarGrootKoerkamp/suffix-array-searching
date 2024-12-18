@@ -3,9 +3,7 @@ use crate::{binary_search::SortedVec, SearchScheme};
 // completely basic binsearch
 pub struct InterpolationSearch;
 
-impl SearchScheme for InterpolationSearch {
-    type INDEX = SortedVec;
-
+impl SearchScheme<SortedVec> for InterpolationSearch {
     /// Return the value of the first value >= query.
     fn query_one(&self, index: &SortedVec, q: u32) -> u32 {
         let mut l: usize = 0;

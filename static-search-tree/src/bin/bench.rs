@@ -54,7 +54,7 @@ fn main() {
                 vals: &[u32],
                 qs: &Vec<u32>,
                 run: usize,
-                exps: [&(dyn SearchScheme<INDEX = I>); N],
+                exps: [&(dyn SearchScheme<I>); N],
             ) {
                 let index = I::new(vals);
                 for exp in exps {
@@ -63,7 +63,7 @@ fn main() {
             }
 
             /// Wrapper type for the cast to &dyn.
-            type T<I, const N: usize> = [&'static dyn SearchScheme<INDEX = I>; N];
+            type T<I, const N: usize> = [&'static dyn SearchScheme<I>; N];
 
             let exps: T<_, _> = [&BinarySearchStd];
             run_exps(&mut results, size, vals, qs, run, exps);
@@ -138,7 +138,7 @@ impl Result {
         size: usize,
         index: &I,
         qs: &[u32],
-        scheme: &dyn SearchScheme<INDEX = I>,
+        scheme: &dyn SearchScheme<I>,
         run: usize,
     ) -> Result {
         let start = Instant::now();

@@ -64,9 +64,7 @@ impl<const B: usize, const N: usize> SearchIndex for BTree<B, N> {
 }
 
 pub struct BTreeSearch<const B: usize, const N: usize>;
-impl<const B: usize, const N: usize> SearchScheme for BTreeSearch<B, N> {
-    type INDEX = BTree<B, N>;
-
+impl<const B: usize, const N: usize> SearchScheme<BTree<B, N>> for BTreeSearch<B, N> {
     // basic searching with no vectorized magic inside the nodes
     fn query_one(&self, index: &BTree<B, N>, q: u32) -> u32 {
         // completely naive
@@ -92,9 +90,7 @@ impl<const B: usize, const N: usize> SearchScheme for BTreeSearch<B, N> {
 }
 
 pub struct BTreeSearchLoop<const B: usize, const N: usize>;
-impl<const B: usize, const N: usize> SearchScheme for BTreeSearchLoop<B, N> {
-    type INDEX = BTree<B, N>;
-
+impl<const B: usize, const N: usize> SearchScheme<BTree<B, N>> for BTreeSearchLoop<B, N> {
     fn query_one(&self, index: &BTree<B, N>, q: u32) -> u32 {
         // completely naive
         let mut k = 0;
@@ -116,9 +112,7 @@ impl<const B: usize, const N: usize> SearchScheme for BTreeSearchLoop<B, N> {
 }
 
 pub struct BTreeSearchSimd<const B: usize, const N: usize>;
-impl<const B: usize, const N: usize> SearchScheme for BTreeSearchSimd<B, N> {
-    type INDEX = BTree<B, N>;
-
+impl<const B: usize, const N: usize> SearchScheme<BTree<B, N>> for BTreeSearchSimd<B, N> {
     fn query_one(&self, index: &BTree<B, N>, q: u32) -> u32 {
         // completely naive
         let mut k = 0;

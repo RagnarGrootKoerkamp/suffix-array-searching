@@ -15,11 +15,11 @@ use std::time::Instant;
 
 #[pyclass]
 pub struct SearchFunctions {
-    bs: Vec<&'static dyn SearchScheme<INDEX = SortedVec>>,
-    eyt: Vec<&'static dyn SearchScheme<INDEX = Eytzinger>>,
-    bt: Vec<&'static dyn SearchScheme<INDEX = BTree16>>,
-    bp: Vec<&'static dyn SearchScheme<INDEX = BpTree16>>,
-    bp15: Vec<&'static dyn SearchScheme<INDEX = BpTree15>>,
+    bs: Vec<&'static dyn SearchScheme<SortedVec>>,
+    eyt: Vec<&'static dyn SearchScheme<Eytzinger>>,
+    bt: Vec<&'static dyn SearchScheme<BTree16>>,
+    bp: Vec<&'static dyn SearchScheme<BpTree16>>,
+    bp15: Vec<&'static dyn SearchScheme<BpTree15>>,
 }
 
 #[pymethods]
@@ -29,25 +29,25 @@ impl SearchFunctions {
         *INIT_TRACE;
 
         let bs = vec![
-            &BinarySearch as &dyn SearchScheme<INDEX = _>,
+            &BinarySearch as &dyn SearchScheme<_>,
             &BinarySearchBranchless,
             &BinarySearchBranchlessPrefetch,
             &InterpolationSearch,
         ];
         let eyt = vec![
-            &EytzingerSearch as &dyn SearchScheme<INDEX = _>,
+            &EytzingerSearch as &dyn SearchScheme<_>,
             &EytzingerPrefetch::<2>,
             &EytzingerPrefetch::<3>,
             &EytzingerPrefetch::<4>,
         ];
         let bt = vec![
-            &BTreeSearch as &dyn SearchScheme<INDEX = _>,
+            &BTreeSearch as &dyn SearchScheme<_>,
             &BTreeSearchLoop,
             &BTreeSearchSimd,
         ];
         let bp = const {
             [
-                &BpTree::search() as &dyn SearchScheme<INDEX = _>,
+                &BpTree::search() as &dyn SearchScheme<_>,
                 &BpTree::search_split(),
                 &BpTree::search_batch::<4>(),
                 &BpTree::search_batch::<8>(),
@@ -70,7 +70,7 @@ impl SearchFunctions {
 
         let bp15 = const {
             [
-                &BpTree::search() as &dyn SearchScheme<INDEX = _>,
+                &BpTree::search() as &dyn SearchScheme<_>,
                 &BpTree::search_split(),
                 &BpTree::search_batch::<128>(),
                 &BpTree::search_batch_prefetch::<128>(),
@@ -119,7 +119,7 @@ impl SearchFunctions {
             info!("Sorting took {:?}", start.elapsed());
 
             fn map<I: SearchIndex>(
-                schemes: &Vec<&dyn SearchScheme<INDEX = I>>,
+                schemes: &Vec<&dyn SearchScheme<I>>,
                 fname: &str,
                 vals: &[u32],
                 qs: &[u32],
@@ -172,7 +172,7 @@ impl SearchFunctions {
 
             // Helper to extract type `I` and build the index.
             fn map<I: SearchIndex>(
-                schemes: &Vec<&dyn SearchScheme<INDEX = I>>,
+                schemes: &Vec<&dyn SearchScheme<I>>,
                 vals: &[u32],
                 qs: &[u32],
                 size: usize,
@@ -182,7 +182,7 @@ impl SearchFunctions {
             }
 
             fn map_idx<I: SearchIndex>(
-                schemes: &Vec<&(dyn SearchScheme<INDEX = I>)>,
+                schemes: &Vec<&(dyn SearchScheme<I>)>,
                 index: &I,
                 qs: &[u32],
                 size: usize,
@@ -258,7 +258,7 @@ mod test {
 
             // Helper to extract type `I` and build the index.
             fn map<I: SearchIndex>(
-                schemes: &Vec<&dyn SearchScheme<INDEX = I>>,
+                schemes: &Vec<&dyn SearchScheme<I>>,
                 vals: &[u32],
                 qs: &[u32],
                 results: &mut Vec<u32>,
@@ -269,7 +269,7 @@ mod test {
             }
 
             fn map_idx<I: SearchIndex>(
-                schemes: &Vec<&(dyn SearchScheme<INDEX = I>)>,
+                schemes: &Vec<&(dyn SearchScheme<I>)>,
                 index: &I,
                 qs: &[u32],
                 results: &mut Vec<u32>,
