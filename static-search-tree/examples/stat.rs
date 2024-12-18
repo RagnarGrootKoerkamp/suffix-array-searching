@@ -1,6 +1,6 @@
 #![allow(unused)]
 use bplustree::{BpTree16, BpTree16R};
-use sa_layout::*;
+use static_search_tree::*;
 
 fn main() {
     const TEST_START_POW2: usize = 31;

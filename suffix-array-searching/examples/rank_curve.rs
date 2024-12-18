@@ -1,6 +1,6 @@
 use clap::Parser;
 use rand::Rng;
-use sa_layout::*;
+use suffix_array_searching::util::read_human_genome;
 
 #[derive(Parser)]
 struct Args {

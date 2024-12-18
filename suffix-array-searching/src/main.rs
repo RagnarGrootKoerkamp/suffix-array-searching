@@ -1,12 +1,13 @@
-#![feature(portable_simd)]
 use clap::Parser;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use std::{iter::repeat, path::PathBuf};
+use suffix_array_searching::{
+    experiments,
+    sa_search::{self, *},
+    util::*,
+};
 use tracing::{debug, info};
-mod experiments;
-mod util;
-use util::*;
 
 #[derive(Parser)]
 struct Args {
@@ -59,6 +60,8 @@ fn main() {
     debug!("gen queries..");
     let qs = random_queries(t, args.q, rng);
 
+    // Run experiments from `experiments`.
+
     info!("build SA..");
     let start = std::time::Instant::now();
     let sa = experiments::SA::build(t);
@@ -79,30 +82,39 @@ fn main() {
         experiments::branchless_bin_search as _,
     );
 
-    // bench(&sa, &qs, "binary_c", binary_search_cmp as _);
-    // bench(&sa, &qs, "branchy", branchy_search as _);
-    // bench(&sa, &qs, "branchfree", branchfree_search as _);
-    // bench(&sa, &qs, "interpolation", interpolation_search::<16> as _);
+    // Run experiments from `sa_search`.
 
-    // bench_batch(&sa, &qs, "batch_4_c", binary_search_batch_c::<4> as _);
-    // bench_batch(&sa, &qs, "batch_8_c", binary_search_batch_c::<8> as _);
-    // bench_batch(&sa, &qs, "batch_16_c", binary_search_batch_c::<16> as _);
-    // bench_batch(&sa, &qs, "batch_32_c", binary_search_batch_c::<32> as _);
-    // bench_batch(&sa, &qs, "batch_64_c", binary_search_batch_c::<64> as _);
+    info!("build SA..");
+    let start = std::time::Instant::now();
+    let sa = sa_search::SaNaive::build(t);
+    info!("build SA: {:.2?}", start.elapsed());
 
-    // bench_batch(&sa, &qs, "batch_4", binary_search_batch::<4> as _);
-    // bench_batch(&sa, &qs, "batch_8", binary_search_batch::<8> as _);
-    // bench_batch(&sa, &qs, "batch_16", binary_search_batch::<16> as _);
-    // bench_batch(&sa, &qs, "batch_32", binary_search_batch::<32> as _);
-    // bench_batch(&sa, &qs, "batch_64", binary_search_batch::<64> as _);
+    info!("start bench..");
 
-    // bench_batch(&sa, &qs, "batch_16", binary_search_batch::<16> as _);
-    // bench_batch(&sa, &qs, "batch_16_c", binary_search_batch_c::<16> as _);
-    // bench_batch(
-    //     &sa,
-    //     &qs,
-    //     "branchfree_16",
-    //     branchfree_search_batch::<16> as _,
-    // );
-    // bench_batch(&sa, &qs, "branchfree_16_c", branchfree_batch_cmp::<16> as _);
+    sa_search::bench(&sa, &qs, "binary_c", binary_search_cmp as _);
+    sa_search::bench(&sa, &qs, "branchy", branchy_search as _);
+    sa_search::bench(&sa, &qs, "branchfree", branchfree_search as _);
+    sa_search::bench(&sa, &qs, "interpolation", interpolation_search::<16> as _);
+
+    bench_batch(&sa, &qs, "batch_4_c", binary_search_batch_c::<4> as _);
+    bench_batch(&sa, &qs, "batch_8_c", binary_search_batch_c::<8> as _);
+    bench_batch(&sa, &qs, "batch_16_c", binary_search_batch_c::<16> as _);
+    bench_batch(&sa, &qs, "batch_32_c", binary_search_batch_c::<32> as _);
+    bench_batch(&sa, &qs, "batch_64_c", binary_search_batch_c::<64> as _);
+
+    bench_batch(&sa, &qs, "batch_4", binary_search_batch::<4> as _);
+    bench_batch(&sa, &qs, "batch_8", binary_search_batch::<8> as _);
+    bench_batch(&sa, &qs, "batch_16", binary_search_batch::<16> as _);
+    bench_batch(&sa, &qs, "batch_32", binary_search_batch::<32> as _);
+    bench_batch(&sa, &qs, "batch_64", binary_search_batch::<64> as _);
+
+    bench_batch(&sa, &qs, "batch_16", binary_search_batch::<16> as _);
+    bench_batch(&sa, &qs, "batch_16_c", binary_search_batch_c::<16> as _);
+    bench_batch(
+        &sa,
+        &qs,
+        "branchfree_16",
+        branchfree_search_batch::<16> as _,
+    );
+    bench_batch(&sa, &qs, "branchfree_16_c", branchfree_batch_cmp::<16> as _);
 }

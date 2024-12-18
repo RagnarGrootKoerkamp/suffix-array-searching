@@ -1,5 +1,4 @@
-use rand::Rng;
-use std::{path::Path, sync::LazyLock};
+use std::sync::LazyLock;
 
 pub type Seq = [u8];
 pub type Sequence = Vec<u8>;

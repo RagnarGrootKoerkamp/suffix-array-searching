@@ -1,6 +1,6 @@
 use rand::Rng;
 use std::path::Path;
-use std::{arch::x86_64::_pext_u64, ops::Range, sync::LazyLock};
+use std::{arch::x86_64::_pext_u64, ops::Range};
 
 pub type Seq = [u8];
 pub type Sequence = Vec<u8>;
