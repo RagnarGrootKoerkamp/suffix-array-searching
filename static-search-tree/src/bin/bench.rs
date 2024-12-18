@@ -1,3 +1,5 @@
+#![feature(generic_arg_infer)]
+
 use clap::Parser;
 use rdst::RadixSort;
 use static_search_tree::{
@@ -60,12 +62,10 @@ fn main() {
                 }
             }
 
-            // Binary search
-            let exps = [
-                &BinarySearch as &dyn SearchScheme<INDEX = _>,
-                &BinarySearchBranchless,
-                &BinarySearchBranchlessPrefetch,
-            ];
+            /// Wrapper type for the cast to &dyn.
+            type T<I, const N: usize> = [&'static dyn SearchScheme<INDEX = I>; N];
+
+            let exps: T<_, _> = [&BinarySearchStd];
             run_exps(&mut results, size, vals, qs, run, exps);
 
             let exps: T<_, _> = [&EytzingerPrefetch::<4>];
