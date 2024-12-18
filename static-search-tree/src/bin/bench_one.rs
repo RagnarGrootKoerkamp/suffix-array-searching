@@ -1,6 +1,6 @@
 #![feature(portable_simd)]
 use clap::Parser;
-use static_search_tree::BenchmarkSortedArray;
+use static_search_tree::SearchFunctions;
 
 #[derive(Parser)]
 struct Args {
@@ -19,7 +19,7 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let bench = BenchmarkSortedArray::new();
+    let bench = SearchFunctions::new();
     let results = bench.benchmark_one(args.fname, args.start, args.stop, args.queries);
     for (size, timing) in results {
         println!("{} {}", size, timing);

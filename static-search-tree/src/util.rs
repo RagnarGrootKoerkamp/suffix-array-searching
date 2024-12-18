@@ -1,10 +1,11 @@
-use std::sync::LazyLock;
+use std::{hint::black_box, sync::LazyLock, time::Instant};
 
 use itertools::Itertools;
+use log::info;
 use rand::Rng;
 use rdst::RadixSort;
 
-use crate::node::MAX;
+use crate::{node::MAX, SearchIndex, SearchScheme};
 
 pub type Seq = [u8];
 pub type Sequence = Vec<u8>;
@@ -66,6 +67,45 @@ pub fn time<T>(t: &str, f: impl FnOnce() -> T) -> T {
     let elapsed = start.elapsed();
     eprintln!("{t}: Elapsed: {:?}", elapsed);
     r
+}
+
+pub fn bench_scheme<I: SearchIndex>(
+    index: &I,
+    scheme: &dyn SearchScheme<INDEX = I>,
+    qs: &[u32],
+) -> f64 {
+    info!("Benching {}", scheme.name());
+    let start = Instant::now();
+    black_box(index.query(qs, &scheme));
+    let elapsed = start.elapsed();
+    elapsed.as_nanos() as f64 / qs.len() as f64
+}
+
+pub fn bench_scheme_par<I: SearchIndex + Sync>(
+    index: &I,
+    scheme: &dyn SearchScheme<INDEX = I>,
+    qs: &[u32],
+    threads: usize,
+) -> f64 {
+    info!("Benching {}", scheme.name());
+    let chunk_size = qs.len().div_ceil(threads);
+    let start = Instant::now();
+
+    rayon::scope(|scope| {
+        for idx in 0..threads {
+            let index = &index;
+            let scheme = &scheme;
+            scope.spawn(move |_| {
+                let start_idx = idx * chunk_size;
+                let end = ((idx + 1) * chunk_size).min(qs.len());
+                let qs_thread = &qs[start_idx..end];
+                black_box(index.query(qs_thread, scheme));
+            });
+        }
+    });
+
+    let elapsed = start.elapsed();
+    elapsed.as_nanos() as f64 / qs.len() as f64
 }
 
 fn init_trace() {

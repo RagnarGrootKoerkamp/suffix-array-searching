@@ -11,50 +11,10 @@ use log::info;
 use pyo3::prelude::*;
 use rdst::RadixSort;
 use std::collections::HashMap;
-use std::hint::black_box;
 use std::time::Instant;
 
-pub fn bench_scheme<I: SearchIndex>(
-    index: &I,
-    scheme: &dyn SearchScheme<INDEX = I>,
-    qs: &[u32],
-) -> f64 {
-    info!("Benching {}", scheme.name());
-    let start = Instant::now();
-    black_box(index.query(qs, &scheme));
-    let elapsed = start.elapsed();
-    elapsed.as_nanos() as f64 / qs.len() as f64
-}
-
-pub fn bench_scheme_par<I: SearchIndex + Sync>(
-    index: &I,
-    scheme: &dyn SearchScheme<INDEX = I>,
-    qs: &[u32],
-    threads: usize,
-) -> f64 {
-    info!("Benching {}", scheme.name());
-    let chunk_size = qs.len().div_ceil(threads);
-    let start = Instant::now();
-
-    rayon::scope(|scope| {
-        for idx in 0..threads {
-            let index = &index;
-            let scheme = &scheme;
-            scope.spawn(move |_| {
-                let start_idx = idx * chunk_size;
-                let end = ((idx + 1) * chunk_size).min(qs.len());
-                let qs_thread = &qs[start_idx..end];
-                black_box(index.query(qs_thread, scheme));
-            });
-        }
-    });
-
-    let elapsed = start.elapsed();
-    elapsed.as_nanos() as f64 / qs.len() as f64
-}
-
 #[pyclass]
-pub struct BenchmarkSortedArray {
+pub struct SearchFunctions {
     bs: Vec<&'static dyn SearchScheme<INDEX = SortedVec>>,
     eyt: Vec<&'static dyn SearchScheme<INDEX = Eytzinger>>,
     bt: Vec<&'static dyn SearchScheme<INDEX = BTree16>>,
@@ -63,79 +23,8 @@ pub struct BenchmarkSortedArray {
     bpr: Vec<&'static dyn SearchScheme<INDEX = BpTree16R>>,
 }
 
-impl BenchmarkSortedArray {
-    #[allow(unused)]
-    fn test_all(&self) -> bool {
-        const TEST_START_POW2: usize = 6;
-        const TEST_END_POW2: usize = 26;
-        const TEST_QUERIES: usize = 10000usize.next_multiple_of(128);
-
-        let correct = &mut true;
-        for pow2 in TEST_START_POW2..=TEST_END_POW2 {
-            let size = 2usize.pow(pow2 as u32);
-            let vals = gen_vals(size, true);
-            eprintln!("LEN: {}", vals.len());
-            let qs = &gen_queries(TEST_QUERIES);
-
-            let results = &mut vec![];
-
-            // Helper to extract type `I` and build the index.
-            fn map<I: SearchIndex>(
-                schemes: &Vec<&dyn SearchScheme<INDEX = I>>,
-                vals: &[u32],
-                qs: &[u32],
-                results: &mut Vec<u32>,
-                correct: &mut bool,
-            ) {
-                map_idx(schemes, &I::new(vals), qs, results, correct);
-            }
-
-            fn map_idx<I: SearchIndex>(
-                schemes: &Vec<&(dyn SearchScheme<INDEX = I>)>,
-                index: &I,
-                qs: &[u32],
-                results: &mut Vec<u32>,
-                correct: &mut bool,
-            ) {
-                for scheme in schemes {
-                    let new_results = index.query(qs, scheme);
-                    if results.is_empty() {
-                        *results = new_results;
-                    } else {
-                        if *results != new_results {
-                            *correct = false;
-                        }
-                    }
-                }
-            }
-
-            map(&self.bs, &vals, qs, results, correct);
-            map(&self.eyt, &vals, qs, results, correct);
-            map(&self.bt, &vals, qs, results, correct);
-            map(&self.bp, &vals, qs, results, correct);
-            map(&self.bp15, &vals, qs, results, correct);
-            map(&self.bpr, &vals, qs, results, correct);
-            map_idx(
-                &self.bpr,
-                &BpTree16R::new_fwd(&vals, false),
-                qs,
-                results,
-                correct,
-            );
-            map_idx(
-                &self.bpr,
-                &BpTree16R::new_fwd(&vals, true),
-                qs,
-                results,
-                correct,
-            );
-        }
-        *correct
-    }
-}
-
 #[pymethods]
-impl BenchmarkSortedArray {
+impl SearchFunctions {
     #[new]
     pub fn new() -> Self {
         *INIT_TRACE;
@@ -219,7 +108,7 @@ impl BenchmarkSortedArray {
         }
         .to_vec();
 
-        BenchmarkSortedArray {
+        SearchFunctions {
             bs,
             eyt,
             bt,
@@ -272,6 +161,8 @@ impl BenchmarkSortedArray {
             map(&self.eyt, &fname, &vals, queries, &mut results);
             map(&self.bt, &fname, &vals, queries, &mut results);
             map(&self.bp, &fname, &vals, queries, &mut results);
+            map(&self.bp15, &fname, &vals, queries, &mut results);
+            map(&self.bpr, &fname, &vals, queries, &mut results);
         }
         if results.len() > (stop_pow2 - start_pow2 + 1) {
             panic!("The function with the same name must exist multiple times!")
@@ -363,18 +254,83 @@ impl BenchmarkSortedArray {
 
 #[pymodule]
 fn sa_layout(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<BenchmarkSortedArray>()?;
+    m.add_class::<SearchFunctions>()?;
     Ok(())
 }
 
 #[cfg(test)]
 mod test {
-    use crate::bench::BenchmarkSortedArray;
+    use super::*;
 
     #[test]
-    fn test_benchmarks() {
-        let benchmark = BenchmarkSortedArray::new();
-        let correct = benchmark.test_all();
-        assert!(correct);
+    fn test_search() {
+        let fs = SearchFunctions::new();
+
+        const TEST_START_POW2: usize = 6;
+        const TEST_END_POW2: usize = 26;
+        const TEST_QUERIES: usize = 10000usize.next_multiple_of(128);
+
+        let correct = &mut true;
+        for pow2 in TEST_START_POW2..=TEST_END_POW2 {
+            let size = 2usize.pow(pow2 as u32);
+            let vals = gen_vals(size, true);
+            eprintln!("LEN: {}", vals.len());
+            let qs = &gen_queries(TEST_QUERIES);
+
+            let results = &mut vec![];
+
+            // Helper to extract type `I` and build the index.
+            fn map<I: SearchIndex>(
+                schemes: &Vec<&dyn SearchScheme<INDEX = I>>,
+                vals: &[u32],
+                qs: &[u32],
+                results: &mut Vec<u32>,
+                correct: &mut bool,
+            ) {
+                map_idx(schemes, &I::new(vals), qs, results, correct);
+            }
+
+            fn map_idx<I: SearchIndex>(
+                schemes: &Vec<&(dyn SearchScheme<INDEX = I>)>,
+                index: &I,
+                qs: &[u32],
+                results: &mut Vec<u32>,
+                correct: &mut bool,
+            ) {
+                for scheme in schemes {
+                    let new_results = index.query(qs, scheme);
+                    if results.is_empty() {
+                        *results = new_results;
+                    } else {
+                        if *results != new_results {
+                            *correct = false;
+                        }
+                    }
+                }
+            }
+
+            map(&fs.bs, &vals, qs, results, correct);
+            map(&fs.eyt, &vals, qs, results, correct);
+            map(&fs.bt, &vals, qs, results, correct);
+            map(&fs.bp, &vals, qs, results, correct);
+            map(&fs.bp15, &vals, qs, results, correct);
+            map(&fs.bpr, &vals, qs, results, correct);
+            map_idx(
+                &fs.bpr,
+                &BpTree16R::new_fwd(&vals, false),
+                qs,
+                results,
+                correct,
+            );
+            map_idx(
+                &fs.bpr,
+                &BpTree16R::new_fwd(&vals, true),
+                qs,
+                results,
+                correct,
+            );
+        }
+
+        assert!(*correct);
     }
 }

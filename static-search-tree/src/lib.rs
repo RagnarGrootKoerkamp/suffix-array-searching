@@ -11,7 +11,7 @@ pub mod util;
 
 use util::*;
 
-pub use bench::{bench_scheme, BenchmarkSortedArray};
+pub use bench::SearchFunctions;
 
 #[ctor::ctor]
 fn init_color_backtrace() {
