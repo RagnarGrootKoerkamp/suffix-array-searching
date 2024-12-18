@@ -23,7 +23,7 @@ fn main() {
         eprintln!("Building B+Tree DONE");
 
         for _ in 0..1000 {
-            let scheme = &BpTree::search_batch_no_prefetch::<128, false, 2>();
+            let scheme = &batched(BpTree::batch_no_prefetch::<128, false, 2>);
             bench_scheme(bp, scheme, queries);
         }
     }

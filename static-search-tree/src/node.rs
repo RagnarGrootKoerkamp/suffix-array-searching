@@ -16,6 +16,15 @@ impl<const N: usize> Default for BTreeNode<N> {
 }
 
 impl<const N: usize> BTreeNode<N> {
+    pub fn find_linear(&self, q: u32) -> usize {
+        for i in 0..N {
+            if self.data[i] >= q {
+                return i;
+            }
+        }
+        N
+    }
+
     pub fn find(&self, q: u32) -> usize {
         self.find_popcnt(q)
     }

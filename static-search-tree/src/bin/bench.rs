@@ -3,8 +3,10 @@
 use clap::Parser;
 use rdst::RadixSort;
 use static_search_tree::{
-    binary_search::*,
-    eytzinger::*,
+    binary_search::SortedVec,
+    bplustree::BpTree,
+    eytzinger::Eytzinger,
+    node::BTreeNode,
     util::{gen_queries, gen_vals},
     SearchIndex, SearchScheme,
 };
@@ -65,10 +67,19 @@ fn main() {
             /// Wrapper type for the cast to &dyn.
             type T<I, const N: usize> = [&'static dyn SearchScheme<I>; N];
 
-            let exps: T<_, _> = [&BinarySearchStd];
+            let exps: T<_, _> = [&SortedVec::binary_search_std];
             run_exps(&mut results, size, vals, qs, run, exps);
 
-            let exps: T<_, _> = [&EytzingerPrefetch::<4>];
+            let exps: T<_, _> = [&Eytzinger::search_prefetch::<4>];
+            run_exps(&mut results, size, vals, qs, run, exps);
+
+            let exps: T<_, _> = const {
+                [
+                    &BpTree::<16, 16>::search,
+                    &BpTree::search_with_find(BTreeNode::find_linear) as _,
+                    &BpTree::search_with_find(BTreeNode::find_popcnt) as _,
+                ]
+            };
             run_exps(&mut results, size, vals, qs, run, exps);
         }
 

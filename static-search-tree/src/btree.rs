@@ -1,6 +1,6 @@
 use crate::{
     node::{BTreeNode, MAX},
-    SearchIndex, SearchScheme,
+    SearchIndex,
 };
 use std::fmt::Debug;
 
@@ -63,67 +63,60 @@ impl<const B: usize, const N: usize> SearchIndex for BTree<B, N> {
     }
 }
 
-pub struct BTreeSearch<const B: usize, const N: usize>;
-impl<const B: usize, const N: usize> SearchScheme<BTree<B, N>> for BTreeSearch<B, N> {
+impl<const B: usize, const N: usize> BTree<B, N> {
     // basic searching with no vectorized magic inside the nodes
-    fn query_one(&self, index: &BTree<B, N>, q: u32) -> u32 {
+    pub fn search(&self, q: u32) -> u32 {
         // completely naive
         let mut k = 0;
-        let btree_blocks = index.tree.len();
+        let btree_blocks = self.tree.len();
         let mut ans = MAX;
         while k < btree_blocks {
             let mut jump_to = 0;
             for j in 0..B {
-                let compare_to = index.get(k, j);
+                let compare_to = self.get(k, j);
                 if q <= compare_to {
                     break;
                 }
                 jump_to += 1;
             }
             if jump_to < B {
-                ans = index.get(k, jump_to);
+                ans = self.get(k, jump_to);
             }
-            k = index.go_to(k, jump_to);
+            k = self.go_to(k, jump_to);
         }
         ans
     }
-}
 
-pub struct BTreeSearchLoop<const B: usize, const N: usize>;
-impl<const B: usize, const N: usize> SearchScheme<BTree<B, N>> for BTreeSearchLoop<B, N> {
-    fn query_one(&self, index: &BTree<B, N>, q: u32) -> u32 {
+    pub fn search_loop(&self, q: u32) -> u32 {
         // completely naive
         let mut k = 0;
-        let btree_blocks = index.tree.len();
+        let btree_blocks = self.tree.len();
         let mut ans = MAX;
         while k < btree_blocks {
             let mut jump_to = 0;
             for j in 0..B {
-                let compare_to = index.get(k, j);
+                let compare_to = self.get(k, j);
                 jump_to += (q > compare_to) as usize;
             }
             if jump_to < B {
-                ans = index.get(k, jump_to);
+                ans = self.get(k, jump_to);
             }
-            k = index.go_to(k, jump_to);
+            k = self.go_to(k, jump_to);
         }
         ans
     }
-}
 
-pub struct BTreeSearchSimd<const B: usize, const N: usize>;
-impl<const B: usize, const N: usize> SearchScheme<BTree<B, N>> for BTreeSearchSimd<B, N> {
-    fn query_one(&self, index: &BTree<B, N>, q: u32) -> u32 {
+    pub fn search_simd(&self, q: u32) -> u32 {
         // completely naive
         let mut k = 0;
-        let btree_blocks = index.tree.len();
+        let btree_blocks = self.tree.len();
         let mut ans = MAX;
         while k < btree_blocks {
-            let jump_to = index.tree[k].find(q);
+            let jump_to = self.tree[k].find(q);
             if jump_to < B {
-                ans = index.get(k, jump_to);
+                ans = self.get(k, jump_to);
             }
-            k = index.go_to(k, jump_to);
+            k = self.go_to(k, jump_to);
         }
         ans
     }
@@ -132,10 +125,7 @@ impl<const B: usize, const N: usize> SearchScheme<BTree<B, N>> for BTreeSearchSi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        binary_search::{BinarySearch, SortedVec},
-        SearchIndex,
-    };
+    use crate::{binary_search::SortedVec, SearchIndex};
 
     #[test]
     fn test_b_tree_k_2() {
@@ -158,9 +148,9 @@ mod tests {
         vals.push(MAX);
         let q = 452;
         let btree = BTree::<16, 16>::new(&vals);
-        let btree_res = btree.query_one(q, &BTreeSearch);
+        let btree_res = btree.search(q);
 
-        let binsearch_res = SortedVec::new(&vals).query_one(q, &BinarySearch);
+        let binsearch_res = SortedVec::new(&vals).binary_search(q);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }
@@ -171,9 +161,9 @@ mod tests {
         vals.push(MAX);
         let q = 289;
         let btree = BTree::<16, 16>::new(&vals);
-        let btree_res = btree.query_one(q, &BTreeSearch);
+        let btree_res = btree.search(q);
 
-        let binsearch_res = SortedVec::new(&vals).query_one(q, &BinarySearch);
+        let binsearch_res = SortedVec::new(&vals).binary_search(q);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }
@@ -194,9 +184,9 @@ mod tests {
         vals.push(MAX);
         let q = 452;
         let btree = BTree::<16, 16>::new(&vals);
-        let btree_res = btree.query_one(q, &BTreeSearchSimd);
+        let btree_res = btree.search_simd(q);
 
-        let binsearch_res = SortedVec::new(&vals).query_one(q, &BinarySearch);
+        let binsearch_res = SortedVec::new(&vals).binary_search(q);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }
@@ -207,9 +197,9 @@ mod tests {
         vals.push(MAX);
         let q = 289;
         let btree = BTree::<16, 16>::new(&vals);
-        let btree_res = btree.query_one(q, &BTreeSearchSimd);
+        let btree_res = btree.search_simd(q);
 
-        let binsearch_res = SortedVec::new(&vals).query_one(q, &BinarySearch);
+        let binsearch_res = SortedVec::new(&vals).binary_search(q);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }

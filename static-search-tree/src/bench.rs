@@ -1,12 +1,9 @@
-use crate::binary_search::{
-    BinarySearch, BinarySearchBranchless, BinarySearchBranchlessPrefetch, SortedVec,
-};
+use crate::binary_search::SortedVec;
 use crate::bplustree::{BpTree, BpTree15, BpTree16};
-use crate::btree::{BTree16, BTreeSearch, BTreeSearchLoop, BTreeSearchSimd};
-use crate::eytzinger::{Eytzinger, EytzingerPrefetch, EytzingerSearch};
-use crate::interp_search::InterpolationSearch;
+use crate::btree::{BTree, BTree16};
+use crate::eytzinger::Eytzinger;
 use crate::node::MAX;
-use crate::{util::*, SearchIndex, SearchScheme};
+use crate::{batched, full, util::*, SearchIndex, SearchScheme};
 use log::info;
 use pyo3::prelude::*;
 use rdst::RadixSort;
@@ -29,59 +26,59 @@ impl SearchFunctions {
         *INIT_TRACE;
 
         let bs = vec![
-            &BinarySearch as &dyn SearchScheme<_>,
-            &BinarySearchBranchless,
-            &BinarySearchBranchlessPrefetch,
-            &InterpolationSearch,
+            &SortedVec::binary_search as &dyn SearchScheme<_>,
+            &SortedVec::binary_search_std,
+            &SortedVec::binary_search_branchless,
+            &SortedVec::binary_search_branchless_prefetch,
+            &SortedVec::interpolation_search,
         ];
         let eyt = vec![
-            &EytzingerSearch as &dyn SearchScheme<_>,
-            &EytzingerPrefetch::<2>,
-            &EytzingerPrefetch::<3>,
-            &EytzingerPrefetch::<4>,
+            &Eytzinger::search as &dyn SearchScheme<_>,
+            &Eytzinger::search_prefetch::<2>,
+            &Eytzinger::search_prefetch::<3>,
+            &Eytzinger::search_prefetch::<4>,
         ];
         let bt = vec![
-            &BTreeSearch as &dyn SearchScheme<_>,
-            &BTreeSearchLoop,
-            &BTreeSearchSimd,
+            &BTree::search as &dyn SearchScheme<_>,
+            &BTree::search_loop,
+            &BTree::search_simd,
         ];
         let bp = const {
             [
-                &BpTree::search() as &dyn SearchScheme<_>,
-                &BpTree::search_split(),
-                &BpTree::search_batch::<4>(),
-                &BpTree::search_batch::<8>(),
-                &BpTree::search_batch::<16>(),
-                &BpTree::search_batch::<32>(),
-                &BpTree::search_batch::<64>(),
-                &BpTree::search_batch::<128>(),
-                &BpTree::search_batch_prefetch::<128>(),
-                &BpTree::search_batch_ptr::<128>(),
-                &BpTree::search_batch_ptr2::<128>(),
-                &BpTree::search_batch_ptr3::<128, false>(),
-                &BpTree::search_batch_no_prefetch::<128, false, 1>(),
-                &BpTree::search_batch_no_prefetch::<128, false, 2>(),
-                &BpTree::search_interleave::<64, false>(),
-                // &BpTree::search_batch_ptr3::<128, true>(),
-                // &BpTree::search_interleave::<64, true>(),
+                &BpTree::search as &dyn SearchScheme<_>,
+                &BpTree::search_split,
+                &batched(BpTree::batch::<4>),
+                &batched(BpTree::batch::<8>),
+                &batched(BpTree::batch::<16>),
+                &batched(BpTree::batch::<32>),
+                &batched(BpTree::batch::<64>),
+                &batched(BpTree::batch::<128>),
+                &batched(BpTree::batch_prefetch::<128>),
+                &batched(BpTree::batch_ptr::<128>),
+                &batched(BpTree::batch_ptr2::<128>),
+                &batched(BpTree::batch_ptr3::<128, false>),
+                &batched(BpTree::batch_no_prefetch::<128, false, 1>),
+                &batched(BpTree::batch_no_prefetch::<128, false, 2>),
+                &full(BpTree::batch_interleave::<64, false>),
+                // &batched(BpTree::batch_ptr3::<128, true>),
+                // &full(BpTree::batch_interleave::<64, true>),
             ]
         }
         .to_vec();
 
         let bp15 = const {
             [
-                &BpTree::search() as &dyn SearchScheme<_>,
-                &BpTree::search_split(),
-                &BpTree::search_batch::<128>(),
-                &BpTree::search_batch_prefetch::<128>(),
-                &BpTree::search_batch_ptr::<128>(),
-                &BpTree::search_batch_ptr2::<128>(),
-                &BpTree::search_batch_ptr3::<128, false>(),
-                &BpTree::search_batch_no_prefetch::<128, false, 1>(),
-                &BpTree::search_batch_no_prefetch::<128, false, 2>(),
-                &BpTree::search_interleave::<64, false>(),
-                // &BpTree::search_batch_ptr3::<128, true>(),
-                // &BpTree::search_interleave::<64, true>(),
+                &BpTree::search as &dyn SearchScheme<_>,
+                &batched(BpTree::batch::<128>),
+                &batched(BpTree::batch_prefetch::<128>),
+                &batched(BpTree::batch_ptr::<128>),
+                &batched(BpTree::batch_ptr2::<128>),
+                &batched(BpTree::batch_ptr3::<128, false>),
+                &batched(BpTree::batch_no_prefetch::<128, false, 1>),
+                &batched(BpTree::batch_no_prefetch::<128, false, 2>),
+                &full(BpTree::batch_interleave::<64, false>),
+                // &batched(BpTree::batch_ptr3::<128, true>),
+                // &full(BpTree::batch_interleave::<64, true>),
             ]
         }
         .to_vec();
@@ -218,7 +215,7 @@ impl SearchFunctions {
             let bpr = BpTree16::new_params(&vals, true, true, false);
             let strings = ["", "t1", "t2", "t3", "t4", "t5", "t6"];
             for threads in 1..=6 {
-                let scheme = BpTree::search_batch_no_prefetch::<128, false, 1>();
+                let scheme = batched(BpTree::batch_no_prefetch::<128, false, 1>);
                 let t = bench_scheme_par(&bpr, &scheme, qs, threads);
                 results.entry(strings[threads]).or_default().push((size, t));
             }

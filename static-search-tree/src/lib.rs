@@ -6,8 +6,10 @@ pub mod bplustree;
 pub mod btree;
 pub mod eytzinger;
 pub mod interp_search;
-mod node;
+pub mod node;
 pub mod util;
+
+use std::marker::PhantomData;
 
 use util::*;
 
@@ -32,7 +34,7 @@ pub trait SearchIndex: Sized {
 }
 
 /// Add a search scheme to an index.
-pub trait SearchScheme<INDEX>: Sync + Send {
+pub trait SearchScheme<INDEX>: Sync {
     fn query_one(&self, index: &INDEX, q: u32) -> u32 {
         self.query(index, &vec![q])[0]
     }
@@ -41,5 +43,51 @@ pub trait SearchScheme<INDEX>: Sync + Send {
     }
     fn name(&self) -> &'static str {
         std::any::type_name::<Self>()
+    }
+}
+
+impl<I, F: Fn(&I, u32) -> u32 + Sync> SearchScheme<I> for F {
+    fn query_one(&self, index: &I, q: u32) -> u32 {
+        self(index, q)
+    }
+}
+
+// Wrapper for batching queries.
+
+pub struct Batched<const P: usize, I, F: for<'a> Fn(&'a I, &[u32; P]) -> [u32; P] + Sync>(
+    F,
+    PhantomData<fn(&I)>,
+);
+
+pub const fn batched<const P: usize, I, F: for<'a> Fn(&'a I, &[u32; P]) -> [u32; P] + Sync>(
+    f: F,
+) -> Batched<P, I, F> {
+    Batched(f, PhantomData)
+}
+
+impl<const P: usize, I, F: for<'a> Fn(&'a I, &[u32; P]) -> [u32; P] + Sync> SearchScheme<I>
+    for Batched<P, I, F>
+{
+    fn query(&self, index: &I, qs: &[u32]) -> Vec<u32> {
+        let it = qs.array_chunks();
+        assert!(
+            it.remainder().is_empty(),
+            "For now, batched queries cannot handle leftovers"
+        );
+        it.flat_map(|qb| (self.0)(index, qb)).collect()
+    }
+}
+
+// Wrapper for full queries.
+
+pub struct Full<I, F: for<'a> Fn(&'a I, &[u32]) -> Vec<u32> + Sync>(F, PhantomData<fn(&I)>);
+
+pub const fn full<I, F: for<'a> Fn(&'a I, &[u32]) -> Vec<u32> + Sync>(f: F) -> Full<I, F> {
+    Full(f, PhantomData)
+}
+
+impl<I, F: for<'a> Fn(&'a I, &[u32]) -> Vec<u32> + Sync> SearchScheme<I> for Full<I, F> {
+    fn query(&self, index: &I, qs: &[u32]) -> Vec<u32> {
+        (self.0)(index, qs)
     }
 }

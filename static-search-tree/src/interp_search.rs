@@ -1,19 +1,16 @@
-use crate::{binary_search::SortedVec, SearchScheme};
+use crate::binary_search::SortedVec;
 
-// completely basic binsearch
-pub struct InterpolationSearch;
-
-impl SearchScheme<SortedVec> for InterpolationSearch {
+impl SortedVec {
     /// Return the value of the first value >= query.
-    fn query_one(&self, index: &SortedVec, q: u32) -> u32 {
+    pub fn interpolation_search(&self, q: u32) -> u32 {
         let mut l: usize = 0;
         // FIXME: is this inclusive?
-        let mut r: usize = index.vals.len() - 1;
-        let mut l_val: usize = index.get(l).try_into().unwrap();
-        let mut r_val: usize = index.get(r).try_into().unwrap();
+        let mut r: usize = self.vals.len() - 1;
+        let mut l_val: usize = self.get(l).try_into().unwrap();
+        let mut r_val: usize = self.get(r).try_into().unwrap();
         let q_val = q.try_into().unwrap();
         if q_val <= l_val {
-            return index.get(l);
+            return self.get(l);
         }
         assert!(
             r_val.checked_mul(r).is_some(),
@@ -38,7 +35,7 @@ impl SearchScheme<SortedVec> for InterpolationSearch {
             let low = l + (r - l) / 16;
             let high = l + 15 * (r - l) / 16;
             m = m.clamp(low, high);
-            let m_val: usize = index.get(m).try_into().unwrap();
+            let m_val: usize = self.get(m).try_into().unwrap();
             if m_val < q_val {
                 l = m + 1;
                 l_val = m_val;
@@ -47,24 +44,20 @@ impl SearchScheme<SortedVec> for InterpolationSearch {
                 r_val = m_val;
             }
         }
-        index.get(l)
+        self.get(l)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        binary_search::{BinarySearch, SortedVec},
-        SearchIndex,
-    };
+    use crate::{binary_search::SortedVec, SearchIndex};
 
     #[test]
     fn interppolation_vs_binsearch() {
         let input = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let q = 5;
-        let i_res = SortedVec::new(&input).query_one(q, &InterpolationSearch);
-        let bin_res = SortedVec::new(&input).query_one(q, &BinarySearch);
+        let i_res = SortedVec::new(&input).interpolation_search(q);
+        let bin_res = SortedVec::new(&input).binary_search(q);
         assert!(i_res == bin_res);
         println!("{i_res}, {bin_res}");
     }

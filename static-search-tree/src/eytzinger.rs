@@ -1,4 +1,4 @@
-use crate::{prefetch_index, SearchIndex, SearchScheme};
+use crate::{prefetch_index, SearchIndex};
 
 pub struct Eytzinger {
     vals: Vec<u32>,
@@ -33,43 +33,36 @@ impl SearchIndex for Eytzinger {
     }
 }
 
-pub struct EytzingerSearch;
-impl SearchScheme<Eytzinger> for EytzingerSearch {
-    fn query_one(&self, index: &Eytzinger, q: u32) -> u32 {
+impl Eytzinger {
+    pub fn search(&self, q: u32) -> u32 {
         let mut idx = 1;
-        while idx < index.vals.len() {
-            idx = 2 * idx + (q > index.get(idx)) as usize;
+        while idx < self.vals.len() {
+            idx = 2 * idx + (q > self.get(idx)) as usize;
         }
         let zeros = idx.trailing_ones() + 1;
         let idx = idx >> zeros;
-        index.get(idx)
+        self.get(idx)
     }
-}
 
-/// L: number of levels ahead to prefetch.
-pub struct EytzingerPrefetch<const L: usize>;
-impl<const L: usize> SearchScheme<Eytzinger> for EytzingerPrefetch<L> {
-    fn query_one(&self, index: &Eytzinger, q: u32) -> u32 {
+    /// L: number of levels ahead to prefetch.
+    pub fn search_prefetch<const L: usize>(&self, q: u32) -> u32 {
         let mut idx = 1;
-        while idx < index.vals.len() {
-            idx = 2 * idx + (q > index.get(idx)) as usize;
-            if L * idx < index.vals.len() {
-                prefetch_index(&index.vals, (1 << L) * idx);
+        while idx < self.vals.len() {
+            idx = 2 * idx + (q > self.get(idx)) as usize;
+            if L * idx < self.vals.len() {
+                prefetch_index(&self.vals, (1 << L) * idx);
             }
         }
         let zeros = idx.trailing_ones() + 1;
         let idx = idx >> zeros;
-        index.get(idx)
+        self.get(idx)
     }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use crate::{
-        binary_search::{BinarySearch, SortedVec},
-        SearchIndex,
-    };
+    use crate::{binary_search::SortedVec, SearchIndex};
 
     use super::*;
 
@@ -77,8 +70,8 @@ mod tests {
     fn eytzinger_vs_binsearch() {
         let input = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let q = 5;
-        let ey_res = Eytzinger::new(&input).query_one(q, &EytzingerSearch);
-        let bin_res = SortedVec::new(&input).query_one(q, &BinarySearch);
+        let ey_res = Eytzinger::new(&input).search(q);
+        let bin_res = SortedVec::new(&input).binary_search(q);
         println!("{ey_res}, {bin_res}");
     }
 
@@ -103,7 +96,7 @@ mod tests {
     fn eyetzinger_search_test() {
         let input = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
         let q: u32 = 3;
-        let ey_res = Eytzinger::new(&input).query_one(q, &EytzingerSearch);
+        let ey_res = Eytzinger::new(&input).search(q);
         assert_eq!(ey_res, 3);
     }
 
@@ -111,7 +104,7 @@ mod tests {
     fn eyetzinger_search_oob() {
         let input = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
         let q: u32 = 12;
-        let ey_res = Eytzinger::new(&input).query_one(q, &EytzingerSearch);
+        let ey_res = Eytzinger::new(&input).search(q);
         assert_eq!(ey_res, u32::MAX);
     }
 }
