@@ -1,4 +1,4 @@
-use bplustree::{BpTree, BpTree16};
+use bplustree::{STree, STree16};
 use static_search_tree::*;
 use util::*;
 
@@ -19,11 +19,11 @@ fn main() {
         eprintln!("Gen vals DONE");
 
         eprintln!("Building B+Tree..");
-        let bp = &mut BpTree16::new_params(&vals, true, true, false);
+        let bp = &mut STree16::new_params(&vals, true, true, false);
         eprintln!("Building B+Tree DONE");
 
         for _ in 0..1000 {
-            let scheme = &batched(BpTree::batch_no_prefetch::<128, false, 2>);
+            let scheme = &batched(STree::batch_no_prefetch::<128, false, 2>);
             bench_scheme(bp, scheme, queries);
         }
     }

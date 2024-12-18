@@ -9,21 +9,21 @@ use crate::{prefetch_index, prefetch_ptr, SearchIndex};
 /// B branching factor.
 /// B-1 actual elements in a node.
 #[derive(Debug)]
-pub struct BpTree<const B: usize, const N: usize> {
+pub struct STree<const B: usize, const N: usize> {
     tree: Vec<BTreeNode<N>>,
     offsets: Vec<usize>,
 }
 
-impl<const B: usize, const N: usize> SearchIndex for BpTree<B, N> {
+impl<const B: usize, const N: usize> SearchIndex for STree<B, N> {
     fn new(vals: &[u32]) -> Self {
         Self::new_params(vals, false, false, false)
     }
 }
 
-pub type BpTree16 = BpTree<16, 16>;
-pub type BpTree15 = BpTree<15, 16>;
+pub type STree16 = STree<16, 16>;
+pub type STree15 = STree<15, 16>;
 
-impl<const B: usize, const N: usize> BpTree<B, N> {
+impl<const B: usize, const N: usize> STree<B, N> {
     fn blocks(n: usize) -> usize {
         n.div_ceil(B)
     }
@@ -255,7 +255,7 @@ impl<const B: usize, const N: usize> BpTree<B, N> {
 
     pub const fn search_with_find(
         f: impl Fn(&BTreeNode<N>, u32) -> usize + Copy,
-    ) -> impl Fn(&BpTree<B, N>, u32) -> u32 {
+    ) -> impl Fn(&STree<B, N>, u32) -> u32 {
         move |index, q| index.search_with_find_impl(q, f)
     }
 
@@ -653,7 +653,7 @@ mod tests {
     #[test]
     fn test_b_tree_k_2() {
         let vals = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let bptree = BpTree::<2, 2>::new_params(&vals, false, false, false);
+        let bptree = STree::<2, 2>::new_params(&vals, false, false, false);
         println!("{:?}", bptree);
     }
 
@@ -661,7 +661,7 @@ mod tests {
     fn test_b_tree_k_3() {
         let vals = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         // let correct_output = vec![4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15];
-        let computed_out = BpTree::<3, 3>::new_params(&vals, false, false, false);
+        let computed_out = STree::<3, 3>::new_params(&vals, false, false, false);
         println!("{:?}", computed_out);
     }
 
@@ -670,7 +670,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 452;
-        let bptree = BpTree::<16, 16>::new_params(&vals, false, false, false);
+        let bptree = STree::<16, 16>::new_params(&vals, false, false, false);
         let bptree_res = bptree.search(q);
 
         let bin_res = SortedVec::new(&vals).binary_search(q);
@@ -683,7 +683,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 289;
-        let bptree = BpTree::<16, 16>::new_params(&vals, false, false, false);
+        let bptree = STree::<16, 16>::new_params(&vals, false, false, false);
         let bptree_res = bptree.search(q);
 
         let bin_res = SortedVec::new(&vals).binary_search(q);
@@ -695,7 +695,7 @@ mod tests {
     fn test_simd_cmp() {
         let mut vals: Vec<u32> = (1..16).collect();
         vals.push(MAX);
-        let bptree = BpTree::<16, 16>::new_params(&vals, false, false, false);
+        let bptree = STree::<16, 16>::new_params(&vals, false, false, false);
         let idx = bptree.tree[0].find(1);
         println!("{}", idx);
         assert_eq!(idx, 0);

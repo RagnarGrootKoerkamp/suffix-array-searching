@@ -1,5 +1,5 @@
 use crate::binary_search::SortedVec;
-use crate::bplustree::{BpTree, BpTree15, BpTree16};
+use crate::bplustree::{STree, STree15, STree16};
 use crate::btree::{BTree, BTree16};
 use crate::eytzinger::Eytzinger;
 use crate::node::MAX;
@@ -15,8 +15,8 @@ pub struct SearchFunctions {
     bs: Vec<&'static dyn SearchScheme<SortedVec>>,
     eyt: Vec<&'static dyn SearchScheme<Eytzinger>>,
     bt: Vec<&'static dyn SearchScheme<BTree16>>,
-    bp: Vec<&'static dyn SearchScheme<BpTree16>>,
-    bp15: Vec<&'static dyn SearchScheme<BpTree15>>,
+    bp: Vec<&'static dyn SearchScheme<STree16>>,
+    bp15: Vec<&'static dyn SearchScheme<STree15>>,
 }
 
 #[pymethods]
@@ -45,40 +45,40 @@ impl SearchFunctions {
         ];
         let bp = const {
             [
-                &BpTree::search as &dyn SearchScheme<_>,
-                &BpTree::search_split,
-                &batched(BpTree::batch::<4>),
-                &batched(BpTree::batch::<8>),
-                &batched(BpTree::batch::<16>),
-                &batched(BpTree::batch::<32>),
-                &batched(BpTree::batch::<64>),
-                &batched(BpTree::batch::<128>),
-                &batched(BpTree::batch_prefetch::<128>),
-                &batched(BpTree::batch_ptr::<128>),
-                &batched(BpTree::batch_ptr2::<128>),
-                &batched(BpTree::batch_ptr3::<128, false>),
-                &batched(BpTree::batch_no_prefetch::<128, false, 1>),
-                &batched(BpTree::batch_no_prefetch::<128, false, 2>),
-                &full(BpTree::batch_interleave::<64, false>),
-                // &batched(BpTree::batch_ptr3::<128, true>),
-                // &full(BpTree::batch_interleave::<64, true>),
+                &STree::search as &dyn SearchScheme<_>,
+                &STree::search_split,
+                &batched(STree::batch::<4>),
+                &batched(STree::batch::<8>),
+                &batched(STree::batch::<16>),
+                &batched(STree::batch::<32>),
+                &batched(STree::batch::<64>),
+                &batched(STree::batch::<128>),
+                &batched(STree::batch_prefetch::<128>),
+                &batched(STree::batch_ptr::<128>),
+                &batched(STree::batch_ptr2::<128>),
+                &batched(STree::batch_ptr3::<128, false>),
+                &batched(STree::batch_no_prefetch::<128, false, 1>),
+                &batched(STree::batch_no_prefetch::<128, false, 2>),
+                &full(STree::batch_interleave::<64, false>),
+                // &batched(STree::batch_ptr3::<128, true>),
+                // &full(STree::batch_interleave::<64, true>),
             ]
         }
         .to_vec();
 
         let bp15 = const {
             [
-                &BpTree::search as &dyn SearchScheme<_>,
-                &batched(BpTree::batch::<128>),
-                &batched(BpTree::batch_prefetch::<128>),
-                &batched(BpTree::batch_ptr::<128>),
-                &batched(BpTree::batch_ptr2::<128>),
-                &batched(BpTree::batch_ptr3::<128, false>),
-                &batched(BpTree::batch_no_prefetch::<128, false, 1>),
-                &batched(BpTree::batch_no_prefetch::<128, false, 2>),
-                &full(BpTree::batch_interleave::<64, false>),
-                // &batched(BpTree::batch_ptr3::<128, true>),
-                // &full(BpTree::batch_interleave::<64, true>),
+                &STree::search as &dyn SearchScheme<_>,
+                &batched(STree::batch::<128>),
+                &batched(STree::batch_prefetch::<128>),
+                &batched(STree::batch_ptr::<128>),
+                &batched(STree::batch_ptr2::<128>),
+                &batched(STree::batch_ptr3::<128, false>),
+                &batched(STree::batch_no_prefetch::<128, false, 1>),
+                &batched(STree::batch_no_prefetch::<128, false, 2>),
+                &full(STree::batch_interleave::<64, false>),
+                // &batched(STree::batch_ptr3::<128, true>),
+                // &full(STree::batch_interleave::<64, true>),
             ]
         }
         .to_vec();
@@ -199,23 +199,23 @@ impl SearchFunctions {
             map(&self.bp15, &vals, qs, size, results);
             map_idx(
                 &self.bp,
-                &BpTree16::new_params(&vals, true, true, false),
+                &STree16::new_params(&vals, true, true, false),
                 qs,
                 size,
                 results,
             );
             map_idx(
                 &self.bp,
-                &BpTree16::new_params(&vals, true, true, true),
+                &STree16::new_params(&vals, true, true, true),
                 qs,
                 size,
                 results,
             );
 
-            let bpr = BpTree16::new_params(&vals, true, true, false);
+            let bpr = STree16::new_params(&vals, true, true, false);
             let strings = ["", "t1", "t2", "t3", "t4", "t5", "t6"];
             for threads in 1..=6 {
-                let scheme = batched(BpTree::batch_no_prefetch::<128, false, 1>);
+                let scheme = batched(STree::batch_no_prefetch::<128, false, 1>);
                 let t = bench_scheme_par(&bpr, &scheme, qs, threads);
                 results.entry(strings[threads]).or_default().push((size, t));
             }
@@ -296,22 +296,22 @@ mod test {
             // map(&fs.bp15, &vals, qs, results, correct);
             eprintln!(
                 "Building index for {:?} (true, false, false)",
-                type_name::<BpTree16>()
+                type_name::<STree16>()
             );
             map_idx(
                 &fs.bp,
-                &BpTree16::new_params(&vals, true, false, false),
+                &STree16::new_params(&vals, true, false, false),
                 qs,
                 results,
                 correct,
             );
             eprintln!(
                 "Building index for {:?} (true, false, true)",
-                type_name::<BpTree16>()
+                type_name::<STree16>()
             );
             map_idx(
                 &fs.bp,
-                &BpTree16::new_params(&vals, true, false, true),
+                &STree16::new_params(&vals, true, false, true),
                 qs,
                 results,
                 correct,

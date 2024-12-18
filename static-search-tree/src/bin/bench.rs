@@ -4,7 +4,7 @@ use clap::Parser;
 use rdst::RadixSort;
 use static_search_tree::{
     binary_search::SortedVec,
-    bplustree::BpTree,
+    bplustree::STree,
     eytzinger::Eytzinger,
     node::BTreeNode,
     util::{gen_queries, gen_vals},
@@ -75,9 +75,9 @@ fn main() {
 
             let exps: T<_, _> = const {
                 [
-                    &BpTree::<16, 16>::search,
-                    &BpTree::search_with_find(BTreeNode::find_linear) as _,
-                    &BpTree::search_with_find(BTreeNode::find_popcnt) as _,
+                    &STree::<16, 16>::search,
+                    &STree::search_with_find(BTreeNode::find_linear) as _,
+                    &STree::search_with_find(BTreeNode::find_popcnt) as _,
                 ]
             };
             run_exps(&mut results, size, vals, qs, run, exps);
