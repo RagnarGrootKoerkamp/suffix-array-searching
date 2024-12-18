@@ -2,7 +2,7 @@ use crate::binary_search::{
     BinarySearch, BinarySearchBranchless, BinarySearchBranchlessPrefetch, SortedVec,
 };
 use crate::bplustree::{BpTree15, BpTree16, BpTree16R};
-use crate::btree::BTree16;
+use crate::btree::{BTree16, BTreeSearch, BTreeSearchLoop, BTreeSearchSimd};
 use crate::eytzinger::{Eytzinger, EytzingerPrefetch, EytzingerSearch};
 use crate::interp_search::InterpolationSearch;
 use crate::node::MAX;
@@ -107,7 +107,7 @@ pub fn bench_batch_par<const B: usize, T: Send + Sync>(
 pub struct BenchmarkSortedArray {
     bs: Vec<&'static dyn SearchScheme<INDEX = SortedVec>>,
     eyt: Vec<&'static dyn SearchScheme<INDEX = Eytzinger>>,
-    bt: Vec<Fn<BTree16>>,
+    bt: Vec<&'static dyn SearchScheme<INDEX = BTree16>>,
     bp: Vec<Fn<BpTree16>>,
 }
 
@@ -150,15 +150,7 @@ impl BenchmarkSortedArray {
 
             map(&self.bs, &vals, qs, &mut results, &mut correct);
             map(&self.eyt, &vals, qs, &mut results, &mut correct);
-
-            let bt = &BTree16::new(vals.clone());
-
-            for &f in &self.bt {
-                let new_results = run(bt, f, qs);
-                if results != new_results {
-                    correct = false;
-                }
-            }
+            map(&self.bt, &vals, qs, &mut results, &mut correct);
 
             let bp = &BpTree16::new(vals.clone());
 
@@ -276,10 +268,10 @@ impl BenchmarkSortedArray {
             &EytzingerPrefetch::<8>,
             &EytzingerPrefetch::<16>,
         ];
-        let bt: Vec<Fn<_>> = vec![
-            ("bt_search", BTree16::search),
-            ("bt_loop", BTree16::search_loop),
-            ("bt_simd", BTree16::search_simd),
+        let bt = vec![
+            &BTreeSearch as &dyn SearchScheme<INDEX = _>,
+            &BTreeSearchLoop,
+            &BTreeSearchSimd,
         ];
         let bp: Vec<Fn<_>> = vec![
             ("bp_search", BpTree16::search),
@@ -330,15 +322,7 @@ impl BenchmarkSortedArray {
 
             map(&self.bs, &fname, &vals, queries, &mut results);
             map(&self.eyt, &fname, &vals, queries, &mut results);
-
-            for &f in &self.bt {
-                let (name, _f) = f;
-                if fname == name {
-                    let bt = &BTree16::new(vals[..len].to_vec());
-                    let t = bench(bt, (name, _f), queries);
-                    results.push((size, t));
-                }
-            }
+            map(&self.bt, &fname, &vals, queries, &mut results);
 
             for &f in &self.bp {
                 let (name, _f) = f;
