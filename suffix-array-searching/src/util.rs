@@ -48,7 +48,7 @@ pub trait Search<'t> {
 
 /// Prefetch the given cacheline into L1 cache.
 pub fn prefetch_index<T>(s: &[T], index: usize) {
-    let ptr = unsafe { s.as_ptr().add(index) as *const u64 };
+    let ptr = unsafe { s.as_ptr().add(index) };
     prefetch_ptr(ptr);
 }
 
@@ -139,4 +139,35 @@ pub fn read_human_genome_with_sa() -> (Sequence, SA) {
     let seq = read_human_genome();
     let sa = build_sa(&seq);
     (seq, sa)
+}
+
+pub fn read_fasta_file(path: &Path) -> Sequence {
+    let mut map = [0; 256];
+    map[b'A' as usize] = 0;
+    map[b'C' as usize] = 1;
+    map[b'G' as usize] = 2;
+    map[b'T' as usize] = 3;
+
+    map[b'a' as usize] = 0;
+    map[b'c' as usize] = 1;
+    map[b'g' as usize] = 2;
+    map[b't' as usize] = 3;
+
+    let mut reader = needletail::parse_fastx_file(path).unwrap();
+    let mut out = vec![];
+    while let Some(record) = reader.next() {
+        out.extend(
+            record
+                .unwrap()
+                .seq()
+                .into_iter()
+                .map(|c| unsafe { map.get_unchecked(*c as usize) }),
+        );
+        // break;
+    }
+    out
+}
+
+pub fn read_human_genome() -> Sequence {
+    read_fasta_file(&Path::new("human-genome.fa"))
 }
