@@ -19,3 +19,5 @@ rdst = "0.20.14"
 size = "0.4.1"
 rayon = "1.10.0"
 log = "0.4.22"
+serde = { version = "1.0.216", features = ["derive"] }
+libc = "0.2.168"
