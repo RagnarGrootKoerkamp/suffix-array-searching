@@ -128,31 +128,29 @@ impl BenchmarkSortedArray {
 
             let mut results = vec![];
 
-            let bs = &SortedVec::new(&vals);
+            fn map<I: SearchIndex>(
+                schemes: &Vec<&dyn SearchScheme<INDEX = I>>,
+                vals: &[u32],
+                qs: &[u32],
+                results: &mut Vec<u32>,
+                correct: &mut bool,
+            ) {
+                let index = &I::new(vals);
 
-            for &scheme in &self.bs {
-                let new_results = bs.query(qs, scheme);
-                if results.is_empty() {
-                    results = new_results;
-                } else {
-                    if results != new_results {
-                        correct = false;
+                for &scheme in schemes {
+                    let new_results = index.query(qs, scheme);
+                    if results.is_empty() {
+                        *results = new_results;
+                    } else {
+                        if *results != new_results {
+                            *correct = false;
+                        }
                     }
                 }
             }
 
-            let eyt = &Eytzinger::new(&vals);
-
-            for &scheme in &self.eyt {
-                let new_results = eyt.query(qs, scheme);
-                if results.is_empty() {
-                    results = new_results;
-                } else {
-                    if results != new_results {
-                        correct = false;
-                    }
-                }
-            }
+            map(&self.bs, &vals, qs, &mut results, &mut correct);
+            map(&self.eyt, &vals, qs, &mut results, &mut correct);
 
             let is = &InterpolationSearch::new(vals.clone());
             for &f in &self.is {
@@ -325,30 +323,34 @@ impl BenchmarkSortedArray {
             let len = size / std::mem::size_of::<u32>();
             // Sort the fist size elements of vals.
             let start = Instant::now();
-            vals[..len].radix_sort_unstable();
+            let vals = &mut vals[..len];
+            vals.radix_sort_unstable();
             info!("Sorting took {:?}", start.elapsed());
-            // TODO: find the given function
-            for &scheme in &self.bs {
-                if scheme.name() == fname {
-                    let index = &SortedVec::new(&vals[..len]);
-                    let t = bench_scheme(index, scheme, queries);
-                    results.push((size, t));
+
+            fn map<I: SearchIndex>(
+                schemes: &Vec<&dyn SearchScheme<INDEX = I>>,
+                fname: &str,
+                vals: &[u32],
+                qs: &[u32],
+                results: &mut Vec<(usize, f64)>,
+            ) {
+                for &scheme in schemes {
+                    if scheme.name() == fname {
+                        let index = &I::new(vals);
+                        let t = bench_scheme(index, scheme, qs);
+                        results.push((vals.len(), t));
+                    }
                 }
             }
+
+            map(&self.bs, &fname, &vals, queries, &mut results);
+            map(&self.eyt, &fname, &vals, queries, &mut results);
 
             for &f in &self.is {
                 let (name, _f) = f;
                 if fname == name {
                     let is = &InterpolationSearch::new(vals[..len].to_vec());
                     let t = bench(is, (name, _f), queries);
-                    results.push((size, t));
-                }
-            }
-
-            for &scheme in &self.eyt {
-                if scheme.name() == fname {
-                    let index = &Eytzinger::new(&vals[..len]);
-                    let t = bench_scheme(index, scheme, queries);
                     results.push((size, t));
                 }
             }
