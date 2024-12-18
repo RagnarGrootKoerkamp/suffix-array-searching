@@ -1,4 +1,4 @@
-use bplustree::{BpTree16R, BpTreeSearchBatchNoPrefetch};
+use bplustree::{BpTree, BpTree16};
 use static_search_tree::*;
 use util::*;
 
@@ -19,27 +19,12 @@ fn main() {
         eprintln!("Gen vals DONE");
 
         eprintln!("Building B+Tree..");
-        let bp = &mut BpTree16R::new_fwd(&vals, true);
+        let bp = &mut BpTree16::new_params(&vals, true, true, false);
         eprintln!("Building B+Tree DONE");
 
-        // let f: BFn<128, _> = ("bp_batch_prefetch", BpTree16::batch_prefetch::<128>);
-        // let t = bench_batch(bp, f, queries);
-        // eprintln!("{}: {}", f.0, t);
-        // let f: BFn<128, _> = ("bp_batch_ptr", BpTree16::batch_ptr::<128>);
-        // let t = bench_batch(bp, f, queries);
-        // eprintln!("{}: {}", f.0, t);
-        // let f: BFn<128, _> = ("bp_batch_ptr2", BpTree16::batch_ptr3::<128, true>);
-        // for _ in 0..10 {
-        //     let t = bench_batch(bp, f, queries);
-        //     eprintln!("{}: {}", f.0, t);
-        // }
-
         for _ in 0..1000 {
-            let f = &BpTreeSearchBatchNoPrefetch::<16, 16, true, 128, false, 2>;
-            bench_scheme(bp, f, queries);
-
-            // let f: IFn<_> = ("bpf_interleave_64", BpTree16R::interleave::<64, false>);
-            // bench_all(bp, f, queries);
+            let scheme = &BpTree::search_batch_no_prefetch::<128, false, 2>();
+            bench_scheme(bp, scheme, queries);
         }
     }
 }

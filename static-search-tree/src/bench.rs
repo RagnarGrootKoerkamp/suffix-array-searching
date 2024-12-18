@@ -1,7 +1,7 @@
 use crate::binary_search::{
     BinarySearch, BinarySearchBranchless, BinarySearchBranchlessPrefetch, SortedVec,
 };
-use crate::bplustree::{BpTree, BpTree15, BpTree16, BpTree16R};
+use crate::bplustree::{BpTree, BpTree15, BpTree16};
 use crate::btree::{BTree16, BTreeSearch, BTreeSearchLoop, BTreeSearchSimd};
 use crate::eytzinger::{Eytzinger, EytzingerPrefetch, EytzingerSearch};
 use crate::interp_search::InterpolationSearch;
@@ -20,7 +20,6 @@ pub struct SearchFunctions {
     bt: Vec<&'static dyn SearchScheme<INDEX = BTree16>>,
     bp: Vec<&'static dyn SearchScheme<INDEX = BpTree16>>,
     bp15: Vec<&'static dyn SearchScheme<INDEX = BpTree15>>,
-    bpr: Vec<&'static dyn SearchScheme<INDEX = BpTree16R>>,
 }
 
 #[pymethods]
@@ -60,8 +59,8 @@ impl SearchFunctions {
                 &BpTree::search_batch_ptr::<128>(),
                 &BpTree::search_batch_ptr2::<128>(),
                 &BpTree::search_batch_ptr3::<128, false>(),
-                &BpTree::search_batch_no_prefetch::<64, false, 1>(),
-                &BpTree::search_batch_no_prefetch::<64, false, 2>(),
+                &BpTree::search_batch_no_prefetch::<128, false, 1>(),
+                &BpTree::search_batch_no_prefetch::<128, false, 2>(),
                 &BpTree::search_interleave::<64, false>(),
                 // &BpTree::search_batch_ptr3::<128, true>(),
                 // &BpTree::search_interleave::<64, true>(),
@@ -87,34 +86,12 @@ impl SearchFunctions {
         }
         .to_vec();
 
-        let bpr = const {
-            [
-                // &BpTree::search() as &dyn SearchScheme<INDEX = _>,
-                // &BpTree::search_split(),
-                // &BpTree::search_batch::<128>(),
-                // &BpTree::search_batch_prefetch::<128>(),
-                // &BpTree::search_batch_ptr::<128>(),
-                // &BpTree::search_batch_ptr2::<128>(),
-                &BpTree::search_batch_ptr3::<32, false>() as &dyn SearchScheme<INDEX = _>,
-                &BpTree::search_batch_ptr3::<64, false>(),
-                &BpTree::search_batch_ptr3::<128, false>(),
-                &BpTree::search_batch_ptr3::<256, false>(),
-                &BpTree::search_batch_no_prefetch::<128, false, 1>(),
-                &BpTree::search_batch_no_prefetch::<128, false, 2>(),
-                &BpTree::search_interleave::<64, false>(),
-                // &BpTree::search_batch_ptr3::<128, true>(),
-                // &BpTree::search_interleave::<64, true>(),
-            ]
-        }
-        .to_vec();
-
         SearchFunctions {
             bs,
             eyt,
             bt,
             bp,
             bp15,
-            bpr,
         }
     }
 
@@ -162,7 +139,6 @@ impl SearchFunctions {
             map(&self.bt, &fname, &vals, queries, &mut results);
             map(&self.bp, &fname, &vals, queries, &mut results);
             map(&self.bp15, &fname, &vals, queries, &mut results);
-            map(&self.bpr, &fname, &vals, queries, &mut results);
         }
         if results.len() > (stop_pow2 - start_pow2 + 1) {
             panic!("The function with the same name must exist multiple times!")
@@ -224,23 +200,22 @@ impl SearchFunctions {
             map(&self.bt, &vals, qs, size, results);
             map(&self.bp, &vals, qs, size, results);
             map(&self.bp15, &vals, qs, size, results);
-            map(&self.bpr, &vals, qs, size, results);
             map_idx(
-                &self.bpr,
-                &BpTree16R::new_fwd(&vals, false),
+                &self.bp,
+                &BpTree16::new_params(&vals, true, true, false),
                 qs,
                 size,
                 results,
             );
             map_idx(
-                &self.bpr,
-                &BpTree16R::new_fwd(&vals, true),
+                &self.bp,
+                &BpTree16::new_params(&vals, true, true, true),
                 qs,
                 size,
                 results,
             );
 
-            let bpr = BpTree16R::new_fwd(&vals, false);
+            let bpr = BpTree16::new_params(&vals, true, true, false);
             let strings = ["", "t1", "t2", "t3", "t4", "t5", "t6"];
             for threads in 1..=6 {
                 let scheme = BpTree::search_batch_no_prefetch::<128, false, 1>();
@@ -321,26 +296,25 @@ mod test {
             map(&fs.eyt, &vals, qs, results, correct);
             map(&fs.bt, &vals, qs, results, correct);
             map(&fs.bp, &vals, qs, results, correct);
-            map(&fs.bp15, &vals, qs, results, correct);
-            map(&fs.bpr, &vals, qs, results, correct);
+            // map(&fs.bp15, &vals, qs, results, correct);
             eprintln!(
-                "Building index for {:?} fwd(false)",
-                type_name::<BpTree16R>()
+                "Building index for {:?} (true, false, false)",
+                type_name::<BpTree16>()
             );
             map_idx(
-                &fs.bpr,
-                &BpTree16R::new_fwd(&vals, false),
+                &fs.bp,
+                &BpTree16::new_params(&vals, true, false, false),
                 qs,
                 results,
                 correct,
             );
             eprintln!(
-                "Building index for {:?} fwd(true)",
-                type_name::<BpTree16R>()
+                "Building index for {:?} (true, false, true)",
+                type_name::<BpTree16>()
             );
             map_idx(
-                &fs.bpr,
-                &BpTree16R::new_fwd(&vals, true),
+                &fs.bp,
+                &BpTree16::new_params(&vals, true, false, true),
                 qs,
                 results,
                 correct,

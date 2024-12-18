@@ -81,7 +81,7 @@ pub fn bench_scheme<I: SearchIndex>(
     elapsed.as_nanos() as f64 / qs.len() as f64
 }
 
-pub fn bench_scheme_par<I: SearchIndex + Sync>(
+pub fn bench_scheme_par<I: Sync>(
     index: &I,
     scheme: &dyn SearchScheme<INDEX = I>,
     qs: &[u32],
@@ -99,7 +99,7 @@ pub fn bench_scheme_par<I: SearchIndex + Sync>(
                 let start_idx = idx * chunk_size;
                 let end = ((idx + 1) * chunk_size).min(qs.len());
                 let qs_thread = &qs[start_idx..end];
-                black_box(index.query(qs_thread, scheme));
+                black_box(scheme.query(index, qs_thread));
             });
         }
     });

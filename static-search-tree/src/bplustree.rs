@@ -11,56 +11,60 @@ use crate::{prefetch_index, prefetch_ptr, SearchIndex, SearchScheme};
 // REV: when true, nodes contain the largest elements of their first B (of B+1) children,
 //      rather than the smallest elements of the last B children.
 #[derive(Debug)]
-pub struct BpTree<const B: usize, const N: usize, const REV: bool> {
+pub struct BpTree<const B: usize, const N: usize> {
     tree: Vec<BTreeNode<B, N>>,
     pub cnt: usize,
     offsets: Vec<usize>,
 }
 
-pub type BpTree16 = BpTree<16, 16, false>;
-pub type BpTree15 = BpTree<15, 16, false>;
-pub type BpTree16R = BpTree<16, 16, true>;
+impl<const B: usize, const N: usize> SearchIndex for BpTree<B, N> {
+    fn new(vals: &[u32]) -> Self {
+        Self::new_params(vals, false, false, false)
+    }
+}
+
+pub type BpTree16 = BpTree<16, 16>;
+pub type BpTree15 = BpTree<15, 16>;
 
 /// Helper functions for constructing searcher objects with the same generics.
-impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
-    pub const fn search() -> BpTreeSearch<B, N, REV> {
+impl<const B: usize, const N: usize> BpTree<B, N> {
+    pub const fn search() -> BpTreeSearch<B, N> {
         BpTreeSearch
     }
-    pub const fn search_split() -> BpTreeSearchSplit<B, N, REV> {
+    pub const fn search_split() -> BpTreeSearchSplit<B, N> {
         BpTreeSearchSplit
     }
-    pub const fn search_batch<const P: usize>() -> BpTreeSearchBatch<B, N, REV, P> {
+    pub const fn search_batch<const P: usize>() -> BpTreeSearchBatch<B, N, P> {
         BpTreeSearchBatch
     }
-    pub const fn search_batch_prefetch<const P: usize>() -> BpTreeSearchBatchPrefetch<B, N, REV, P>
-    {
+    pub const fn search_batch_prefetch<const P: usize>() -> BpTreeSearchBatchPrefetch<B, N, P> {
         BpTreeSearchBatchPrefetch
     }
-    pub const fn search_batch_ptr<const P: usize>() -> BpTreeSearchBatchPtr<B, N, REV, P> {
+    pub const fn search_batch_ptr<const P: usize>() -> BpTreeSearchBatchPtr<B, N, P> {
         BpTreeSearchBatchPtr
     }
-    pub const fn search_batch_ptr2<const P: usize>() -> BpTreeSearchBatchPtr2<B, N, REV, P> {
+    pub const fn search_batch_ptr2<const P: usize>() -> BpTreeSearchBatchPtr2<B, N, P> {
         BpTreeSearchBatchPtr2
     }
     pub const fn search_batch_ptr3<const P: usize, const LAST: bool>(
-    ) -> BpTreeSearchBatchPtr3<B, N, REV, P, LAST> {
+    ) -> BpTreeSearchBatchPtr3<B, N, P, LAST> {
         BpTreeSearchBatchPtr3
     }
     pub const fn search_batch_ptr3_full<const P: usize, const LAST: bool>(
-    ) -> BpTreeSearchBatchPtr3Full<B, N, REV, P, LAST> {
+    ) -> BpTreeSearchBatchPtr3Full<B, N, P, LAST> {
         BpTreeSearchBatchPtr3Full
     }
     pub const fn search_batch_no_prefetch<const P: usize, const LAST: bool, const SKIP: usize>(
-    ) -> BpTreeSearchBatchNoPrefetch<B, N, REV, P, LAST, SKIP> {
+    ) -> BpTreeSearchBatchNoPrefetch<B, N, P, LAST, SKIP> {
         BpTreeSearchBatchNoPrefetch
     }
     pub const fn search_interleave<const P: usize, const LAST: bool>(
-    ) -> BpTreeSearchInterleave<B, N, REV, P, LAST> {
+    ) -> BpTreeSearchInterleave<B, N, P, LAST> {
         BpTreeSearchInterleave
     }
 }
 
-impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
+impl<const B: usize, const N: usize> BpTree<B, N> {
     fn blocks(n: usize) -> usize {
         n.div_ceil(B)
     }
@@ -95,157 +99,147 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         unsafe { *self.tree.get_unchecked(b).data.get_unchecked(i) }
     }
 
-    pub fn new_fwd(vals: &[u32], full_array: bool) -> Self {
-        let n = vals.len();
-        let height = Self::height(n);
-        let n_blocks = if full_array {
-            let mut idx = 0;
-            for _ in 0..height {
-                idx = Self::go_to(idx, 0);
-            }
-            idx
-        } else {
-            Self::offset(n, height)
-        };
-
-        eprintln!("Allocating tree of {} blocks ..", n_blocks);
-        let tree = vec![BTreeNode { data: [0; N] }; n_blocks];
-        eprintln!("Allocating DONE");
-        let mut bptree = Self {
-            tree,
-            cnt: 0,
-            offsets: if full_array {
+    pub fn new_params(vals: &[u32], fwd: bool, rev: bool, full_array: bool) -> Self {
+        if fwd {
+            let n = vals.len();
+            let height = Self::height(n);
+            let n_blocks = if full_array {
                 let mut idx = 0;
-                let mut v = (0..height)
-                    .map(|_| {
-                        let t = idx;
-                        idx = Self::go_to(idx, 0);
-                        t
-                    })
-                    .collect_vec();
-                v.reverse();
-                v
+                for _ in 0..height {
+                    idx = Self::go_to(idx, 0);
+                }
+                idx
             } else {
-                (1..=height)
-                    .map(|h| n_blocks - Self::offset(n, h))
-                    .collect()
-            },
-        };
-        // eprintln!("Height: {}, n_blocks: {}", height, n_blocks);
-        // eprintln!("FWD {:?}", bptree.offsets);
+                Self::offset(n, height)
+            };
 
-        for &v in vals {
-            assert!(v <= MAX);
-        }
-
-        // offset of the layer containing original data.
-        let o = bptree.offsets[0];
-        // eprintln!("o: {}", o);
-
-        // Copy the input values to their layer.
-        for (i, &val) in vals.iter().enumerate() {
-            bptree.tree[o + i / B].data[i % B] = val;
-        }
-
-        // Initialize layers; copied from Algorithmica.
-        // https://en.algorithmica.org/hpc/data-structures/s-tree/#construction-1
-        for h in 1..height {
-            eprintln!("Starting layer {h} at offset {}", bptree.offsets[h]);
-            for i in 0..B * (bptree.offsets[h - 1] - bptree.offsets[h]) {
-                let mut k = i / B;
-                let j = i % B;
-                k = k * (B + 1) + j + 1;
-                // compare to right of key
-                // and then to the left
-                for _l in 1..h {
-                    k *= B + 1;
-                }
-                // eprintln!("Writing layer {h} offset {} + {}", bptree.offsets[h], i / B);
-                let t = bptree.offsets[h] + i / B;
-                if !REV {
-                    if k * B < n {
-                        bptree.tree[t].data[i % B] = bptree.tree[o + k].data[0];
-                    } else {
-                        for j in i % B..B {
-                            bptree.tree[t].data[j] = MAX;
-                        }
-                        eprintln!("Breaking in layer {h} at index B*{t}+{}", i % B);
-                        break;
-                    }
+            eprintln!("Allocating tree of {} blocks ..", n_blocks);
+            let tree = vec![BTreeNode { data: [0; N] }; n_blocks];
+            eprintln!("Allocating DONE");
+            let mut bptree = Self {
+                tree,
+                cnt: 0,
+                offsets: if full_array {
+                    let mut idx = 0;
+                    let mut v = (0..height)
+                        .map(|_| {
+                            let t = idx;
+                            idx = Self::go_to(idx, 0);
+                            t
+                        })
+                        .collect_vec();
+                    v.reverse();
+                    v
                 } else {
-                    if k * B < n {
-                        bptree.tree[t].data[i % B] = bptree.tree[o + k - 1].data[B - 1];
-                    } else {
-                        for j in i % B..B {
-                            bptree.tree[t].data[j] = MAX;
+                    (1..=height)
+                        .map(|h| n_blocks - Self::offset(n, h))
+                        .collect()
+                },
+            };
+            // eprintln!("Height: {}, n_blocks: {}", height, n_blocks);
+            // eprintln!("FWD {:?}", bptree.offsets);
+
+            for &v in vals {
+                assert!(v <= MAX);
+            }
+
+            // offset of the layer containing original data.
+            let o = bptree.offsets[0];
+            // eprintln!("o: {}", o);
+
+            // Copy the input values to their layer.
+            for (i, &val) in vals.iter().enumerate() {
+                bptree.tree[o + i / B].data[i % B] = val;
+            }
+
+            // Initialize layers; copied from Algorithmica.
+            // https://en.algorithmica.org/hpc/data-structures/s-tree/#construction-1
+            for h in 1..height {
+                eprintln!("Starting layer {h} at offset {}", bptree.offsets[h]);
+                for i in 0..B * (bptree.offsets[h - 1] - bptree.offsets[h]) {
+                    let mut k = i / B;
+                    let j = i % B;
+                    k = k * (B + 1) + j + 1;
+                    // compare to right of key
+                    // and then to the left
+                    for _l in 1..h {
+                        k *= B + 1;
+                    }
+                    // eprintln!("Writing layer {h} offset {} + {}", bptree.offsets[h], i / B);
+                    let t = bptree.offsets[h] + i / B;
+                    if !rev {
+                        if k * B < n {
+                            bptree.tree[t].data[i % B] = bptree.tree[o + k].data[0];
+                        } else {
+                            for j in i % B..B {
+                                bptree.tree[t].data[j] = MAX;
+                            }
+                            eprintln!("Breaking in layer {h} at index B*{t}+{}", i % B);
+                            break;
                         }
-                        eprintln!("Breaking in layer {h} at index B*{t}+{}", i % B);
-                        break;
+                    } else {
+                        if k * B < n {
+                            bptree.tree[t].data[i % B] = bptree.tree[o + k - 1].data[B - 1];
+                        } else {
+                            for j in i % B..B {
+                                bptree.tree[t].data[j] = MAX;
+                            }
+                            eprintln!("Breaking in layer {h} at index B*{t}+{}", i % B);
+                            break;
+                        }
                     }
                 }
             }
-        }
-        // eprintln!("FWD Tree after initialization:");
-        // for (i, node) in bptree.tree.iter().enumerate() {
-        //     eprintln!("{i:>2}: {node:?}");
-        // }
-        bptree
-    }
-}
+            bptree
+        } else {
+            let n = vals.len();
+            let height = Self::height(n);
+            let n_blocks = Self::offset(n, height);
+            let mut bptree = Self {
+                tree: vec![BTreeNode { data: [MAX; N] }; n_blocks],
+                cnt: 0,
+                offsets: (0..=height).map(|h| Self::offset(n, h)).collect(),
+            };
+            // eprintln!("REV {:?}", bptree.offsets);
 
-impl<const B: usize, const N: usize, const REV: bool> SearchIndex for BpTree<B, N, REV> {
-    fn new(vals: &[u32]) -> Self {
-        let n = vals.len();
-        let height = Self::height(n);
-        let n_blocks = Self::offset(n, height);
-        let mut bptree = Self {
-            tree: vec![BTreeNode { data: [MAX; N] }; n_blocks],
-            cnt: 0,
-            offsets: (0..=height).map(|h| Self::offset(n, h)).collect(),
-        };
-        // eprintln!("REV {:?}", bptree.offsets);
+            for &v in vals {
+                assert!(v <= MAX);
+            }
 
-        for &v in vals {
-            assert!(v <= MAX);
-        }
-
-        // Copy the input values to the start.
-        for (i, &val) in vals.iter().enumerate() {
-            bptree.tree[i / B].data[i % B] = val;
-        }
-        // Initialize layers; copied from Algorithmica.
-        // https://en.algorithmica.org/hpc/data-structures/s-tree/#construction-1
-        for h in 1..height {
-            for i in 0..B * (bptree.offsets[h + 1] - bptree.offsets[h]) {
-                let mut k = i / B;
-                let j = i % B;
-                k = k * (B + 1) + j + 1;
-                // compare to right of key
-                // and then to the left
-                for _l in 0..h - 1 {
-                    k *= B + 1;
-                }
-                if !REV {
-                    bptree.tree[bptree.offsets[h] + i / B].data[i % B] = if k * B < n {
-                        bptree.tree[k].data[0]
+            // Copy the input values to the start.
+            for (i, &val) in vals.iter().enumerate() {
+                bptree.tree[i / B].data[i % B] = val;
+            }
+            // Initialize layers; copied from Algorithmica.
+            // https://en.algorithmica.org/hpc/data-structures/s-tree/#construction-1
+            for h in 1..height {
+                for i in 0..B * (bptree.offsets[h + 1] - bptree.offsets[h]) {
+                    let mut k = i / B;
+                    let j = i % B;
+                    k = k * (B + 1) + j + 1;
+                    // compare to right of key
+                    // and then to the left
+                    for _l in 0..h - 1 {
+                        k *= B + 1;
+                    }
+                    if !rev {
+                        bptree.tree[bptree.offsets[h] + i / B].data[i % B] = if k * B < n {
+                            bptree.tree[k].data[0]
+                        } else {
+                            MAX
+                        };
                     } else {
-                        MAX
-                    };
-                } else {
-                    bptree.tree[bptree.offsets[h] + i / B].data[i % B] = if k * B < n {
-                        bptree.tree[k - 1].data[B - 1]
-                    } else {
-                        MAX
-                    };
+                        bptree.tree[bptree.offsets[h] + i / B].data[i % B] = if k * B < n {
+                            bptree.tree[k - 1].data[B - 1]
+                        } else {
+                            MAX
+                        };
+                    }
                 }
             }
+            bptree.offsets.pop();
+            bptree
         }
-        // eprintln!("REV Tree after initialization:");
-        // for (i, node) in bptree.tree.iter().enumerate() {
-        //     eprintln!("{i:>2}: {node:?}");
-        // }
-        bptree.offsets.pop();
-        bptree
     }
 }
 
@@ -258,51 +252,50 @@ fn batched<const P: usize>(qs: &[u32], f: impl Fn(&[u32; P]) -> [u32; P]) -> Vec
     it.flat_map(f).collect()
 }
 
-pub struct BpTreeSearch<const B: usize, const N: usize, const REV: bool>;
-impl<const B: usize, const N: usize, const REV: bool> SearchScheme for BpTreeSearch<B, N, REV> {
-    type INDEX = BpTree<B, N, REV>;
+pub struct BpTreeSearch<const B: usize, const N: usize>;
+impl<const B: usize, const N: usize> SearchScheme for BpTreeSearch<B, N> {
+    type INDEX = BpTree<B, N>;
 
     fn query_one(&self, index: &Self::INDEX, q: u32) -> u32 {
-        assert!(!REV);
         let mut k = 0;
         for o in index.offsets[1..index.offsets.len()].into_iter().rev() {
             let jump_to = index.node(o + k).find(q);
             k = k * (B + 1) + jump_to;
         }
 
-        let idx = index.node(k).find(q);
-        index.get(k + idx / B, idx % B)
+        let mut idx = index.node(k).find(q);
+        if idx == B {
+            idx = N;
+        }
+        index.get(k + idx / N, idx % N)
     }
 }
 
-pub struct BpTreeSearchSplit<const B: usize, const N: usize, const REV: bool>;
-impl<const B: usize, const N: usize, const REV: bool> SearchScheme
-    for BpTreeSearchSplit<B, N, REV>
-{
-    type INDEX = BpTree<B, N, REV>;
+pub struct BpTreeSearchSplit<const B: usize, const N: usize>;
+impl<const B: usize, const N: usize> SearchScheme for BpTreeSearchSplit<B, N> {
+    type INDEX = BpTree<B, N>;
 
     fn query_one(&self, index: &Self::INDEX, q: u32) -> u32 {
-        assert!(!REV);
         let mut k = 0;
         for o in index.offsets[1..index.offsets.len()].into_iter().rev() {
             let jump_to = index.node(o + k).find_split(q);
             k = k * (B + 1) + jump_to;
         }
 
-        let idx = index.node(k).find(q);
-        index.get(k + idx / B, idx % B)
+        let mut idx = index.node(k).find(q);
+        if idx == B {
+            idx = N;
+        }
+        index.get(k + idx / N, idx % N)
     }
 }
 
-pub struct BpTreeSearchBatch<const B: usize, const N: usize, const REV: bool, const P: usize>;
-impl<const B: usize, const N: usize, const REV: bool, const P: usize> SearchScheme
-    for BpTreeSearchBatch<B, N, REV, P>
-{
-    type INDEX = BpTree<B, N, REV>;
+pub struct BpTreeSearchBatch<const B: usize, const N: usize, const P: usize>;
+impl<const B: usize, const N: usize, const P: usize> SearchScheme for BpTreeSearchBatch<B, N, P> {
+    type INDEX = BpTree<B, N>;
 
     fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
         batched(qs, |qb: &[u32; P]| {
-            assert!(!REV);
             let mut k = [0; P];
             for o in index.offsets[1..index.offsets.len()].into_iter().rev() {
                 for i in 0..P {
@@ -312,27 +305,24 @@ impl<const B: usize, const N: usize, const REV: bool, const P: usize> SearchSche
             }
 
             std::array::from_fn::<_, P, _>(|i| {
-                let idx = index.node(k[i]).find(qb[i]);
-                index.get(k[i] + idx / B, idx % B)
+                let mut idx = index.node(k[i]).find(qb[i]);
+                if idx == B {
+                    idx = N;
+                }
+                index.get(k[i] + idx / N, idx % N)
             })
         })
     }
 }
 
-pub struct BpTreeSearchBatchPrefetch<
-    const B: usize,
-    const N: usize,
-    const REV: bool,
-    const P: usize,
->;
-impl<const B: usize, const N: usize, const REV: bool, const P: usize> SearchScheme
-    for BpTreeSearchBatchPrefetch<B, N, REV, P>
+pub struct BpTreeSearchBatchPrefetch<const B: usize, const N: usize, const P: usize>;
+impl<const B: usize, const N: usize, const P: usize> SearchScheme
+    for BpTreeSearchBatchPrefetch<B, N, P>
 {
-    type INDEX = BpTree<B, N, REV>;
+    type INDEX = BpTree<B, N>;
 
     fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
         batched(qs, |qb: &[u32; P]| {
-            assert!(!REV);
             let mut k = [0; P];
             let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
             for h in (1..index.offsets.len()).rev() {
@@ -346,22 +336,24 @@ impl<const B: usize, const N: usize, const REV: bool, const P: usize> SearchSche
             }
 
             std::array::from_fn(|i| {
-                let idx = index.node(k[i]).find_splat(q_simd[i]);
-                index.get(k[i] + idx / B, idx % B)
+                let mut idx = index.node(k[i]).find(qb[i]);
+                if idx == B {
+                    idx = N;
+                }
+                index.get(k[i] + idx / N, idx % N)
             })
         })
     }
 }
 
-pub struct BpTreeSearchBatchPtr<const B: usize, const N: usize, const REV: bool, const P: usize>;
-impl<const B: usize, const N: usize, const REV: bool, const P: usize> SearchScheme
-    for BpTreeSearchBatchPtr<B, N, REV, P>
+pub struct BpTreeSearchBatchPtr<const B: usize, const N: usize, const P: usize>;
+impl<const B: usize, const N: usize, const P: usize> SearchScheme
+    for BpTreeSearchBatchPtr<B, N, P>
 {
-    type INDEX = BpTree<B, N, REV>;
+    type INDEX = BpTree<B, N>;
 
     fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
         batched(qs, |qb: &[u32; P]| {
-            assert!(!REV);
             let mut k = [0; P];
             let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
 
@@ -382,22 +374,24 @@ impl<const B: usize, const N: usize, const REV: bool, const P: usize> SearchSche
             }
 
             std::array::from_fn(|i| {
-                let idx = index.node(k[i]).find_splat(q_simd[i]);
-                index.get(k[i] + idx / B, idx % B)
+                let mut idx = index.node(k[i]).find(qb[i]);
+                if idx == B {
+                    idx = N;
+                }
+                index.get(k[i] + idx / N, idx % N)
             })
         })
     }
 }
 
-pub struct BpTreeSearchBatchPtr2<const B: usize, const N: usize, const REV: bool, const P: usize>;
-impl<const B: usize, const N: usize, const REV: bool, const P: usize> SearchScheme
-    for BpTreeSearchBatchPtr2<B, N, REV, P>
+pub struct BpTreeSearchBatchPtr2<const B: usize, const N: usize, const P: usize>;
+impl<const B: usize, const N: usize, const P: usize> SearchScheme
+    for BpTreeSearchBatchPtr2<B, N, P>
 {
-    type INDEX = BpTree<B, N, REV>;
+    type INDEX = BpTree<B, N>;
 
     fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
         batched(qs, |qb: &[u32; P]| {
-            assert!(!REV);
             let mut k = [0; P];
             let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
 
@@ -420,7 +414,7 @@ impl<const B: usize, const N: usize, const REV: bool, const P: usize> SearchSche
             let o = unsafe { *offsets.get_unchecked(0) };
             std::array::from_fn(|i| {
                 let mut idx = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
-                if !REV && idx == B {
+                if idx == B {
                     idx = N;
                 }
                 unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
@@ -429,17 +423,11 @@ impl<const B: usize, const N: usize, const REV: bool, const P: usize> SearchSche
     }
 }
 
-pub struct BpTreeSearchBatchPtr3<
-    const B: usize,
-    const N: usize,
-    const REV: bool,
-    const P: usize,
-    const LAST: bool,
->;
-impl<const B: usize, const N: usize, const REV: bool, const P: usize, const LAST: bool> SearchScheme
-    for BpTreeSearchBatchPtr3<B, N, REV, P, LAST>
+pub struct BpTreeSearchBatchPtr3<const B: usize, const N: usize, const P: usize, const LAST: bool>;
+impl<const B: usize, const N: usize, const P: usize, const LAST: bool> SearchScheme
+    for BpTreeSearchBatchPtr3<B, N, P, LAST>
 {
-    type INDEX = BpTree<B, N, REV>;
+    type INDEX = BpTree<B, N>;
 
     fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
         batched(qs, |qb: &[u32; P]| {
@@ -473,7 +461,7 @@ impl<const B: usize, const N: usize, const REV: bool, const P: usize, const LAST
                 } else {
                     unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
                 };
-                if !REV && idx == B {
+                if idx == B {
                     idx = N;
                 }
                 unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
@@ -485,14 +473,13 @@ impl<const B: usize, const N: usize, const REV: bool, const P: usize, const LAST
 pub struct BpTreeSearchBatchPtr3Full<
     const B: usize,
     const N: usize,
-    const REV: bool,
     const P: usize,
     const LAST: bool,
 >;
-impl<const B: usize, const N: usize, const REV: bool, const P: usize, const LAST: bool> SearchScheme
-    for BpTreeSearchBatchPtr3Full<B, N, REV, P, LAST>
+impl<const B: usize, const N: usize, const P: usize, const LAST: bool> SearchScheme
+    for BpTreeSearchBatchPtr3Full<B, N, P, LAST>
 {
-    type INDEX = BpTree<B, N, REV>;
+    type INDEX = BpTree<B, N>;
 
     fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
         batched(qs, |qb: &[u32; P]| {
@@ -519,7 +506,7 @@ impl<const B: usize, const N: usize, const REV: bool, const P: usize, const LAST
                 } else {
                     unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
                 };
-                if !REV && idx == B {
+                if idx == B {
                     idx = N;
                 }
                 unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
@@ -531,21 +518,14 @@ impl<const B: usize, const N: usize, const REV: bool, const P: usize, const LAST
 pub struct BpTreeSearchBatchNoPrefetch<
     const B: usize,
     const N: usize,
-    const REV: bool,
     const P: usize,
     const LAST: bool,
     const SKIP: usize,
 >;
-impl<
-        const B: usize,
-        const N: usize,
-        const REV: bool,
-        const P: usize,
-        const LAST: bool,
-        const SKIP: usize,
-    > SearchScheme for BpTreeSearchBatchNoPrefetch<B, N, REV, P, LAST, SKIP>
+impl<const B: usize, const N: usize, const P: usize, const LAST: bool, const SKIP: usize>
+    SearchScheme for BpTreeSearchBatchNoPrefetch<B, N, P, LAST, SKIP>
 {
-    type INDEX = BpTree<B, N, REV>;
+    type INDEX = BpTree<B, N>;
 
     fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
         batched(qs, |qb: &[u32; P]| {
@@ -595,7 +575,7 @@ impl<
                 } else {
                     unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
                 };
-                if !REV && idx == B {
+                if idx == B {
                     idx = N;
                 }
                 unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
@@ -604,17 +584,11 @@ impl<
     }
 }
 
-pub struct BpTreeSearchInterleave<
-    const B: usize,
-    const N: usize,
-    const REV: bool,
-    const P: usize,
-    const LAST: bool,
->;
-impl<const B: usize, const N: usize, const REV: bool, const P: usize, const LAST: bool> SearchScheme
-    for BpTreeSearchInterleave<B, N, REV, P, LAST>
+pub struct BpTreeSearchInterleave<const B: usize, const N: usize, const P: usize, const LAST: bool>;
+impl<const B: usize, const N: usize, const P: usize, const LAST: bool> SearchScheme
+    for BpTreeSearchInterleave<B, N, P, LAST>
 {
-    type INDEX = BpTree<B, N, REV>;
+    type INDEX = BpTree<B, N>;
 
     fn query(&self, index: &Self::INDEX, qs: &[u32]) -> Vec<u32> {
         if index.offsets.len() % 2 != 0 {
@@ -729,7 +703,7 @@ impl<const B: usize, const N: usize, const REV: bool, const P: usize, const LAST
                 } else {
                     unsafe { *o.byte_add(k2[i]) }.find_splat_last(q_simd2[i])
                 };
-                if !REV && idx == B {
+                if idx == B {
                     idx = N;
                 }
                 unsafe { (o.byte_add(k2[i]) as *const u32).add(idx).read() }
@@ -760,7 +734,7 @@ impl<const B: usize, const N: usize, const REV: bool, const P: usize, const LAST
             } else {
                 unsafe { *o.byte_add(k1[i]) }.find_splat_last(q_simd1[i])
             };
-            if !REV && idx == B {
+            if idx == B {
                 idx = N;
             }
             unsafe { (o.byte_add(k1[i]) as *const u32).add(idx).read() }
@@ -781,7 +755,7 @@ mod tests {
     #[test]
     fn test_b_tree_k_2() {
         let vals = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let bptree = BpTree::<2, 2, false>::new(&vals);
+        let bptree = BpTree::<2, 2>::new_params(&vals, false, false, false);
         println!("{:?}", bptree);
     }
 
@@ -789,7 +763,7 @@ mod tests {
     fn test_b_tree_k_3() {
         let vals = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         // let correct_output = vec![4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15];
-        let computed_out = BpTree::<3, 3, false>::new(&vals);
+        let computed_out = BpTree::<3, 3>::new_params(&vals, false, false, false);
         println!("{:?}", computed_out);
     }
 
@@ -798,7 +772,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 452;
-        let bptree = BpTree::<16, 16, false>::new(&vals);
+        let bptree = BpTree::<16, 16>::new_params(&vals, false, false, false);
         let bptree_res = bptree.query_one(q, &BpTreeSearch);
 
         let bin_res = SortedVec::new(&vals).query_one(q, &BinarySearch);
@@ -811,7 +785,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 289;
-        let bptree = BpTree::<16, 16, false>::new(&vals);
+        let bptree = BpTree::<16, 16>::new_params(&vals, false, false, false);
         let bptree_res = bptree.query_one(q, &BpTreeSearch);
 
         let bin_res = SortedVec::new(&vals).query_one(q, &BinarySearch);
@@ -823,7 +797,7 @@ mod tests {
     fn test_simd_cmp() {
         let mut vals: Vec<u32> = (1..16).collect();
         vals.push(MAX);
-        let bptree = BpTree::<16, 16, false>::new(&vals);
+        let bptree = BpTree::<16, 16>::new_params(&vals, false, false, false);
         let idx = bptree.tree[0].find(1);
         println!("{}", idx);
         assert_eq!(idx, 0);
