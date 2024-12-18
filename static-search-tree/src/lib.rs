@@ -2,11 +2,11 @@
 
 mod bench;
 pub mod binary_search;
-pub mod bplustree;
 pub mod btree;
 pub mod eytzinger;
 pub mod interp_search;
 pub mod node;
+pub mod s_tree;
 pub mod util;
 
 use std::marker::PhantomData;

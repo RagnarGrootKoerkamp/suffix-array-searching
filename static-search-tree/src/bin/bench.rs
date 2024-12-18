@@ -4,9 +4,9 @@ use clap::Parser;
 use rdst::RadixSort;
 use static_search_tree::{
     binary_search::SortedVec,
-    bplustree::STree,
     eytzinger::Eytzinger,
     node::BTreeNode,
+    s_tree::STree,
     util::{gen_queries, gen_vals},
     SearchIndex, SearchScheme,
 };

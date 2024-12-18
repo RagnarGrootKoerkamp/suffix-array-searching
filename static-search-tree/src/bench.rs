@@ -1,8 +1,8 @@
 use crate::binary_search::SortedVec;
-use crate::bplustree::{STree, STree15, STree16};
 use crate::btree::{BTree, BTree16};
 use crate::eytzinger::Eytzinger;
 use crate::node::MAX;
+use crate::s_tree::{STree, STree15, STree16};
 use crate::{batched, full, util::*, SearchIndex, SearchScheme};
 use log::info;
 use pyo3::prelude::*;

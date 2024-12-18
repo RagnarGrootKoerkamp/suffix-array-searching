@@ -1,4 +1,4 @@
-use bplustree::{STree, STree16};
+use s_tree::{STree, STree16};
 use static_search_tree::*;
 use util::*;
 
