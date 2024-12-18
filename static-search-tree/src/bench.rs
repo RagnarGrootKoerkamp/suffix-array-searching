@@ -12,9 +12,8 @@ use std::collections::HashMap;
 use std::hint::black_box;
 use std::time::Instant;
 
-pub type Fn<T> = (&'static str, fn(&mut T, u32) -> u32);
-pub type BFn<const B: usize, T> = (&'static str, fn(&mut T, &[u32; B]) -> [u32; B]);
-pub type PFn<const B: usize, T> = (&'static str, fn(&T, &[u32; B]) -> [u32; B]);
+pub type Fn<T> = (&'static str, fn(&T, u32) -> u32);
+pub type BFn<const B: usize, T> = (&'static str, fn(&T, &[u32; B]) -> [u32; B]);
 pub type IFn<T> = (&'static str, fn(&T, &[u32]));
 
 pub fn run<T>(searcher: &mut T, search: Fn<T>, queries: &[u32]) -> Vec<u32> {
@@ -68,7 +67,7 @@ pub fn bench_all<T>(searcher: &mut T, search: IFn<T>, queries: &[u32]) -> f64 {
 
 pub fn bench_batch_par<const B: usize, T: Send + Sync>(
     searcher: &mut T,
-    search: PFn<B, T>,
+    search: BFn<B, T>,
     queries: &[u32],
     threads: usize,
 ) -> f64 {

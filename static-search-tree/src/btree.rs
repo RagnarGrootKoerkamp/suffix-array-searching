@@ -178,7 +178,7 @@ impl<const B: usize, const N: usize> BTree<B, N> {
     }
 
     // basic searching with no vectorized magic inside the nodes
-    pub fn search(&mut self, q: u32) -> u32 {
+    pub fn search(&self, q: u32) -> u32 {
         // completely naive
         let mut k = 0;
         let btree_blocks = self.tree.len();
@@ -200,7 +200,7 @@ impl<const B: usize, const N: usize> BTree<B, N> {
         ans
     }
 
-    pub fn search_loop(&mut self, q: u32) -> u32 {
+    pub fn search_loop(&self, q: u32) -> u32 {
         // completely naive
         let mut k = 0;
         let btree_blocks = self.tree.len();
@@ -219,7 +219,7 @@ impl<const B: usize, const N: usize> BTree<B, N> {
         ans
     }
 
-    pub fn search_simd(&mut self, q: u32) -> u32 {
+    pub fn search_simd(&self, q: u32) -> u32 {
         // completely naive
         let mut k = 0;
         let btree_blocks = self.tree.len();
@@ -260,7 +260,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 452;
-        let mut btree = BTree::<16, 16>::new(vals.clone());
+        let btree = BTree::<16, 16>::new(vals.clone());
         let btree_res = btree.search(q);
 
         let binsearch_res = BinarySearch::new(vals).search(q);
@@ -273,7 +273,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 289;
-        let mut btree = BTree::<16, 16>::new(vals.clone());
+        let btree = BTree::<16, 16>::new(vals.clone());
         let btree_res = btree.search(q);
 
         let binsearch_res = BinarySearch::new(vals).search(q);
@@ -296,7 +296,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 452;
-        let mut btree = BTree::<16, 16>::new(vals.clone());
+        let btree = BTree::<16, 16>::new(vals.clone());
         let btree_res = btree.search_simd(q);
 
         let binsearch_res = BinarySearch::new(vals).search(q);
@@ -309,7 +309,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 289;
-        let mut btree = BTree::<16, 16>::new(vals.clone());
+        let btree = BTree::<16, 16>::new(vals.clone());
         let btree_res = btree.search_simd(q);
 
         let binsearch_res = BinarySearch::new(vals).search(q);

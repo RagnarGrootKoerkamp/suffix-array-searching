@@ -209,7 +209,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         unsafe { *self.tree.get_unchecked(b).data.get_unchecked(i) }
     }
 
-    pub fn search(&mut self, q: u32) -> u32 {
+    pub fn search(&self, q: u32) -> u32 {
         assert!(!REV);
         let mut k = 0;
         for o in self.offsets[1..self.offsets.len()].into_iter().rev() {
@@ -221,7 +221,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         self.get(k + index / B, index % B)
     }
 
-    pub fn search_split(&mut self, q: u32) -> u32 {
+    pub fn search_split(&self, q: u32) -> u32 {
         assert!(!REV);
         let mut k = 0;
         for o in self.offsets[1..self.offsets.len()].into_iter().rev() {
@@ -233,7 +233,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         self.get(k + index / B, index % B)
     }
 
-    pub fn batch<const P: usize>(&mut self, q: &[u32; P]) -> [u32; P] {
+    pub fn batch<const P: usize>(&self, q: &[u32; P]) -> [u32; P] {
         assert!(!REV);
         let mut k = [0; P];
         for o in self.offsets[1..self.offsets.len()].into_iter().rev() {
@@ -249,7 +249,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         })
     }
 
-    pub fn batch_prefetch<const P: usize>(&mut self, q: &[u32; P]) -> [u32; P] {
+    pub fn batch_prefetch<const P: usize>(&self, q: &[u32; P]) -> [u32; P] {
         assert!(!REV);
         let mut k = [0; P];
         let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
@@ -269,7 +269,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         })
     }
 
-    pub fn batch_ptr<const P: usize>(&mut self, q: &[u32; P]) -> [u32; P] {
+    pub fn batch_ptr<const P: usize>(&self, q: &[u32; P]) -> [u32; P] {
         assert!(!REV);
         let mut k = [0; P];
         let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
@@ -296,7 +296,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         })
     }
 
-    pub fn batch_ptr2<const P: usize>(&mut self, q: &[u32; P]) -> [u32; P] {
+    pub fn batch_ptr2<const P: usize>(&self, q: &[u32; P]) -> [u32; P] {
         assert!(!REV);
         let mut k = [0; P];
         let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
@@ -327,7 +327,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         })
     }
 
-    pub fn batch_ptr3<const P: usize, const LAST: bool>(&mut self, q: &[u32; P]) -> [u32; P] {
+    pub fn batch_ptr3<const P: usize, const LAST: bool>(&self, q: &[u32; P]) -> [u32; P] {
         self.batch_ptr3_par::<P, LAST>(q)
     }
 
@@ -369,7 +369,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
         })
     }
 
-    pub fn batch_ptr3_full<const P: usize, const LAST: bool>(&mut self, q: &[u32; P]) -> [u32; P] {
+    pub fn batch_ptr3_full<const P: usize, const LAST: bool>(&self, q: &[u32; P]) -> [u32; P] {
         let mut k = [0; P];
         let q_simd = q.map(|q| Simd::<u32, 8>::splat(q));
 
@@ -401,7 +401,7 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
     }
 
     pub fn batch_no_prefetch<const P: usize, const LAST: bool, const SKIP: usize>(
-        &mut self,
+        &self,
         q: &[u32; P],
     ) -> [u32; P] {
         let mut k = [0; P];
@@ -630,7 +630,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 452;
-        let mut bptree = BpTree::<16, 16, false>::new(vals.clone());
+        let bptree = BpTree::<16, 16, false>::new(vals.clone());
         let bptree_res = bptree.search(q);
 
         let binsearch_res = BinarySearch::new(vals).search(q);
@@ -643,7 +643,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 289;
-        let mut bptree = BpTree::<16, 16, false>::new(vals.clone());
+        let bptree = BpTree::<16, 16, false>::new(vals.clone());
         let bptree_res = bptree.search(q);
 
         let binsearch_res = BinarySearch::new(vals).search(q);

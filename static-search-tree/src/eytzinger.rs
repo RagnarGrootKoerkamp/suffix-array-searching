@@ -2,14 +2,12 @@ use crate::prefetch_index;
 
 pub struct Eytzinger {
     vals: Vec<u32>,
-    pub cnt: usize,
 }
 
 impl Eytzinger {
     pub fn new(vals: Vec<u32>) -> Eytzinger {
         let mut e = Eytzinger {
             vals: vec![0; vals.len() + 1], // +1 for one-based indexing
-            cnt: 0,
         };
         e.vals[0] = u32::MAX;
         e._to_eytzinger(&vals, &mut 0, 1);
@@ -31,7 +29,7 @@ impl Eytzinger {
         unsafe { *self.vals.get_unchecked(index) }
     }
 
-    pub fn search(&mut self, q: u32) -> u32 {
+    pub fn search(&self, q: u32) -> u32 {
         let mut index = 1;
         while index < self.vals.len() {
             index = 2 * index + (q > self.get(index)) as usize;
@@ -41,7 +39,7 @@ impl Eytzinger {
         self.get(idx)
     }
 
-    pub fn search_prefetch<const B: usize>(&mut self, q: u32) -> u32 {
+    pub fn search_prefetch<const B: usize>(&self, q: u32) -> u32 {
         let mut index = 1;
         while index < self.vals.len() {
             index = 2 * index + (q > self.get(index)) as usize;
@@ -65,8 +63,8 @@ mod tests {
     #[test]
     fn eytzinger_vs_binsearch() {
         let input = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-        let mut e = Eytzinger::new(input.clone());
-        let mut b = BinarySearch::new(input);
+        let e = Eytzinger::new(input.clone());
+        let b = BinarySearch::new(input);
         let q = 5;
         let ey_res = e.search(q);
         let bin_res = b.search(q);
@@ -93,7 +91,7 @@ mod tests {
     #[test]
     fn eyetzinger_search_test() {
         let input = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let mut e = Eytzinger::new(input.clone());
+        let e = Eytzinger::new(input.clone());
         let q: u32 = 3;
         let result = e.search(q);
         assert_eq!(result, 3);
@@ -102,7 +100,7 @@ mod tests {
     #[test]
     fn eyetzinger_search_oob() {
         let input = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let mut e = Eytzinger::new(input.clone());
+        let e = Eytzinger::new(input.clone());
         let q: u32 = 12;
         let result = e.search(q);
         assert_eq!(result, u32::MAX);

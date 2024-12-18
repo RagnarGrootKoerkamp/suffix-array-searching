@@ -1,12 +1,11 @@
 // completely basic binsearch
 pub struct InterpolationSearch {
     vals: Vec<u32>,
-    pub cnt: usize,
 }
 
 impl InterpolationSearch {
     pub fn new(vals: Vec<u32>) -> Self {
-        InterpolationSearch { vals, cnt: 0 }
+        InterpolationSearch { vals }
     }
 
     fn get(&self, index: usize) -> u32 {
@@ -14,7 +13,7 @@ impl InterpolationSearch {
     }
 
     /// Return the value of the first value >= query.
-    pub fn search(&mut self, q: u32) -> u32 {
+    pub fn search(&self, q: u32) -> u32 {
         let mut l: usize = 0;
         // FIXME: is this inclusive?
         let mut r: usize = self.vals.len() - 1;
@@ -40,7 +39,6 @@ impl InterpolationSearch {
         //                         *    *
         //
         while l < r {
-            self.cnt += 1;
             // The +1 and +2 ensure l<m<r.
             // HOT: The division is slow.
             // OMFG is there really not a better way to do this? Multiple integer types are a nightmare
@@ -69,8 +67,8 @@ mod tests {
     #[test]
     fn interppolation_vs_binsearch() {
         let input = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-        let mut i = InterpolationSearch::new(input.clone());
-        let mut b = BinarySearch::new(input);
+        let i = InterpolationSearch::new(input.clone());
+        let b = BinarySearch::new(input);
         let q = 5;
         let i_res = i.search(q);
         let bin_res = b.search(q);
