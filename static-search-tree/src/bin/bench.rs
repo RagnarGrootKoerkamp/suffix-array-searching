@@ -35,7 +35,7 @@ fn main() {
 
     let runs = if ARGS.release { 3 } else { 1 };
     let sizes = sizes();
-    let queries = 1_000_000;
+    let queries = if ARGS.release { 1_000_000 } else { 100_000 };
 
     for run in 0..runs {
         // Setup
@@ -72,8 +72,8 @@ fn main() {
             run_exps(&mut results, size, vals, qs, run, exps);
         }
 
-        eprintln!("Saving results after run {}", run + 1);
         save_results(&results, "results");
+        eprintln!("Saved results after run {}", run + 1);
     }
 }
 

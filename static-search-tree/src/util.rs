@@ -23,10 +23,10 @@ pub fn gen_queries(n: usize) -> Vec<u32> {
 pub fn gen_vals(size: usize, sort: bool) -> Vec<u32> {
     let n = size / std::mem::size_of::<u32>();
     // TODO: generate a new array
-    let mut vals = (0..n - 1)
+    let mut vals = (0..n)
         .map(|_| rand::thread_rng().gen_range(LOWEST_GENERATED..HIGHEST_GENERATED))
         .collect_vec();
-    vals.push(MAX);
+    vals[0] = MAX;
     if sort {
         vals.radix_sort_unstable();
     }
