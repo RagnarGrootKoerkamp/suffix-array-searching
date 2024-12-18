@@ -1,7 +1,7 @@
 use crate::binary_search::SortedVec;
 use crate::btree::{BTree, BTree16};
 use crate::eytzinger::Eytzinger;
-use crate::node::MAX;
+use crate::node::{BTreeNode, MAX};
 use crate::s_tree::{STree, STree15, STree16};
 use crate::{batched, full, util::*, SearchIndex, SearchScheme};
 use log::info;
@@ -46,7 +46,7 @@ impl SearchFunctions {
         let bp = const {
             [
                 &STree::search as &dyn SearchScheme<_>,
-                &STree::search_split,
+                &STree::search_with_find(BTreeNode::find_split) as _,
                 &batched(STree::batch::<4>),
                 &batched(STree::batch::<8>),
                 &batched(STree::batch::<16>),

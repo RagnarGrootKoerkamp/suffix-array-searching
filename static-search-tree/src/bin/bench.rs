@@ -6,7 +6,7 @@ use static_search_tree::{
     binary_search::SortedVec,
     eytzinger::Eytzinger,
     node::BTreeNode,
-    s_tree::STree,
+    s_tree::{STree, STree16},
     util::{gen_queries, gen_vals},
     SearchIndex, SearchScheme,
 };
@@ -75,7 +75,7 @@ fn main() {
 
             let exps: T<_, _> = const {
                 [
-                    &STree::<16, 16>::search,
+                    &STree16::search,
                     &STree::search_with_find(BTreeNode::find_linear) as _,
                     &STree::search_with_find(BTreeNode::find_popcnt) as _,
                 ]

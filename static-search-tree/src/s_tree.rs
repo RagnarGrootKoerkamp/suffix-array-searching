@@ -208,36 +208,6 @@ impl<const B: usize, const N: usize> STree<B, N> {
         }
     }
 
-    pub fn query_one2(&self, q: u32) -> u32 {
-        let mut k = 0;
-        for o in self.offsets[1..self.offsets.len()].into_iter().rev() {
-            let jump_to = self.node(o + k).find(q);
-            k = k * (B + 1) + jump_to;
-        }
-
-        let o = self.offsets[0];
-        let mut idx = self.node(o + k).find(q);
-        if idx == B {
-            idx = N;
-        }
-        self.get(o + k + idx / N, idx % N)
-    }
-
-    pub fn search(&self, q: u32) -> u32 {
-        let mut k = 0;
-        for o in self.offsets[1..self.offsets.len()].into_iter().rev() {
-            let jump_to = self.node(o + k).find(q);
-            k = k * (B + 1) + jump_to;
-        }
-
-        let o = self.offsets[0];
-        let mut idx = self.node(o + k).find(q);
-        if idx == B {
-            idx = N;
-        }
-        self.get(o + k + idx / N, idx % N)
-    }
-
     fn search_with_find_impl(&self, q: u32, f: impl Fn(&BTreeNode<N>, u32) -> usize) -> u32 {
         let mut k = 0;
         for o in self.offsets[1..self.offsets.len()].into_iter().rev() {
@@ -259,8 +229,19 @@ impl<const B: usize, const N: usize> STree<B, N> {
         move |index, q| index.search_with_find_impl(q, f)
     }
 
-    pub fn search_split(&self, q: u32) -> u32 {
-        self.search_with_find_impl(q, BTreeNode::<N>::find_split)
+    pub fn search(&self, q: u32) -> u32 {
+        let mut k = 0;
+        for o in self.offsets[1..self.offsets.len()].into_iter().rev() {
+            let jump_to = self.node(o + k).find(q);
+            k = k * (B + 1) + jump_to;
+        }
+
+        let o = self.offsets[0];
+        let mut idx = self.node(o + k).find(q);
+        if idx == B {
+            idx = N;
+        }
+        self.get(o + k + idx / N, idx % N)
     }
 
     pub fn batch<'a, const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
