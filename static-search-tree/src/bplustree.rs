@@ -13,7 +13,6 @@ use crate::{prefetch_index, prefetch_ptr, SearchIndex, SearchScheme};
 #[derive(Debug)]
 pub struct BpTree<const B: usize, const N: usize> {
     tree: Vec<BTreeNode<N>>,
-    pub cnt: usize,
     offsets: Vec<usize>,
 }
 
@@ -121,7 +120,6 @@ impl<const B: usize, const N: usize> BpTree<B, N> {
             eprintln!("Allocating DONE");
             let mut bptree = Self {
                 tree,
-                cnt: 0,
                 offsets: if full_array {
                     let mut idx = 0;
                     let mut v = (0..height)
@@ -206,7 +204,6 @@ impl<const B: usize, const N: usize> BpTree<B, N> {
             let n_blocks = Self::offset(n, height);
             let mut bptree = Self {
                 tree: vec![BTreeNode { data: [MAX; N] }; n_blocks],
-                cnt: 0,
                 offsets: (0..=height).map(|h| Self::offset(n, h)).collect(),
             };
             // eprintln!("REV {:?}", bptree.offsets);
