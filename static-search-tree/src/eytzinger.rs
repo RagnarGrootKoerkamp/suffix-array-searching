@@ -56,7 +56,10 @@ impl Eytzinger {
 #[cfg(test)]
 mod tests {
 
-    use crate::binary_search::BinarySearch;
+    use crate::{
+        binary_search::{BinarySearch, SortedVec},
+        SearchIndex,
+    };
 
     use super::*;
 
@@ -64,10 +67,9 @@ mod tests {
     fn eytzinger_vs_binsearch() {
         let input = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         let e = Eytzinger::new(input.clone());
-        let b = BinarySearch::new(input);
         let q = 5;
         let ey_res = e.search(q);
-        let bin_res = b.search(q);
+        let bin_res = SortedVec::new(&input).query_one(q, BinarySearch);
         println!("{ey_res}, {bin_res}");
     }
 

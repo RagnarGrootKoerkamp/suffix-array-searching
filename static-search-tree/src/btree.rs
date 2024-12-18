@@ -238,7 +238,10 @@ impl<const B: usize, const N: usize> BTree<B, N> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::binary_search::BinarySearch;
+    use crate::{
+        binary_search::{BinarySearch, SortedVec},
+        SearchIndex,
+    };
 
     #[test]
     fn test_b_tree_k_2() {
@@ -263,7 +266,7 @@ mod tests {
         let btree = BTree::<16, 16>::new(vals.clone());
         let btree_res = btree.search(q);
 
-        let binsearch_res = BinarySearch::new(vals).search(q);
+        let binsearch_res = SortedVec::new(&vals).query_one(q, BinarySearch);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }
@@ -276,7 +279,7 @@ mod tests {
         let btree = BTree::<16, 16>::new(vals.clone());
         let btree_res = btree.search(q);
 
-        let binsearch_res = BinarySearch::new(vals).search(q);
+        let binsearch_res = SortedVec::new(&vals).query_one(q, BinarySearch);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }
@@ -299,7 +302,7 @@ mod tests {
         let btree = BTree::<16, 16>::new(vals.clone());
         let btree_res = btree.search_simd(q);
 
-        let binsearch_res = BinarySearch::new(vals).search(q);
+        let binsearch_res = SortedVec::new(&vals).query_one(q, BinarySearch);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }
@@ -312,7 +315,7 @@ mod tests {
         let btree = BTree::<16, 16>::new(vals.clone());
         let btree_res = btree.search_simd(q);
 
-        let binsearch_res = BinarySearch::new(vals).search(q);
+        let binsearch_res = SortedVec::new(&vals).query_one(q, BinarySearch);
         println!("{btree_res}, {binsearch_res}");
         assert!(btree_res == binsearch_res);
     }

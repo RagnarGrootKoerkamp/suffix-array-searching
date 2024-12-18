@@ -608,7 +608,10 @@ impl<const B: usize, const N: usize, const REV: bool> BpTree<B, N, REV> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::binary_search::BinarySearch;
+    use crate::{
+        binary_search::{BinarySearch, SortedVec},
+        SearchIndex,
+    };
 
     #[test]
     fn test_b_tree_k_2() {
@@ -633,9 +636,9 @@ mod tests {
         let bptree = BpTree::<16, 16, false>::new(vals.clone());
         let bptree_res = bptree.search(q);
 
-        let binsearch_res = BinarySearch::new(vals).search(q);
-        println!("{bptree_res}, {binsearch_res}");
-        assert!(bptree_res == binsearch_res);
+        let bin_res = SortedVec::new(&vals).query_one(q, BinarySearch);
+        println!("{bptree_res}, {bin_res}");
+        assert!(bptree_res == bin_res);
     }
 
     #[test]
@@ -646,9 +649,9 @@ mod tests {
         let bptree = BpTree::<16, 16, false>::new(vals.clone());
         let bptree_res = bptree.search(q);
 
-        let binsearch_res = BinarySearch::new(vals).search(q);
-        println!("{bptree_res}, {binsearch_res}");
-        assert!(bptree_res == binsearch_res);
+        let bin_res = SortedVec::new(&vals).query_one(q, BinarySearch);
+        println!("{bptree_res}, {bin_res}");
+        assert!(bptree_res == bin_res);
     }
 
     #[test]
