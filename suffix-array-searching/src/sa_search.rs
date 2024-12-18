@@ -6,7 +6,7 @@ use std::{
 
 use crate::util::*;
 use itertools::Itertools;
-use tracing::info;
+use log::info;
 
 pub struct SaNaive<'a> {
     t: &'a Seq,

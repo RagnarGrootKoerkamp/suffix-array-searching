@@ -1,7 +1,36 @@
 use std::sync::LazyLock;
 
+use itertools::Itertools;
+use rand::Rng;
+use rdst::RadixSort;
+
+use crate::btree::MAX;
+
 pub type Seq = [u8];
 pub type Sequence = Vec<u8>;
+
+const LOWEST_GENERATED: u32 = 0;
+const HIGHEST_GENERATED: u32 = 1 << 30;
+
+pub fn gen_queries(n: usize) -> Vec<u32> {
+    (0..n)
+        .map(|_| rand::thread_rng().gen_range(LOWEST_GENERATED..HIGHEST_GENERATED))
+        .collect()
+}
+
+/// Generate a u32 array of the given *size* in bytes, and ending in i32::MAX.
+pub fn gen_vals(size: usize, sort: bool) -> Vec<u32> {
+    let n = size / std::mem::size_of::<u32>();
+    // TODO: generate a new array
+    let mut vals = (0..n - 1)
+        .map(|_| rand::thread_rng().gen_range(LOWEST_GENERATED..HIGHEST_GENERATED))
+        .collect_vec();
+    vals.push(MAX);
+    if sort {
+        vals.radix_sort_unstable();
+    }
+    vals
+}
 
 /// Prefetch the given cacheline into L1 cache.
 pub fn prefetch_index<T>(s: &[T], index: usize) {
@@ -40,18 +69,6 @@ pub fn time<T>(t: &str, f: impl FnOnce() -> T) -> T {
 }
 
 fn init_trace() {
-    // use tracing::level_filters::LevelFilter;
-    // use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
-    // tracing_subscriber::registry()
-    //     .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
-    //     .with(
-    //         tracing_subscriber::EnvFilter::builder()
-    //             .with_default_directive(LevelFilter::TRACE.into())
-    //             .from_env_lossy(),
-    //     )
-    //     .init();
-
     stderrlog::new()
         .color(stderrlog::ColorChoice::Always)
         .verbosity(5)

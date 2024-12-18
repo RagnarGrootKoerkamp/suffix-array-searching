@@ -11,18 +11,13 @@ pub use btree::BTree16;
 use btree::MAX;
 pub use experiments_sorted_arrays::{BinarySearch, Eytzinger};
 pub use interp_search::InterpolationSearch;
-use itertools::Itertools;
+use log::info;
 use pyo3::prelude::*;
-use rand::Rng;
 use rdst::RadixSort;
 use std::collections::HashMap;
 use std::hint::black_box;
 use std::time::Instant;
-use tracing::info;
 pub use util::*;
-
-const LOWEST_GENERATED: u32 = 0;
-const HIGHEST_GENERATED: u32 = 1 << 30;
 
 pub type Fn<T> = (&'static str, fn(&mut T, u32) -> u32);
 pub type BFn<const B: usize, T> = (&'static str, fn(&mut T, &[u32; B]) -> [u32; B]);
@@ -104,26 +99,6 @@ pub fn bench_batch_par<const B: usize, T: Send + Sync>(
 
     let elapsed = start.elapsed();
     elapsed.as_nanos() as f64 / queries.len() as f64
-}
-
-pub fn gen_queries(n: usize) -> Vec<u32> {
-    (0..n)
-        .map(|_| rand::thread_rng().gen_range(LOWEST_GENERATED..HIGHEST_GENERATED))
-        .collect()
-}
-
-/// Generate a u32 array of the given *size* in bytes, and ending in i32::MAX.
-pub fn gen_vals(size: usize, sort: bool) -> Vec<u32> {
-    let n = size / std::mem::size_of::<u32>();
-    // TODO: generate a new array
-    let mut vals = (0..n - 1)
-        .map(|_| rand::thread_rng().gen_range(LOWEST_GENERATED..HIGHEST_GENERATED))
-        .collect_vec();
-    vals.push(MAX);
-    if sort {
-        vals.radix_sort_unstable();
-    }
-    vals
 }
 
 #[pyclass]
@@ -656,4 +631,9 @@ mod test {
         let correct = benchmark.test_all();
         assert!(correct);
     }
+}
+
+#[ctor::ctor]
+fn init_color_backtrace() {
+    color_backtrace::install();
 }

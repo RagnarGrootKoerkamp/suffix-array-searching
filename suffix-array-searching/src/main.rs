@@ -1,4 +1,5 @@
 use clap::Parser;
+use log::{debug, info};
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use std::{iter::repeat, path::PathBuf};
@@ -7,7 +8,6 @@ use suffix_array_searching::{
     sa_search::{self, *},
     util::*,
 };
-use tracing::{debug, info};
 
 #[derive(Parser)]
 struct Args {
