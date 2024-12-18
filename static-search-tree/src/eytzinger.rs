@@ -48,16 +48,17 @@ impl SearchScheme for EytzingerSearch {
     }
 }
 
-pub struct EytzingerPrefetch<const B: usize>;
-impl<const B: usize> SearchScheme for EytzingerPrefetch<B> {
+/// L: number of levels ahead to prefetch.
+pub struct EytzingerPrefetch<const L: usize>;
+impl<const L: usize> SearchScheme for EytzingerPrefetch<L> {
     type INDEX = Eytzinger;
 
     fn query_one(&self, index: &Eytzinger, q: u32) -> u32 {
         let mut idx = 1;
         while idx < index.vals.len() {
             idx = 2 * idx + (q > index.get(idx)) as usize;
-            if B * idx < index.vals.len() {
-                prefetch_index(&index.vals, B * idx);
+            if L * idx < index.vals.len() {
+                prefetch_index(&index.vals, (1 << L) * idx);
             }
         }
         let zeros = idx.trailing_ones() + 1;

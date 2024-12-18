@@ -1,8 +1,8 @@
 use clap::Parser;
 use rdst::RadixSort;
 use static_search_tree::{
-    binary_search::{BinarySearch, BinarySearchBranchless, BinarySearchBranchlessPrefetch},
-    eytzinger::{EytzingerPrefetch, EytzingerSearch},
+    binary_search::*,
+    eytzinger::*,
     util::{gen_queries, gen_vals},
     SearchIndex, SearchScheme,
 };
@@ -68,13 +68,7 @@ fn main() {
             ];
             run_exps(&mut results, size, vals, qs, run, exps);
 
-            // Eytzinger
-            let exps = [
-                &EytzingerSearch as &dyn SearchScheme<INDEX = _>,
-                &EytzingerPrefetch::<4>,
-                &EytzingerPrefetch::<8>,
-                &EytzingerPrefetch::<16>,
-            ];
+            let exps: T<_, _> = [&EytzingerPrefetch::<4>];
             run_exps(&mut results, size, vals, qs, run, exps);
         }
 

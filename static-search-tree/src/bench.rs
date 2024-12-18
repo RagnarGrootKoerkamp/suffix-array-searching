@@ -36,9 +36,9 @@ impl SearchFunctions {
         ];
         let eyt = vec![
             &EytzingerSearch as &dyn SearchScheme<INDEX = _>,
+            &EytzingerPrefetch::<2>,
+            &EytzingerPrefetch::<3>,
             &EytzingerPrefetch::<4>,
-            &EytzingerPrefetch::<8>,
-            &EytzingerPrefetch::<16>,
         ];
         let bt = vec![
             &BTreeSearch as &dyn SearchScheme<INDEX = _>,
