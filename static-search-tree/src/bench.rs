@@ -4,7 +4,7 @@ use crate::binary_search::{
 use crate::bplustree::{BpTree15, BpTree16, BpTree16R};
 use crate::btree::BTree16;
 use crate::btree::MAX;
-use crate::eytzinger::Eytzinger;
+use crate::eytzinger::{Eytzinger, EytzingerPrefetch, EytzingerSearch};
 use crate::interp_search::InterpolationSearch;
 use crate::{util::*, SearchIndex, SearchScheme};
 use log::info;
@@ -107,7 +107,7 @@ pub fn bench_batch_par<const B: usize, T: Send + Sync>(
 pub struct BenchmarkSortedArray {
     bs: Vec<&'static dyn SearchScheme<INDEX = SortedVec>>,
     is: Vec<Fn<InterpolationSearch>>,
-    eyt: Vec<Fn<Eytzinger>>,
+    eyt: Vec<&'static dyn SearchScheme<INDEX = Eytzinger>>,
     bt: Vec<Fn<BTree16>>,
     bp: Vec<Fn<BpTree16>>,
 }
@@ -141,12 +141,16 @@ impl BenchmarkSortedArray {
                 }
             }
 
-            let eyt = &Eytzinger::new(vals.clone());
+            let eyt = &Eytzinger::new(&vals);
 
-            for &f in &self.eyt {
-                let new_results = run(eyt, f, qs);
-                if results != new_results {
-                    correct = false;
+            for &scheme in &self.eyt {
+                let new_results = eyt.query(qs, scheme);
+                if results.is_empty() {
+                    results = new_results;
+                } else {
+                    if results != new_results {
+                        correct = false;
+                    }
                 }
             }
 
@@ -271,17 +275,17 @@ impl BenchmarkSortedArray {
     pub fn new() -> Self {
         *INIT_TRACE;
 
-        let bs: Vec<&dyn SearchScheme<INDEX = SortedVec>> = vec![
-            &BinarySearch,
+        let bs = vec![
+            &BinarySearch as &dyn SearchScheme<INDEX = _>,
             &BinarySearchBranchless,
             &BinarySearchBranchlessPrefetch,
         ];
         let is: Vec<Fn<_>> = vec![("interp_search", InterpolationSearch::search)];
-        let eyt: Vec<Fn<_>> = vec![
-            ("eyt_search", Eytzinger::search),
-            ("eyt_prefetch_4", Eytzinger::search_prefetch::<4>),
-            ("eyt_prefetch_8", Eytzinger::search_prefetch::<8>),
-            ("eyt_prefetch_16", Eytzinger::search_prefetch::<16>),
+        let eyt = vec![
+            &EytzingerSearch as &dyn SearchScheme<INDEX = _>,
+            &EytzingerPrefetch::<4>,
+            &EytzingerPrefetch::<8>,
+            &EytzingerPrefetch::<16>,
         ];
         let bt: Vec<Fn<_>> = vec![
             ("bt_search", BTree16::search),
@@ -326,8 +330,8 @@ impl BenchmarkSortedArray {
             // TODO: find the given function
             for &scheme in &self.bs {
                 if scheme.name() == fname {
-                    let bs = &SortedVec::new(&vals[..len]);
-                    let t = bench_scheme(bs, scheme, queries);
+                    let index = &SortedVec::new(&vals[..len]);
+                    let t = bench_scheme(index, scheme, queries);
                     results.push((size, t));
                 }
             }
@@ -341,11 +345,10 @@ impl BenchmarkSortedArray {
                 }
             }
 
-            for &f in &self.eyt {
-                let (name, _f) = f;
-                if fname == name {
-                    let eyt = &Eytzinger::new(vals[..len].to_vec());
-                    let t = bench(eyt, (name, _f), queries);
+            for &scheme in &self.eyt {
+                if scheme.name() == fname {
+                    let index = &Eytzinger::new(&vals[..len]);
+                    let t = bench_scheme(index, scheme, queries);
                     results.push((size, t));
                 }
             }
