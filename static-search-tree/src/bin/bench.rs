@@ -13,7 +13,6 @@ use static_search_tree::{
     SearchIndex, SearchScheme,
 };
 use std::{
-    any::type_name,
     hint::black_box,
     path::Path,
     sync::LazyLock,
@@ -26,13 +25,13 @@ struct Args {
     from: Option<usize>,
     #[clap(short, long)]
     to: Option<usize>,
-    #[clap(short, long)]
+    #[clap(long)]
     release: bool,
     #[clap(short, long)]
     dense: bool,
     #[clap(short, long)]
     queries: Option<usize>,
-    #[clap(short, long)]
+    #[clap(long)]
     runs: Option<usize>,
 }
 
@@ -63,16 +62,16 @@ fn main() {
             let vals = &mut vals[..len];
             vals.radix_sort_unstable();
 
-            fn run_exps<I: SearchIndex, const N: usize>(
+            fn run_exps<I: SearchIndex>(
                 results: &mut Vec<Result>,
                 size: usize,
                 index: &I,
                 qs: &Vec<u32>,
                 run: usize,
-                exps: [&(dyn SearchScheme<I>); N],
+                exps: &[&(dyn SearchScheme<I>)],
                 name: &str,
             ) {
-                for exp in exps {
+                for &exp in exps {
                     results.push(Result::new(name, size, index, qs, exp, run));
                 }
             }
@@ -82,48 +81,72 @@ fn main() {
 
             if false {
                 let exps: T<_, _> = [&SortedVec::binary_search_std];
-                run_exps(&mut results, size, &SortedVec::new(vals), qs, run, exps, "");
+                run_exps(
+                    &mut results,
+                    size,
+                    &SortedVec::new(vals),
+                    qs,
+                    run,
+                    &exps,
+                    "",
+                );
 
                 let exps: T<_, _> = [&Eytzinger::search_prefetch::<4>];
-                run_exps(&mut results, size, &Eytzinger::new(vals), qs, run, exps, "");
+                run_exps(
+                    &mut results,
+                    size,
+                    &Eytzinger::new(vals),
+                    qs,
+                    run,
+                    &exps,
+                    "",
+                );
             }
 
             let exps: T<_, _> = const {
                 [
-                    // &STree16::search_with_find(BTreeNode::find_linear) as _,
-                    // &STree16::search_with_find(BTreeNode::find_linear_count) as _,
-                    // &STree16::search_with_find(BTreeNode::find_ctz) as _,
-                    // &STree16::search_with_find(BTreeNode::find_ctz_signed) as _,
-                    // &STree16::search_with_find(BTreeNode::find_popcnt_portable) as _,
-                    // &STree16::search_with_find(BTreeNode::find_popcnt) as _,
-                    // &batched(STree16::batch::<1>),
-                    // &batched(STree16::batch::<2>),
-                    // &batched(STree16::batch::<4>),
-                    // &batched(STree16::batch::<8>),
-                    // &batched(STree16::batch::<16>),
-                    // &batched(STree16::batch::<32>),
-                    // &batched(STree16::batch::<64>),
-                    // &batched(STree16::batch::<128>),
-                    //
-                    // &batched(STree16::batch_prefetch::<128>),
-                    // &batched(STree16::batch_splat::<128>),
-                    // &batched(STree16::batch_ptr::<128>),
-                    // &batched(STree16::batch_ptr2::<128>),
+                    &STree16::search_with_find(BTreeNode::find_linear) as _,
+                    &STree16::search_with_find(BTreeNode::find_linear_count) as _,
+                    &STree16::search_with_find(BTreeNode::find_ctz) as _,
+                    &STree16::search_with_find(BTreeNode::find_ctz_signed) as _,
+                    &STree16::search_with_find(BTreeNode::find_popcnt_portable) as _,
+                    &STree16::search_with_find(BTreeNode::find_popcnt) as _,
+                    &batched(STree16::batch::<1>),
+                    &batched(STree16::batch::<2>),
+                    &batched(STree16::batch::<4>),
+                    &batched(STree16::batch::<8>),
+                    &batched(STree16::batch::<16>),
+                    &batched(STree16::batch::<32>),
+                    &batched(STree16::batch::<64>),
+                    &batched(STree16::batch::<128>),
+                    &batched(STree16::batch_prefetch::<128>),
+                    &batched(STree16::batch_splat::<128>),
+                    &batched(STree16::batch_ptr::<128>),
+                    &batched(STree16::batch_ptr2::<128>),
                     &batched(STree16::batch_ptr3::<128>),
-                    // &batched(STree16::batch_skip_prefetch::<128, 0>),
-                    // &batched(STree16::batch_skip_prefetch::<128, 1>),
-                    // &batched(STree16::batch_skip_prefetch::<128, 2>),
-                    // &batched(STree16::batch_skip_prefetch::<128, 3>),
-                    // &full(STree16::batch_interleave::<16>),
+                    &batched(STree16::batch_skip_prefetch::<128, 0>),
+                    &batched(STree16::batch_skip_prefetch::<128, 1>),
+                    &batched(STree16::batch_skip_prefetch::<128, 2>),
+                    &batched(STree16::batch_skip_prefetch::<128, 3>),
+                    &full(STree16::batch_interleave::<16>),
                 ]
             };
-            run_exps(&mut results, size, &STree16::new(vals), qs, run, exps, "");
+            run_exps(
+                &mut results,
+                size,
+                &STree16::new_no_hugepages(vals),
+                qs,
+                run,
+                &exps[..2],
+                "NoHuge",
+            );
+            run_exps(&mut results, size, &STree16::new(vals), qs, run, &exps, "");
 
             let exps: T<_, _> = const { [&batched(STree16::batch_ptr3::<128>)] };
             let index = STree16::new_params(vals, false, true, false);
-            run_exps(&mut results, size, &index, qs, run, exps, "Rev");
+            run_exps(&mut results, size, &index, qs, run, &exps, "Rev");
             let index = STree16::new_params(vals, true, true, false);
-            run_exps(&mut results, size, &index, qs, run, exps, "Rev+Fwd");
+            run_exps(&mut results, size, &index, qs, run, &exps, "Rev+Fwd");
             let exps: T<_, _> = const {
                 [
                     &batched(STree16::batch_ptr3::<128>),
@@ -131,11 +154,12 @@ fn main() {
                 ]
             };
             let index = STree16::new_params(vals, true, true, true);
-            run_exps(&mut results, size, &index, qs, run, exps, "Rev+Fwd+Full");
+            run_exps(&mut results, size, &index, qs, run, &exps, "Rev+Fwd+Full");
 
+            // B=15
             let exps: T<_, _> = const { [&batched(STree15::batch_ptr3::<128>)] };
             let index = STree15::new_params(vals, true, true, false);
-            run_exps(&mut results, size, &index, qs, run, exps, "Rev+Fwd");
+            run_exps(&mut results, size, &index, qs, run, &exps, "Rev+Fwd");
 
             let exps: T<_, _> = const {
                 [
@@ -144,7 +168,7 @@ fn main() {
                 ]
             };
             let index = STree15::new_params(vals, true, true, true);
-            run_exps(&mut results, size, &index, qs, run, exps, "Rev+Fwd+Full");
+            run_exps(&mut results, size, &index, qs, run, &exps, "Rev+Fwd+Full");
         }
 
         save_results(&results, "results");

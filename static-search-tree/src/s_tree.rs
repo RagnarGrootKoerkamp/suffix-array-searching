@@ -1,4 +1,5 @@
 use std::array::from_fn;
+use std::mem::forget;
 use std::{fmt::Debug, iter::zip, simd::Simd};
 
 use itertools::Itertools;
@@ -58,6 +59,21 @@ impl<const B: usize, const N: usize> STree<B, N> {
     }
 
     pub fn new_params(vals: &[u32], fwd: bool, rev: bool, full_array: bool) -> Self {
+        Self::new_params_impl(vals, fwd, rev, full_array, true)
+    }
+
+    pub fn new_no_hugepages(vals: &[u32]) -> Self {
+        Self::new_params_impl(vals, false, false, false, false)
+    }
+
+    // The `hugepages` parameter is only internal.
+    fn new_params_impl(
+        vals: &[u32],
+        fwd: bool,
+        rev: bool,
+        full_array: bool,
+        hugepages: bool,
+    ) -> Self {
         if full_array {
             assert!(fwd, "Full array only makes sense in forward layout.");
         }
@@ -102,7 +118,37 @@ impl<const B: usize, const N: usize> STree<B, N> {
                 .collect_vec()
         };
 
-        let mut tree = vec![BTreeNode { data: [MAX; N] }; n_blocks];
+        let mut tree = if hugepages {
+            // let n_blocks =
+            //     n_blocks.next_multiple_of(32 * 1024 * 1024 / std::mem::size_of::<BTreeNode<N>>());
+            // vec![BTreeNode { data: [MAX; N] }; n_blocks]
+            let len = n_blocks;
+            let size = len * std::mem::size_of::<BTreeNode<N>>();
+            // Round size up to the next multiple of 2MB. Or actually, round up to
+            // a multiple of 32MB to avoid reusing existing allocated heap memory.
+            const NO_HEAP: bool = true;
+            let mbs = if NO_HEAP { 32 } else { 2 };
+            let size = size.next_multiple_of(mbs * 1024 * 1024);
+            let mut mem = alloc_madvise::Memory::allocate(size, false, false).unwrap();
+            let mem_mut: &mut [usize] = mem.as_mut();
+            let (pref, mem_mut, suf) = unsafe { mem_mut.align_to_mut::<BTreeNode<N>>() };
+            assert!(pref.is_empty());
+            assert!(suf.is_empty());
+
+            // eprintln!("Allocated {} bytes", size);
+            let vec = unsafe {
+                Vec::from_raw_parts(
+                    mem_mut.as_mut_ptr(),
+                    n_blocks,
+                    size / std::mem::size_of::<BTreeNode<N>>(),
+                )
+            };
+            forget(mem);
+            vec
+        } else {
+            vec![BTreeNode { data: [MAX; N] }; n_blocks]
+        };
+        // eprintln!("Len {} Capacity {}", tree.len(), tree.capacity());
 
         // Copy the input values to the last layer.
         let ol = offsets[height - 1];
@@ -117,6 +163,11 @@ impl<const B: usize, const N: usize> STree<B, N> {
         // https://en.algorithmica.org/hpc/data-structures/s-tree/#construction-1
         for h in (0..height - 1).rev() {
             let oh = offsets[h];
+            // First initialize all nodes in the layer with MAX.
+            tree[oh..oh + layer_sizes[h]].iter_mut().for_each(|node| {
+                node.data.fill(MAX);
+            });
+
             for i in 0..B * layer_sizes[h] {
                 let mut k = i / B;
                 let j = i % B;
