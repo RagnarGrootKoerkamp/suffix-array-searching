@@ -208,15 +208,15 @@ impl<const B: usize, const N: usize> STree<B, N> {
         }
     }
 
-    fn search_with_find_impl(&self, q: u32, f: impl Fn(&BTreeNode<N>, u32) -> usize) -> u32 {
+    fn search_with_find_impl(&self, q: u32, find: impl Fn(&BTreeNode<N>, u32) -> usize) -> u32 {
         let mut k = 0;
         for o in self.offsets[1..self.offsets.len()].into_iter().rev() {
-            let jump_to = f(self.node(o + k), q);
+            let jump_to = find(self.node(o + k), q);
             k = k * (B + 1) + jump_to;
         }
 
         let o = self.offsets[0];
-        let mut idx = f(self.node(o + k), q);
+        let mut idx = find(self.node(o + k), q);
         if idx == B {
             idx = N;
         }
@@ -224,9 +224,9 @@ impl<const B: usize, const N: usize> STree<B, N> {
     }
 
     pub const fn search_with_find(
-        f: impl Fn(&BTreeNode<N>, u32) -> usize + Copy,
+        find: impl Fn(&BTreeNode<N>, u32) -> usize + Copy,
     ) -> impl Fn(&STree<B, N>, u32) -> u32 {
-        move |index, q| index.search_with_find_impl(q, f)
+        move |index, q| index.search_with_find_impl(q, find)
     }
 
     pub fn search(&self, q: u32) -> u32 {
