@@ -1,3 +1,4 @@
+use std::array::from_fn;
 use std::{fmt::Debug, iter::zip, simd::Simd};
 
 use itertools::Itertools;
@@ -254,7 +255,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         }
 
         let o = self.offsets[0];
-        std::array::from_fn::<_, P, _>(|i| {
+        from_fn(|i| {
             let mut idx = self.node(o + k[i]).find(qb[i]);
             if idx == B {
                 idx = N;
@@ -277,7 +278,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         }
 
         let o = self.offsets[0];
-        std::array::from_fn(|i| {
+        from_fn(|i| {
             let mut idx = self.node(o + k[i]).find(qb[i]);
             if idx == B {
                 idx = N;
@@ -307,7 +308,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         }
 
         let o = self.offsets[0];
-        std::array::from_fn(|i| {
+        from_fn(|i| {
             let mut idx = self.node(o + k[i]).find(qb[i]);
             if idx == B {
                 idx = N;
@@ -337,7 +338,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         }
 
         let o = unsafe { *offsets.get_unchecked(0) };
-        std::array::from_fn(|i| {
+        from_fn(|i| {
             let mut idx = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
             if idx == B {
                 idx = N;
@@ -371,7 +372,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         }
 
         let o = unsafe { *offsets.get_unchecked(0) };
-        std::array::from_fn(|i| {
+        from_fn(|i| {
             let mut idx = if !LAST {
                 unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
             } else {
@@ -402,7 +403,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
             }
         }
 
-        std::array::from_fn(|i| {
+        from_fn(|i| {
             let mut idx = if !LAST {
                 unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
             } else {
@@ -459,7 +460,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         }
 
         let o = unsafe { *offsets.get_unchecked(0) };
-        std::array::from_fn(|i| {
+        from_fn(|i| {
             let mut idx = if !LAST {
                 unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
             } else {
@@ -571,7 +572,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
             // last iteration is special, where h2 = 0.
             let o = unsafe { *offsets.get_unchecked(0) };
-            let ans: [u32; P] = std::array::from_fn(|i| {
+            let ans: [u32; P] = from_fn(|i| {
                 let jump_to = if !LAST {
                     unsafe { *o1.byte_add(k1[i]) }.find_splat64(q_simd1[i])
                 } else {
@@ -610,7 +611,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         }
         // h=0
         let o = unsafe { *offsets.get_unchecked(0) };
-        let ans: [u32; P] = std::array::from_fn(|i| {
+        let ans: [u32; P] = from_fn(|i| {
             let mut idx = if !LAST {
                 unsafe { *o.byte_add(k1[i]) }.find_splat(q_simd1[i])
             } else {
