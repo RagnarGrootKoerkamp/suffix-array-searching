@@ -142,6 +142,7 @@ fn main() {
             );
             run_exps(&mut results, size, &STree16::new(vals), qs, run, &exps, "");
 
+            // STree construction parameters: Rev, Fwd, Full
             let exps: T<_, _> = const { [&batched(STree16::batch_ptr3::<128>)] };
             let index = STree16::new_params(vals, false, true, false);
             run_exps(&mut results, size, &index, qs, run, &exps, "Rev");

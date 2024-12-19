@@ -65,8 +65,8 @@ def plot(experiment_name, title, data, names, skip=0, ymax=None, latency=False):
         ax.text(data.sz.max(), 0, "RAM", color="red", va="bottom", ha="right")
 
     # Save
-    fig.savefig(f"plots/{experiment_name}.png", bbox_inches="tight", dpi=600)
-    print(f"Saved {experiment_name}.png")
+    # fig.savefig(f"plots/{experiment_name}.png", bbox_inches="tight", dpi=600)
+    # print(f"Saved {experiment_name}.png")
     fig.savefig(f"plots/{experiment_name}.svg", bbox_inches="tight")
     print(f"Saved {experiment_name}.svg")
     return fig
@@ -197,33 +197,37 @@ def plot_binary_search():
     keep.append(names[-1])
     prune(names)
 
+    names = keep + select("search_with_find<find_linear>")
+    plot("2-hugepages", "Hugepages", data, names).show()
+    prune(select("NoHuge"))
+
     names = keep + select("search_with_find")
-    # plot("2-find", "Optimizing the BTreeNode find function", data, names).show()
+    plot("3-find", "Optimizing the BTreeNode find function", data, names).show()
     prune(names)
 
     names = keep + select("batch<")
-    # plot("3-batching", "Batch size", data, names, ymax=120).show()
+    plot("4-batching", "Batch size", data, names, ymax=120).show()
     keep += select("batch<128>")
     prune(names)
 
     names = keep + select(["batch_prefetch"])
     keep.append(names[-1])
-    # plot("4-prefetch", "Prefetching", data, names, ymax=60).show()
+    plot("5-prefetch", "Prefetching", data, names, ymax=60).show()
     prune(names)
 
     names = keep + select(
         ["batch_prefetch<128", "splat<128", "ptr<128", "ptr2<128", "ptr3<128"]
     )
     keep.append(names[-1])
-    # plot("5-improvements", "Improvements", data, names, ymax=30).show()
+    plot("6-improvements", "Improvements", data, names, ymax=30).show()
     prune(names)
 
     names = keep + select("skip_prefetch")
-    # plot("6-skip-prefetch", "Skip prefetch", data, names, ymax=30).show()
+    plot("7-skip-prefetch", "Skip prefetch", data, names, ymax=30).show()
     prune(names)
 
     names = keep + select("interleave")
-    # plot("7-interleave", "Interleave", data, names, ymax=30).show()
+    plot("8-interleave", "Interleave", data, names, ymax=30).show()
     prune(names)
 
     # Add construction parameter variants
@@ -231,12 +235,12 @@ def plot_binary_search():
 
     names = keep + select("Rev")
     names = [n for n in names if "<15" not in n]
-    # plot("8-params", "Memory layout", data, names, ymax=30).show()
+    plot("9-params", "Memory layout", data, names, ymax=30).show()
     keep.append(select("Rev")[0])
     prune(names)
 
     names = keep + select("<15")
-    plot("9-base15", "Base 15", data, names, ymax=30).show()
+    plot("10-base15", "Base 15", data, names, ymax=30).show()
     prune(names)
 
     plot("99-base15", "Remainder", data, all_names, ymax=30).show()
