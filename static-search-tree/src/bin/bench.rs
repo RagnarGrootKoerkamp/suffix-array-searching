@@ -3,8 +3,10 @@
 use clap::Parser;
 use rdst::RadixSort;
 use static_search_tree::{
+    batched,
     binary_search::SortedVec,
     eytzinger::Eytzinger,
+    full,
     node::BTreeNode,
     s_tree::STree16,
     util::{gen_queries, gen_vals},
@@ -28,6 +30,8 @@ struct Args {
     release: bool,
     #[clap(short, long)]
     dense: bool,
+    #[clap(short, long)]
+    queries: Option<usize>,
 }
 
 static ARGS: LazyLock<Args> = LazyLock::new(|| Args::parse());
@@ -37,7 +41,14 @@ fn main() {
 
     let runs = if ARGS.release { 3 } else { 1 };
     let sizes = sizes();
-    let queries = if ARGS.release { 1_000_000 } else { 100_000 };
+    let queries = ARGS
+        .queries
+        .unwrap_or(if ARGS.release {
+            1_000_000usize
+        } else {
+            100_000
+        })
+        .next_multiple_of(256);
 
     for run in 0..runs {
         // Setup
@@ -83,6 +94,23 @@ fn main() {
                     &STree16::search_with_find(BTreeNode::find_ctz_signed) as _,
                     &STree16::search_with_find(BTreeNode::find_popcnt_portable) as _,
                     &STree16::search_with_find(BTreeNode::find_popcnt) as _,
+                    &batched(STree16::batch::<1>),
+                    &batched(STree16::batch::<2>),
+                    &batched(STree16::batch::<4>),
+                    &batched(STree16::batch::<8>),
+                    &batched(STree16::batch::<16>),
+                    &batched(STree16::batch::<32>),
+                    &batched(STree16::batch::<64>),
+                    &batched(STree16::batch::<128>),
+                    &batched(STree16::batch_prefetch::<32>),
+                    &batched(STree16::batch_splat::<32>),
+                    &batched(STree16::batch_ptr::<32>),
+                    &batched(STree16::batch_ptr2::<32>),
+                    &batched(STree16::batch_ptr3::<32, false>),
+                    &batched(STree16::batch_skip_prefetch::<32, false, 1>),
+                    &batched(STree16::batch_skip_prefetch::<32, false, 2>),
+                    &batched(STree16::batch_skip_prefetch::<32, false, 3>),
+                    &full(STree16::batch_interleave::<16, false>),
                 ]
             };
             run_exps(&mut results, size, vals, qs, run, exps);

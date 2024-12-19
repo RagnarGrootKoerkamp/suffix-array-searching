@@ -56,11 +56,12 @@ impl SearchFunctions {
                 &batched(STree::batch::<64>),
                 &batched(STree::batch::<128>),
                 &batched(STree::batch_prefetch::<128>),
+                &batched(STree::batch_splat::<128>),
                 &batched(STree::batch_ptr::<128>),
                 &batched(STree::batch_ptr2::<128>),
                 &batched(STree::batch_ptr3::<128, false>),
-                &batched(STree::batch_no_prefetch::<128, false, 1>),
-                &batched(STree::batch_no_prefetch::<128, false, 2>),
+                &batched(STree::batch_skip_prefetch::<128, false, 1>),
+                &batched(STree::batch_skip_prefetch::<128, false, 2>),
                 &full(STree::batch_interleave::<64, false>),
                 // &batched(STree::batch_ptr3::<128, true>),
                 // &full(STree::batch_interleave::<64, true>),
@@ -73,11 +74,12 @@ impl SearchFunctions {
                 &STree::search as &dyn SearchScheme<_>,
                 &batched(STree::batch::<128>),
                 &batched(STree::batch_prefetch::<128>),
+                &batched(STree::batch_splat::<128>),
                 &batched(STree::batch_ptr::<128>),
                 &batched(STree::batch_ptr2::<128>),
                 &batched(STree::batch_ptr3::<128, false>),
-                &batched(STree::batch_no_prefetch::<128, false, 1>),
-                &batched(STree::batch_no_prefetch::<128, false, 2>),
+                &batched(STree::batch_skip_prefetch::<128, false, 1>),
+                &batched(STree::batch_skip_prefetch::<128, false, 2>),
                 &full(STree::batch_interleave::<64, false>),
                 // &batched(STree::batch_ptr3::<128, true>),
                 // &full(STree::batch_interleave::<64, true>),
@@ -217,7 +219,7 @@ impl SearchFunctions {
             let bpr = STree16::new_params(&vals, true, true, false);
             let strings = ["", "t1", "t2", "t3", "t4", "t5", "t6"];
             for threads in 1..=6 {
-                let scheme = batched(STree::batch_no_prefetch::<128, false, 1>);
+                let scheme = batched(STree::batch_skip_prefetch::<128, false, 1>);
                 let t = bench_scheme_par(&bpr, &scheme, qs, threads);
                 results.entry(strings[threads]).or_default().push((size, t));
             }

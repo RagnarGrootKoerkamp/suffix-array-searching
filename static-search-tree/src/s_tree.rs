@@ -171,12 +171,16 @@ impl<const B: usize, const N: usize> STree<B, N> {
         self.get(o + k + idx / N, idx % N)
     }
 
-    pub fn batch<'a, const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
+    fn batch_impl<'a, const P: usize, const PF: bool>(&self, qb: &[u32; P]) -> [u32; P] {
         let mut k = [0; P];
-        for [o, _o2] in self.offsets.array_windows() {
+        for [o, o2] in self.offsets.array_windows() {
             for i in 0..P {
                 let jump_to = self.node(o + k[i]).find(qb[i]);
                 k[i] = k[i] * (B + 1) + jump_to;
+
+                if PF {
+                    prefetch_index(&self.tree, o2 + k[i]);
+                }
             }
         }
 
@@ -187,7 +191,14 @@ impl<const B: usize, const N: usize> STree<B, N> {
         })
     }
 
-    pub fn batch_prefetch<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
+    pub fn batch<'a, const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
+        self.batch_impl::<P, false>(qb)
+    }
+    pub fn batch_prefetch<'a, const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
+        self.batch_impl::<P, true>(qb)
+    }
+
+    pub fn batch_splat<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
         let mut k = [0; P];
         let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
         for [o, o2] in self.offsets.array_windows() {
@@ -288,35 +299,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         })
     }
 
-    pub fn batch_ptr3_full<const P: usize, const LAST: bool>(&self, qb: &[u32; P]) -> [u32; P] {
-        let mut k = [0; P];
-        let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
-
-        let o = self.tree.as_ptr();
-
-        for _h in 0..self.offsets.len() - 1 {
-            for i in 0..P {
-                let jump_to = if !LAST {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
-                } else {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
-                };
-                k[i] = k[i] * (B + 1) + jump_to + 64;
-                prefetch_ptr(unsafe { o.byte_add(k[i]) });
-            }
-        }
-
-        from_fn(|i| {
-            let idx = if !LAST {
-                unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
-            } else {
-                unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
-            };
-            unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
-        })
-    }
-
-    pub fn batch_no_prefetch<const P: usize, const LAST: bool, const SKIP: usize>(
+    pub fn batch_skip_prefetch<const P: usize, const LAST: bool, const SKIP: usize>(
         &self,
         qb: &[u32; P],
     ) -> [u32; P] {
@@ -357,6 +340,34 @@ impl<const B: usize, const N: usize> STree<B, N> {
         }
 
         let o = offsets.last().unwrap();
+        from_fn(|i| {
+            let idx = if !LAST {
+                unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
+            } else {
+                unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
+            };
+            unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
+        })
+    }
+
+    pub fn batch_ptr3_full<const P: usize, const LAST: bool>(&self, qb: &[u32; P]) -> [u32; P] {
+        let mut k = [0; P];
+        let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
+
+        let o = self.tree.as_ptr();
+
+        for _h in 0..self.offsets.len() - 1 {
+            for i in 0..P {
+                let jump_to = if !LAST {
+                    unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
+                } else {
+                    unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
+                };
+                k[i] = k[i] * (B + 1) + jump_to + 64;
+                prefetch_ptr(unsafe { o.byte_add(k[i]) });
+            }
+        }
+
         from_fn(|i| {
             let idx = if !LAST {
                 unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
