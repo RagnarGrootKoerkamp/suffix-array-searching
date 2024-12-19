@@ -106,11 +106,11 @@ fn main() {
                     &batched(STree16::batch_splat::<32>),
                     &batched(STree16::batch_ptr::<32>),
                     &batched(STree16::batch_ptr2::<32>),
-                    &batched(STree16::batch_ptr3::<32, false>),
-                    &batched(STree16::batch_skip_prefetch::<32, false, 1>),
-                    &batched(STree16::batch_skip_prefetch::<32, false, 2>),
-                    &batched(STree16::batch_skip_prefetch::<32, false, 3>),
-                    &full(STree16::batch_interleave::<16, false>),
+                    &batched(STree16::batch_ptr3::<32>),
+                    &batched(STree16::batch_skip_prefetch::<32, 1>),
+                    &batched(STree16::batch_skip_prefetch::<32, 2>),
+                    &batched(STree16::batch_skip_prefetch::<32, 3>),
+                    &full(STree16::batch_interleave::<16>),
                 ]
             };
             run_exps(&mut results, size, vals, qs, run, exps);

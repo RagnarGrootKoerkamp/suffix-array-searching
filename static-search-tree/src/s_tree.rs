@@ -266,7 +266,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         })
     }
 
-    pub fn batch_ptr3<const P: usize, const LAST: bool>(&self, qb: &[u32; P]) -> [u32; P] {
+    pub fn batch_ptr3<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
         let mut k = [0; P];
         let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
 
@@ -278,11 +278,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
         for [o, o2] in offsets.array_windows() {
             for i in 0..P {
-                let jump_to = if !LAST {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
-                } else {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
-                };
+                let jump_to = unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i]);
                 k[i] = k[i] * (B + 1) + jump_to;
                 prefetch_ptr(unsafe { o2.byte_add(k[i]) });
             }
@@ -290,16 +286,12 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
         let o = offsets.last().unwrap();
         from_fn(|i| {
-            let idx = if !LAST {
-                unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
-            } else {
-                unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
-            };
+            let idx = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
             unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
         })
     }
 
-    pub fn batch_skip_prefetch<const P: usize, const LAST: bool, const SKIP: usize>(
+    pub fn batch_skip_prefetch<const P: usize, const SKIP: usize>(
         &self,
         qb: &[u32; P],
     ) -> [u32; P] {
@@ -317,11 +309,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         for o in &offsets[..skip] {
             // let o2 = unsafe { *offsets.get_unchecked(h - 1) };
             for i in 0..P {
-                let jump_to = if !LAST {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
-                } else {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
-                };
+                let jump_to = unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i]);
                 k[i] = k[i] * (B + 1) + jump_to;
                 // prefetch_ptr(unsafe { o2.byte_add(k[i]) });
             }
@@ -329,11 +317,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
         for [o, o2] in offsets[skip..].array_windows() {
             for i in 0..P {
-                let jump_to = if !LAST {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
-                } else {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
-                };
+                let jump_to = unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i]);
                 k[i] = k[i] * (B + 1) + jump_to;
                 prefetch_ptr(unsafe { o2.byte_add(k[i]) });
             }
@@ -341,16 +325,12 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
         let o = offsets.last().unwrap();
         from_fn(|i| {
-            let idx = if !LAST {
-                unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
-            } else {
-                unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
-            };
+            let idx = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
             unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
         })
     }
 
-    pub fn batch_ptr3_full<const P: usize, const LAST: bool>(&self, qb: &[u32; P]) -> [u32; P] {
+    pub fn batch_ptr3_full<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
         let mut k = [0; P];
         let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
 
@@ -358,27 +338,19 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
         for _h in 0..self.offsets.len() - 1 {
             for i in 0..P {
-                let jump_to = if !LAST {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
-                } else {
-                    unsafe { *o.byte_add(k[i]) }.find_splat64_last(q_simd[i])
-                };
+                let jump_to = unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i]);
                 k[i] = k[i] * (B + 1) + jump_to + 64;
                 prefetch_ptr(unsafe { o.byte_add(k[i]) });
             }
         }
 
         from_fn(|i| {
-            let idx = if !LAST {
-                unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
-            } else {
-                unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
-            };
+            let idx = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
             unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
         })
     }
 
-    pub fn batch_interleave<const P: usize, const LAST: bool>(&self, qs: &[u32]) -> Vec<u32> {
+    pub fn batch_interleave<const P: usize>(&self, qs: &[u32]) -> Vec<u32> {
         if self.offsets.len() % 2 != 0 {
             return vec![];
         }
@@ -421,11 +393,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
             let o = unsafe { *offsets.get_unchecked(h1) };
             let o2 = unsafe { *offsets.get_unchecked(h1 + 1) };
             for i in 0..P {
-                let jump_to = if !LAST {
-                    unsafe { *o.byte_add(k1[i]) }.find_splat64(q_simd1[i])
-                } else {
-                    unsafe { *o.byte_add(k1[i]) }.find_splat64_last(q_simd1[i])
-                };
+                let jump_to = unsafe { *o.byte_add(k1[i]) }.find_splat64(q_simd1[i]);
                 k1[i] = k1[i] * (B + 1) + jump_to;
                 prefetch_ptr(unsafe { o2.byte_add(k1[i]) });
             }
@@ -450,20 +418,12 @@ impl<const B: usize, const N: usize> STree<B, N> {
                 let o22 = unsafe { *offsets.get_unchecked(h2 + 1) };
                 for i in 0..P {
                     // 1
-                    let jump_to = if !LAST {
-                        unsafe { *o1.byte_add(k1[i]) }.find_splat64(q_simd1[i])
-                    } else {
-                        unsafe { *o1.byte_add(k1[i]) }.find_splat64_last(q_simd1[i])
-                    };
+                    let jump_to = unsafe { *o1.byte_add(k1[i]) }.find_splat64(q_simd1[i]);
                     k1[i] = k1[i] * (B + 1) + jump_to;
                     prefetch_ptr(unsafe { o12.byte_add(k1[i]) });
 
                     // 2
-                    let jump_to = if !LAST {
-                        unsafe { *o2.byte_add(k2[i]) }.find_splat64(q_simd2[i])
-                    } else {
-                        unsafe { *o2.byte_add(k2[i]) }.find_splat64_last(q_simd2[i])
-                    };
+                    let jump_to = unsafe { *o2.byte_add(k2[i]) }.find_splat64(q_simd2[i]);
                     k2[i] = k2[i] * (B + 1) + jump_to;
                     prefetch_ptr(unsafe { o22.byte_add(k2[i]) });
                 }
@@ -477,19 +437,11 @@ impl<const B: usize, const N: usize> STree<B, N> {
             // last iteration is special, where h2 = 0.
             let o = offsets.last().unwrap();
             let ans: [u32; P] = from_fn(|i| {
-                let jump_to = if !LAST {
-                    unsafe { *o1.byte_add(k1[i]) }.find_splat64(q_simd1[i])
-                } else {
-                    unsafe { *o1.byte_add(k1[i]) }.find_splat64_last(q_simd1[i])
-                };
+                let jump_to = unsafe { *o1.byte_add(k1[i]) }.find_splat64(q_simd1[i]);
                 k1[i] = k1[i] * (B + 1) + jump_to;
                 prefetch_ptr(unsafe { o12.byte_add(k1[i]) });
 
-                let idx = if !LAST {
-                    unsafe { *o.byte_add(k2[i]) }.find_splat(q_simd2[i])
-                } else {
-                    unsafe { *o.byte_add(k2[i]) }.find_splat_last(q_simd2[i])
-                };
+                let idx = unsafe { *o.byte_add(k2[i]) }.find_splat(q_simd2[i]);
                 unsafe { (o.byte_add(k2[i]) as *const u32).add(idx).read() }
             });
             out.extend_from_slice(&ans);
@@ -501,11 +453,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
             let o = unsafe { *offsets.get_unchecked(h2) };
             let o2 = unsafe { *offsets.get_unchecked(h2 + 1) };
             for i in 0..P {
-                let jump_to = if !LAST {
-                    unsafe { *o.byte_add(k1[i]) }.find_splat64(q_simd1[i])
-                } else {
-                    unsafe { *o.byte_add(k1[i]) }.find_splat64_last(q_simd1[i])
-                };
+                let jump_to = unsafe { *o.byte_add(k1[i]) }.find_splat64(q_simd1[i]);
                 k1[i] = k1[i] * (B + 1) + jump_to;
                 prefetch_ptr(unsafe { o2.byte_add(k1[i]) });
             }
@@ -513,11 +461,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         // h=0
         let o = offsets.last().unwrap();
         let ans: [u32; P] = from_fn(|i| {
-            let idx = if !LAST {
-                unsafe { *o.byte_add(k1[i]) }.find_splat(q_simd1[i])
-            } else {
-                unsafe { *o.byte_add(k1[i]) }.find_splat_last(q_simd1[i])
-            };
+            let idx = unsafe { *o.byte_add(k1[i]) }.find_splat(q_simd1[i]);
             unsafe { (o.byte_add(k1[i]) as *const u32).add(idx).read() }
         });
         out.extend_from_slice(&ans);
