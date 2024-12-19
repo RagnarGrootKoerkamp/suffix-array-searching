@@ -149,10 +149,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         }
 
         let o = self.offsets.last().unwrap();
-        let mut idx = find(self.node(o + k), q);
-        if idx == B {
-            idx = N;
-        }
+        let idx = find(self.node(o + k), q);
         self.get(o + k + idx / N, idx % N)
     }
 
@@ -170,10 +167,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         }
 
         let o = self.offsets.last().unwrap();
-        let mut idx = self.node(o + k).find(q);
-        if idx == B {
-            idx = N;
-        }
+        let idx = self.node(o + k).find(q);
         self.get(o + k + idx / N, idx % N)
     }
 
@@ -188,10 +182,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
         let o = self.offsets.last().unwrap();
         from_fn(|i| {
-            let mut idx = self.node(o + k[i]).find(qb[i]);
-            if idx == B {
-                idx = N;
-            }
+            let idx = self.node(o + k[i]).find(qb[i]);
             self.get(o + k[i] + idx / N, idx % N)
         })
     }
@@ -209,10 +200,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
         let o = self.offsets.last().unwrap();
         from_fn(|i| {
-            let mut idx = self.node(o + k[i]).find(qb[i]);
-            if idx == B {
-                idx = N;
-            }
+            let idx = self.node(o + k[i]).find(qb[i]);
             self.get(o + k[i] + idx / N, idx % N)
         })
     }
@@ -237,10 +225,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
         let o = self.offsets.last().unwrap();
         from_fn(|i| {
-            let mut idx = self.node(o + k[i]).find(qb[i]);
-            if idx == B {
-                idx = N;
-            }
+            let idx = self.node(o + k[i]).find(qb[i]);
             self.get(o + k[i] + idx / N, idx % N)
         })
     }
@@ -265,10 +250,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
         let o = offsets.last().unwrap();
         from_fn(|i| {
-            let mut idx = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
-            if idx == B {
-                idx = N;
-            }
+            let idx = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
             unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
         })
     }
@@ -297,14 +279,11 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
         let o = offsets.last().unwrap();
         from_fn(|i| {
-            let mut idx = if !LAST {
+            let idx = if !LAST {
                 unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
             } else {
                 unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
             };
-            if idx == B {
-                idx = N;
-            }
             unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
         })
     }
@@ -328,14 +307,11 @@ impl<const B: usize, const N: usize> STree<B, N> {
         }
 
         from_fn(|i| {
-            let mut idx = if !LAST {
+            let idx = if !LAST {
                 unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
             } else {
                 unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
             };
-            if idx == B {
-                idx = N;
-            }
             unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
         })
     }
@@ -382,14 +358,11 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
         let o = offsets.last().unwrap();
         from_fn(|i| {
-            let mut idx = if !LAST {
+            let idx = if !LAST {
                 unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
             } else {
                 unsafe { *o.byte_add(k[i]) }.find_splat_last(q_simd[i])
             };
-            if idx == B {
-                idx = N;
-            }
             unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
         })
     }
@@ -501,14 +474,11 @@ impl<const B: usize, const N: usize> STree<B, N> {
                 k1[i] = k1[i] * (B + 1) + jump_to;
                 prefetch_ptr(unsafe { o12.byte_add(k1[i]) });
 
-                let mut idx = if !LAST {
+                let idx = if !LAST {
                     unsafe { *o.byte_add(k2[i]) }.find_splat(q_simd2[i])
                 } else {
                     unsafe { *o.byte_add(k2[i]) }.find_splat_last(q_simd2[i])
                 };
-                if idx == B {
-                    idx = N;
-                }
                 unsafe { (o.byte_add(k2[i]) as *const u32).add(idx).read() }
             });
             out.extend_from_slice(&ans);
@@ -532,14 +502,11 @@ impl<const B: usize, const N: usize> STree<B, N> {
         // h=0
         let o = offsets.last().unwrap();
         let ans: [u32; P] = from_fn(|i| {
-            let mut idx = if !LAST {
+            let idx = if !LAST {
                 unsafe { *o.byte_add(k1[i]) }.find_splat(q_simd1[i])
             } else {
                 unsafe { *o.byte_add(k1[i]) }.find_splat_last(q_simd1[i])
             };
-            if idx == B {
-                idx = N;
-            }
             unsafe { (o.byte_add(k1[i]) as *const u32).add(idx).read() }
         });
         out.extend_from_slice(&ans);
