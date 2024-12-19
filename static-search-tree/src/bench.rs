@@ -47,6 +47,8 @@ impl SearchFunctions {
             [
                 &STree::search as &dyn SearchScheme<_>,
                 &STree::search_with_find(BTreeNode::find_split) as _,
+                &STree::search_with_find(BTreeNode::find_ctz_signed) as _,
+                &STree::search_with_find(BTreeNode::find_popcnt_portable) as _,
                 &batched(STree::batch::<4>),
                 &batched(STree::batch::<8>),
                 &batched(STree::batch::<16>),
