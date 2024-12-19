@@ -38,13 +38,11 @@ impl<const B: usize, const N: usize> STree<B, N> {
             Self::height(Self::prev_keys(n)) + 1
         }
     }
-    fn offset(mut n: usize, h: usize) -> usize {
-        let mut k = 0;
-        for _ in 0..h {
-            k += Self::blocks(n);
+    fn layer_size(mut n: usize, h: usize, height: usize) -> usize {
+        for _ in h..height - 1 {
             n = Self::prev_keys(n);
         }
-        k
+        n
     }
 
     fn go_to(k: usize, j: usize) -> usize {
@@ -63,160 +61,94 @@ impl<const B: usize, const N: usize> STree<B, N> {
         if full_array {
             assert!(fwd, "Full array only makes sense in forward layout.");
         }
-        if fwd {
-            let n = vals.len();
-            let height = Self::height(n);
-            let n_blocks = if full_array {
-                let mut idx = 0;
-                for _ in 0..height {
-                    idx = Self::go_to(idx, 0);
-                }
-                idx
-            } else {
-                Self::offset(n, height)
-            };
 
-            eprintln!("Allocating tree of {} blocks ..", n_blocks);
-            let tree = vec![BTreeNode { data: [0; N] }; n_blocks];
-            eprintln!("Allocating DONE");
-            let mut bptree = Self {
-                tree,
-                offsets: if full_array {
-                    let mut idx = 0;
-                    let mut v = (0..height)
-                        .map(|_| {
-                            let t = idx;
-                            idx = Self::go_to(idx, 0);
-                            t
-                        })
-                        .collect_vec();
-                    v.reverse();
-                    v
-                } else {
-                    (1..=height)
-                        .map(|h| n_blocks - Self::offset(n, h))
-                        .collect()
-                },
-            };
-            // eprintln!("Height: {}, n_blocks: {}", height, n_blocks);
-            // eprintln!("FWD {:?}", bptree.offsets);
-
-            for &v in vals {
-                assert!(v <= MAX);
-            }
-
-            // offset of the layer containing original data.
-            let o = bptree.offsets[0];
-            // eprintln!("o: {}", o);
-
-            // Copy the input values to their layer.
-            for (i, &val) in vals.iter().enumerate() {
-                bptree.tree[o + i / B].data[i % B] = val;
-            }
-
-            // Initialize layers; copied from Algorithmica.
-            // https://en.algorithmica.org/hpc/data-structures/s-tree/#construction-1
-            for h in 1..height {
-                eprintln!("Starting layer {h} at offset {}", bptree.offsets[h]);
-                for i in 0..B * (bptree.offsets[h - 1] - bptree.offsets[h]) {
-                    let mut k = i / B;
-                    let j = i % B;
-                    k = k * (B + 1) + j + 1;
-                    // compare to right of key
-                    // and then to the left
-                    for _l in 1..h {
-                        k *= B + 1;
-                    }
-                    // eprintln!("Writing layer {h} offset {} + {}", bptree.offsets[h], i / B);
-                    let t = bptree.offsets[h] + i / B;
-                    if !rev {
-                        if k * B < n {
-                            bptree.tree[t].data[i % B] = bptree.tree[o + k].data[0];
-                        } else {
-                            for j in i % B..B {
-                                bptree.tree[t].data[j] = MAX;
-                            }
-                            eprintln!("Breaking in layer {h} at index B*{t}+{}", i % B);
-                            break;
-                        }
-                    } else {
-                        if k * B < n {
-                            bptree.tree[t].data[i % B] = bptree.tree[o + k - 1].data[B - 1];
-                        } else {
-                            for j in i % B..B {
-                                bptree.tree[t].data[j] = MAX;
-                            }
-                            eprintln!("Breaking in layer {h} at index B*{t}+{}", i % B);
-                            break;
-                        }
-                    }
-                }
-            }
-            // for o in &bptree.offsets {
-            //     eprintln!("Offset: {}", o);
-            // }
-            // for node in &bptree.tree {
-            //     eprintln!("{:?}", node);
-            // }
-            bptree
-        } else {
-            let n = vals.len();
-            let height = Self::height(n);
-            let n_blocks = Self::offset(n, height);
-            let mut bptree = Self {
-                tree: vec![BTreeNode { data: [MAX; N] }; n_blocks],
-                offsets: (0..=height).map(|h| Self::offset(n, h)).collect(),
-            };
-            // eprintln!("REV {:?}", bptree.offsets);
-
-            for &v in vals {
-                assert!(v <= MAX);
-            }
-
-            // Copy the input values to the start.
-            for (i, &val) in vals.iter().enumerate() {
-                bptree.tree[i / B].data[i % B] = val;
-            }
-            // Initialize layers; copied from Algorithmica.
-            // https://en.algorithmica.org/hpc/data-structures/s-tree/#construction-1
-            for h in 1..height {
-                for i in 0..B * (bptree.offsets[h + 1] - bptree.offsets[h]) {
-                    let mut k = i / B;
-                    let j = i % B;
-                    k = k * (B + 1) + j + 1;
-                    // compare to right of key
-                    // and then to the left
-                    for _l in 0..h - 1 {
-                        k *= B + 1;
-                    }
-                    if !rev {
-                        bptree.tree[bptree.offsets[h] + i / B].data[i % B] = if k * B < n {
-                            bptree.tree[k].data[0]
-                        } else {
-                            MAX
-                        };
-                    } else {
-                        bptree.tree[bptree.offsets[h] + i / B].data[i % B] = if k * B < n {
-                            bptree.tree[k - 1].data[B - 1]
-                        } else {
-                            MAX
-                        };
-                    }
-                }
-            }
-            bptree.offsets.pop();
-            bptree
+        for &v in vals {
+            assert!(v <= MAX);
         }
+
+        let n = vals.len();
+
+        assert!(n > 0);
+        let height = Self::height(n);
+        assert!(height > 0);
+        let layer_sizes = if full_array {
+            (0..height).map(|h| (B + 1).pow(h as u32)).collect_vec()
+        } else {
+            (0..height)
+                .map(|h| Self::layer_size(n, h, height).div_ceil(B))
+                .collect_vec()
+        };
+        assert!(layer_sizes[0] > 0);
+        let n_blocks = layer_sizes.iter().sum::<usize>();
+
+        let offsets = if fwd {
+            let mut sum = 0;
+            layer_sizes
+                .iter()
+                .map(|sz| {
+                    let offset = sum;
+                    sum += sz;
+                    offset
+                })
+                .collect_vec()
+        } else {
+            let mut sum = 0;
+            layer_sizes
+                .iter()
+                .map(|sz| {
+                    sum += sz;
+                    n_blocks - sum
+                })
+                .collect_vec()
+        };
+
+        let mut tree = vec![BTreeNode { data: [MAX; N] }; n_blocks];
+
+        // Copy the input values to the last layer.
+        let ol = offsets[height - 1];
+        for (i, &val) in vals.iter().enumerate() {
+            tree[ol + i / B].data[i % B] = val;
+            // If B<N and there is some buffer space in each node, fill in the next larger element.
+            if B < N && i % B == 0 && i > 0 {
+                tree[ol + i / B - 1].data[B] = val;
+            }
+        }
+        // Initialize layers; based on Algorithmica.
+        // https://en.algorithmica.org/hpc/data-structures/s-tree/#construction-1
+        for h in (0..height - 1).rev() {
+            let oh = offsets[h];
+            for i in 0..B * layer_sizes[h] {
+                let mut k = i / B;
+                let j = i % B;
+                k = k * (B + 1) + j + 1;
+                // compare to right of key
+                // and then to the left
+                for _l in h..height - 2 {
+                    k *= B + 1;
+                }
+                tree[oh + i / B].data[i % B] = if k * B < n {
+                    if !rev {
+                        tree[ol + k].data[0]
+                    } else {
+                        tree[ol + k - 1].data[B - 1]
+                    }
+                } else {
+                    MAX
+                };
+            }
+        }
+        assert!(offsets.len() > 0);
+        Self { tree, offsets }
     }
 
     fn search_with_find_impl(&self, q: u32, find: impl Fn(&BTreeNode<N>, u32) -> usize) -> u32 {
         let mut k = 0;
-        for o in self.offsets[1..self.offsets.len()].into_iter().rev() {
+        for [o, _o2] in self.offsets.array_windows() {
             let jump_to = find(self.node(o + k), q);
             k = k * (B + 1) + jump_to;
         }
 
-        let o = self.offsets[0];
+        let o = self.offsets.last().unwrap();
         let mut idx = find(self.node(o + k), q);
         if idx == B {
             idx = N;
@@ -232,12 +164,12 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
     pub fn search(&self, q: u32) -> u32 {
         let mut k = 0;
-        for o in self.offsets[1..self.offsets.len()].into_iter().rev() {
+        for [o, _o2] in self.offsets.array_windows() {
             let jump_to = self.node(o + k).find(q);
             k = k * (B + 1) + jump_to;
         }
 
-        let o = self.offsets[0];
+        let o = self.offsets.last().unwrap();
         let mut idx = self.node(o + k).find(q);
         if idx == B {
             idx = N;
@@ -247,14 +179,14 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
     pub fn batch<'a, const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
         let mut k = [0; P];
-        for o in self.offsets[1..self.offsets.len()].into_iter().rev() {
+        for [o, _o2] in self.offsets.array_windows() {
             for i in 0..P {
                 let jump_to = self.node(o + k[i]).find(qb[i]);
                 k[i] = k[i] * (B + 1) + jump_to;
             }
         }
 
-        let o = self.offsets[0];
+        let o = self.offsets.last().unwrap();
         from_fn(|i| {
             let mut idx = self.node(o + k[i]).find(qb[i]);
             if idx == B {
@@ -267,9 +199,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
     pub fn batch_prefetch<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
         let mut k = [0; P];
         let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
-        for h in (1..self.offsets.len()).rev() {
-            let o = unsafe { self.offsets.get_unchecked(h) };
-            let o2 = unsafe { self.offsets.get_unchecked(h - 1) };
+        for [o, o2] in self.offsets.array_windows() {
             for i in 0..P {
                 let jump_to = self.node(o + k[i]).find_splat(q_simd[i]);
                 k[i] = k[i] * (B + 1) + jump_to;
@@ -277,7 +207,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
             }
         }
 
-        let o = self.offsets[0];
+        let o = self.offsets.last().unwrap();
         from_fn(|i| {
             let mut idx = self.node(o + k[i]).find(qb[i]);
             if idx == B {
@@ -297,9 +227,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
             .map(|o| unsafe { self.tree.as_ptr().add(*o) })
             .collect_vec();
 
-        for h in (1..offsets.len()).rev() {
-            let o = unsafe { *offsets.get_unchecked(h) };
-            let o2 = unsafe { *offsets.get_unchecked(h - 1) };
+        for [o, o2] in offsets.array_windows() {
             for i in 0..P {
                 let jump_to = unsafe { *o.add(k[i]) }.find_splat(q_simd[i]);
                 k[i] = k[i] * (B + 1) + jump_to;
@@ -307,7 +235,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
             }
         }
 
-        let o = self.offsets[0];
+        let o = self.offsets.last().unwrap();
         from_fn(|i| {
             let mut idx = self.node(o + k[i]).find(qb[i]);
             if idx == B {
@@ -327,9 +255,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
             .map(|o| unsafe { self.tree.as_ptr().add(*o) })
             .collect_vec();
 
-        for h in (1..offsets.len()).rev() {
-            let o = unsafe { *offsets.get_unchecked(h) };
-            let o2 = unsafe { *offsets.get_unchecked(h - 1) };
+        for [o, o2] in offsets.array_windows() {
             for i in 0..P {
                 let jump_to = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
                 k[i] = k[i] * (B + 1) + jump_to * 64;
@@ -337,7 +263,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
             }
         }
 
-        let o = unsafe { *offsets.get_unchecked(0) };
+        let o = offsets.last().unwrap();
         from_fn(|i| {
             let mut idx = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
             if idx == B {
@@ -357,9 +283,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
             .map(|o| unsafe { self.tree.as_ptr().add(*o) })
             .collect_vec();
 
-        for h in (1..offsets.len()).rev() {
-            let o = unsafe { *offsets.get_unchecked(h) };
-            let o2 = unsafe { *offsets.get_unchecked(h - 1) };
+        for [o, o2] in offsets.array_windows() {
             for i in 0..P {
                 let jump_to = if !LAST {
                     unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
@@ -371,7 +295,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
             }
         }
 
-        let o = unsafe { *offsets.get_unchecked(0) };
+        let o = offsets.last().unwrap();
         from_fn(|i| {
             let mut idx = if !LAST {
                 unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
@@ -391,7 +315,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
         let o = self.tree.as_ptr();
 
-        for _h in (1..self.offsets.len()).rev() {
+        for _h in 0..self.offsets.len() - 1 {
             for i in 0..P {
                 let jump_to = if !LAST {
                     unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
@@ -429,10 +353,9 @@ impl<const B: usize, const N: usize> STree<B, N> {
             .map(|o| unsafe { self.tree.as_ptr().add(*o) })
             .collect_vec();
 
-        let lim = offsets.len().saturating_sub(SKIP).max(1);
+        let skip = SKIP.min(offsets.len() - 1);
 
-        for h in (lim..offsets.len()).rev() {
-            let o = unsafe { *offsets.get_unchecked(h) };
+        for o in &offsets[..skip] {
             // let o2 = unsafe { *offsets.get_unchecked(h - 1) };
             for i in 0..P {
                 let jump_to = if !LAST {
@@ -445,9 +368,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
             }
         }
 
-        for h in (1..lim).rev() {
-            let o = unsafe { *offsets.get_unchecked(h) };
-            let o2 = unsafe { *offsets.get_unchecked(h - 1) };
+        for [o, o2] in offsets[skip..].array_windows() {
             for i in 0..P {
                 let jump_to = if !LAST {
                     unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i])
@@ -459,7 +380,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
             }
         }
 
-        let o = unsafe { *offsets.get_unchecked(0) };
+        let o = offsets.last().unwrap();
         from_fn(|i| {
             let mut idx = if !LAST {
                 unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i])
@@ -508,14 +429,13 @@ impl<const B: usize, const N: usize> STree<B, N> {
         let mut q_simd2 = &mut [Simd::<u32, 8>::splat(0); P];
         *q_simd1 = c1.map(|q| Simd::<u32, 8>::splat(q));
 
-        let hs_first = (hh..offsets.len()).rev();
-        let hs_second = (1..hh).rev();
+        let hs_first = 0..hh;
+        let hs_second = hh..offsets.len() - 1;
 
         // 1
         for h1 in hs_first.clone() {
-            // eprintln!("h1: {}", h1);
             let o = unsafe { *offsets.get_unchecked(h1) };
-            let o2 = unsafe { *offsets.get_unchecked(h1 - 1) };
+            let o2 = unsafe { *offsets.get_unchecked(h1 + 1) };
             for i in 0..P {
                 let jump_to = if !LAST {
                     unsafe { *o.byte_add(k1[i]) }.find_splat64(q_simd1[i])
@@ -541,9 +461,9 @@ impl<const B: usize, const N: usize> STree<B, N> {
             for (h1, h2) in zip(hs_first.clone(), hs_second.clone()) {
                 // eprintln!("h1: {}, h2: {}", h1, h2);
                 let o1 = unsafe { *offsets.get_unchecked(h1) };
-                let o12 = unsafe { *offsets.get_unchecked(h1 - 1) };
+                let o12 = unsafe { *offsets.get_unchecked(h1 + 1) };
                 let o2 = unsafe { *offsets.get_unchecked(h2) };
-                let o22 = unsafe { *offsets.get_unchecked(h2 - 1) };
+                let o22 = unsafe { *offsets.get_unchecked(h2 + 1) };
                 for i in 0..P {
                     // 1
                     let jump_to = if !LAST {
@@ -567,11 +487,11 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
             // eprintln!("h1: {}, h2: {}", hh, 0);
 
-            let o1 = unsafe { *offsets.get_unchecked(hh) };
-            let o12 = unsafe { *offsets.get_unchecked(hh - 1) };
+            let o1 = unsafe { *offsets.get_unchecked(hh - 1) };
+            let o12 = unsafe { *offsets.get_unchecked(hh) };
 
             // last iteration is special, where h2 = 0.
-            let o = unsafe { *offsets.get_unchecked(0) };
+            let o = offsets.last().unwrap();
             let ans: [u32; P] = from_fn(|i| {
                 let jump_to = if !LAST {
                     unsafe { *o1.byte_add(k1[i]) }.find_splat64(q_simd1[i])
@@ -598,7 +518,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         for h2 in hs_second {
             // eprintln!("h2: {}", h2);
             let o = unsafe { *offsets.get_unchecked(h2) };
-            let o2 = unsafe { *offsets.get_unchecked(h2 - 1) };
+            let o2 = unsafe { *offsets.get_unchecked(h2 + 1) };
             for i in 0..P {
                 let jump_to = if !LAST {
                     unsafe { *o.byte_add(k1[i]) }.find_splat64(q_simd1[i])
@@ -610,7 +530,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
             }
         }
         // h=0
-        let o = unsafe { *offsets.get_unchecked(0) };
+        let o = offsets.last().unwrap();
         let ans: [u32; P] = from_fn(|i| {
             let mut idx = if !LAST {
                 unsafe { *o.byte_add(k1[i]) }.find_splat(q_simd1[i])

@@ -1,4 +1,4 @@
-#![feature(array_chunks, portable_simd)]
+#![feature(array_chunks, portable_simd, array_windows)]
 
 mod bench;
 pub mod binary_search;
