@@ -8,7 +8,9 @@ from matplotlib.ticker import LogLocator
 import re
 
 palette = None
-dashes = {"": "", "Latency": (1, 1), "Prefetch": (2, 1)}
+dashes = {"": ""}
+
+(l1_size, _), (l2_size, _), (l3_size, _) = caches()
 
 
 def caches():
@@ -21,7 +23,9 @@ def caches():
     return sizes
 
 
-def plot(experiment_name, title, data, names, skip=0, ymax=None, latency=False):
+def plot(
+    experiment_name, title, data, names, skip=0, ymax=None, latency=False, style="Style"
+):
     # Create a figure
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.set_title(title)
@@ -36,6 +40,7 @@ def plot(experiment_name, title, data, names, skip=0, ymax=None, latency=False):
     # assert s in dashes
 
     data = data[data["name"].isin(names)]
+
     sns.lineplot(
         x="sz",
         y="latency",
@@ -43,24 +48,45 @@ def plot(experiment_name, title, data, names, skip=0, ymax=None, latency=False):
             "name"
             # "Color" if len(data.batchsize.unique()) == 1 else "display_name"
         ].tolist(),
-        style="Style",  # if data.Style.unique().tolist() != [""] else None,
+        style=style,  # if data.Style.unique().tolist() != [""] else None,
         # dashes=dashes,
         data=data,
         legend="auto",
         sizes=[2, 3, 4, 5, 6, 7, 8, 9],
         palette=palette,
-        errorbar=("pi", 100),
+        errorbar=("pi", 50),
         estimator="median",
     )
 
+    # Plot index size with a separate y-scale.
+    size_ax = ax.twinx()
+    sns.lineplot(
+        x="sz",
+        y="index_size",
+        hue=data["name"].tolist(),
+        # style=style,
+        linestyle="dotted",
+        data=data,
+        legend=None,
+        palette=palette,
+        ax=size_ax,
+    )
+
+    size_ax.set_yscale("log", base=2)
+    size_ax.grid(True, alpha=0.4, ls="dotted")
+    size_ax.set_ylim(2**6, 2**30)
+
     ax.set_xscale("log", base=2)
-    # Add more xticks locator
-    # ax.set_xticks()
     ax.xaxis.set_major_locator(LogLocator(base=4, numticks=20))
     ax.set_ylim(0, ymax)
     ax.grid(True, alpha=0.4)
     ax.grid(which="minor", color="gray", alpha=0.2)
     ax.legend(loc="upper left")
+
+    secax = ax.secondary_xaxis("top", functions=(lambda x: x / 4, lambda x: x * 4))
+    secax.set_xscale("log", base=2)
+    secax.set_xlabel("Array length (u32)")
+    secax.set_xticks([4**i for i in range(20)])
 
     # Add vertical lines for cache sizes
     for size, name in caches():
