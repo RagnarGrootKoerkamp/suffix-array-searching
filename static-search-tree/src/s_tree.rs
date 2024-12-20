@@ -19,6 +19,10 @@ impl<const B: usize, const N: usize> SearchIndex for STree<B, N> {
     fn new(vals: &[u32]) -> Self {
         Self::new_params(vals, false, false, false)
     }
+
+    fn size(&self) -> usize {
+        std::mem::size_of_val(self.tree.as_slice())
+    }
 }
 
 pub type STree16 = STree<16, 16>;

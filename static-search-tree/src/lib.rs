@@ -21,7 +21,12 @@ fn init_color_backtrace() {
 
 /// Construct the data structure from a sorted vector.
 pub trait SearchIndex: Sized {
-    fn new(vals: &[u32]) -> Self;
+    fn new(_vals: &[u32]) -> Self {
+        unimplemented!()
+    }
+
+    /// Size of the index in bytes.
+    fn size(&self) -> usize;
 
     // Convenience methods to forward to a search scheme.
     fn query_one(&self, q: u32, scheme: &(impl SearchScheme<Self> + ?Sized)) -> u32 {

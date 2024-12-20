@@ -61,6 +61,10 @@ impl<const B: usize, const N: usize> SearchIndex for BTree<B, N> {
         recurse(&mut btree, &vals, &mut i, k);
         btree
     }
+
+    fn size(&self) -> usize {
+        std::mem::size_of_val(self.tree.as_slice())
+    }
 }
 
 impl<const B: usize, const N: usize> BTree<B, N> {

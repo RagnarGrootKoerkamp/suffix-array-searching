@@ -31,6 +31,10 @@ impl SearchIndex for Eytzinger {
         recurse(&mut e, &vals, &mut 0, 1);
         e
     }
+
+    fn size(&self) -> usize {
+        std::mem::size_of_val(self.vals.as_slice())
+    }
 }
 
 impl Eytzinger {

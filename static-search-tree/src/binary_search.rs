@@ -19,6 +19,10 @@ impl SearchIndex for SortedVec {
             vals: vals.to_vec(),
         }
     }
+
+    fn size(&self) -> usize {
+        std::mem::size_of_val(self.vals.as_slice())
+    }
 }
 
 impl SortedVec {

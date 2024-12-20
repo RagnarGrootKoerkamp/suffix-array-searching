@@ -63,7 +63,7 @@ fn main() {
             let vals = &mut vals[..len];
             vals.radix_sort_unstable();
 
-            fn run_exps<I>(
+            fn run_exps<I: SearchIndex>(
                 results: &mut Vec<Result>,
                 size: usize,
                 index: &I,
@@ -226,6 +226,8 @@ pub struct Result {
     pub scheme: String,
     /// Input size in bytes.
     pub size: usize,
+    /// Datastructure size in bytes.
+    pub index_size: usize,
     /// Number of iterations.
     pub queries: usize,
     /// Id
@@ -241,7 +243,7 @@ pub struct Result {
 }
 
 impl Result {
-    pub fn new<I>(
+    pub fn new<I: SearchIndex>(
         name: &str,
         size: usize,
         index: &I,
@@ -265,6 +267,7 @@ impl Result {
             params: name.to_string(),
             scheme: scheme.name().to_string(),
             size,
+            index_size: index.size(),
             queries,
             run,
             duration,

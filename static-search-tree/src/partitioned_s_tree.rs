@@ -3,7 +3,7 @@ use std::array::from_fn;
 use std::{fmt::Debug, simd::Simd};
 
 use crate::node::{BTreeNode, MAX};
-use crate::{prefetch_ptr, vec_on_hugepages};
+use crate::{prefetch_ptr, vec_on_hugepages, SearchIndex};
 
 /// N total elements in a node.
 /// B branching factor.
@@ -14,6 +14,12 @@ pub struct PartitionedSTree<const B: usize, const N: usize> {
     offsets: Vec<usize>,
     /// Amount to shift values/queries to the right to get their part.
     shift: usize,
+}
+
+impl<const B: usize, const N: usize> SearchIndex for PartitionedSTree<B, N> {
+    fn size(&self) -> usize {
+        std::mem::size_of_val(&self.tree)
+    }
 }
 
 pub type PartitionedSTree16 = PartitionedSTree<16, 16>;
