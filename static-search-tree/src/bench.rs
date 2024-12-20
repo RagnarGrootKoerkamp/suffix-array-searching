@@ -178,7 +178,7 @@ impl SearchFunctions {
                 map_idx(schemes, &I::new(vals), qs, size, results);
             }
 
-            fn map_idx<I: SearchIndex>(
+            fn map_idx<I>(
                 schemes: &Vec<&(dyn SearchScheme<I>)>,
                 index: &I,
                 qs: &[u32],
@@ -244,7 +244,6 @@ mod test {
         const TEST_END_POW2: usize = 26;
         const TEST_QUERIES: usize = 10000;
 
-        let correct = &mut true;
         for pow2 in TEST_START_POW2..=TEST_END_POW2 {
             let size = 2usize.pow(pow2 as u32);
             let vals = gen_vals(size, true);
@@ -259,22 +258,20 @@ mod test {
                 vals: &[u32],
                 qs: &[u32],
                 results: &mut Vec<u32>,
-                correct: &mut bool,
             ) {
                 eprintln!("Building index for {:?}", type_name::<I>());
-                map_idx(schemes, &I::new(vals), qs, results, correct);
+                map_idx(schemes, &I::new(vals), qs, results);
             }
 
-            fn map_idx<I: SearchIndex>(
+            fn map_idx<I>(
                 schemes: &Vec<&(dyn SearchScheme<I>)>,
                 index: &I,
                 qs: &[u32],
                 results: &mut Vec<u32>,
-                correct: &mut bool,
             ) {
                 for &scheme in schemes {
                     eprintln!("Testing scheme {:?}", scheme.name());
-                    let new_results = index.query(qs, scheme);
+                    let new_results = scheme.query(index, qs);
                     if new_results.is_empty() {
                         continue;
                     }
@@ -283,17 +280,17 @@ mod test {
                     } else {
                         if *results != new_results {
                             eprintln!("Expected\n{results:?}\ngot\n{new_results:?}");
-                            *correct = false;
+                            panic!();
                         }
                     }
                 }
             }
 
-            map(&fs.bs, &vals, qs, results, correct);
-            map(&fs.eyt, &vals, qs, results, correct);
-            map(&fs.bt, &vals, qs, results, correct);
-            map(&fs.bp, &vals, qs, results, correct);
-            // map(&fs.bp15, &vals, qs, results, correct);
+            map(&fs.bs, &vals, qs, results);
+            map(&fs.eyt, &vals, qs, results);
+            map(&fs.bt, &vals, qs, results);
+            map(&fs.bp, &vals, qs, results);
+            map(&fs.bp15, &vals, qs, results);
             eprintln!(
                 "Building index for {:?} (true, false, false)",
                 type_name::<STree16>()
@@ -303,7 +300,6 @@ mod test {
                 &STree16::new_params(&vals, true, false, false),
                 qs,
                 results,
-                correct,
             );
             eprintln!(
                 "Building index for {:?} (true, false, true)",
@@ -314,9 +310,7 @@ mod test {
                 &STree16::new_params(&vals, true, false, true),
                 qs,
                 results,
-                correct,
             );
-            assert!(*correct);
         }
     }
 }

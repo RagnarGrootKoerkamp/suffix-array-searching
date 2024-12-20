@@ -5,7 +5,7 @@ use log::info;
 use rand::Rng;
 use rdst::RadixSort;
 
-use crate::{node::MAX, SearchIndex, SearchScheme};
+use crate::{node::MAX, SearchScheme};
 
 pub type Seq = [u8];
 pub type Sequence = Vec<u8>;
@@ -69,10 +69,10 @@ pub fn time<T>(t: &str, f: impl FnOnce() -> T) -> T {
     r
 }
 
-pub fn bench_scheme<I: SearchIndex>(index: &I, scheme: &dyn SearchScheme<I>, qs: &[u32]) -> f64 {
+pub fn bench_scheme<I>(index: &I, scheme: &dyn SearchScheme<I>, qs: &[u32]) -> f64 {
     info!("Benching {}", scheme.name());
     let start = Instant::now();
-    black_box(index.query(qs, scheme));
+    black_box(scheme.query(index, qs));
     let elapsed = start.elapsed();
     elapsed.as_nanos() as f64 / qs.len() as f64
 }

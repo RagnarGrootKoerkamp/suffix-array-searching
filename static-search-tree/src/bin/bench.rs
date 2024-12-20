@@ -62,7 +62,7 @@ fn main() {
             let vals = &mut vals[..len];
             vals.radix_sort_unstable();
 
-            fn run_exps<I: SearchIndex>(
+            fn run_exps<I>(
                 results: &mut Vec<Result>,
                 size: usize,
                 index: &I,
@@ -234,7 +234,7 @@ pub struct Result {
 }
 
 impl Result {
-    pub fn new<I: SearchIndex>(
+    pub fn new<I>(
         name: &str,
         size: usize,
         index: &I,
@@ -243,7 +243,7 @@ impl Result {
         run: usize,
     ) -> Result {
         let start = Instant::now();
-        black_box(index.query(qs, scheme));
+        black_box(scheme.query(index, qs));
         let duration = start.elapsed();
         let queries = qs.len();
         let freq = get_cpu_freq().unwrap();
