@@ -1,6 +1,5 @@
 #![feature(array_chunks, portable_simd, array_windows)]
 
-mod bench;
 pub mod binary_search;
 pub mod btree;
 pub mod eytzinger;
@@ -8,13 +7,12 @@ pub mod interp_search;
 pub mod node;
 pub mod partitioned_s_tree;
 pub mod s_tree;
+mod test;
 pub mod util;
 
 use std::marker::PhantomData;
 
 use util::*;
-
-pub use bench::SearchFunctions;
 
 #[ctor::ctor]
 fn init_color_backtrace() {
