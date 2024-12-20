@@ -6,6 +6,7 @@ pub mod btree;
 pub mod eytzinger;
 pub mod interp_search;
 pub mod node;
+pub mod partitioned_s_tree;
 pub mod s_tree;
 pub mod util;
 

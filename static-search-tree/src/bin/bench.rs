@@ -8,6 +8,7 @@ use static_search_tree::{
     eytzinger::Eytzinger,
     full,
     node::BTreeNode,
+    partitioned_s_tree::PartitionedSTree16,
     s_tree::{STree15, STree16},
     util::{gen_queries, gen_vals},
     SearchIndex, SearchScheme,
@@ -170,6 +171,12 @@ fn main() {
             };
             let index = STree15::new_params(vals, true, true, true);
             run_exps(&mut results, size, &index, qs, run, &exps, "Rev+Fwd+Full");
+
+            let exps: T<_, _> = const { [&batched(PartitionedSTree16::search::<128>)] };
+            for b in 0..16 {
+                let index = PartitionedSTree16::new(vals, b);
+                run_exps(&mut results, size, &index, qs, run, &exps, "Rev+Fwd");
+            }
         }
 
         save_results(&results, "results");

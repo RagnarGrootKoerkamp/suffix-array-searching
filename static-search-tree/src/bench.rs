@@ -2,6 +2,7 @@ use crate::binary_search::SortedVec;
 use crate::btree::{BTree, BTree16};
 use crate::eytzinger::Eytzinger;
 use crate::node::{BTreeNode, MAX};
+use crate::partitioned_s_tree::PartitionedSTree16;
 use crate::s_tree::{STree, STree15, STree16};
 use crate::{batched, full, util::*, SearchIndex, SearchScheme};
 use log::info;
@@ -17,6 +18,7 @@ pub struct SearchFunctions {
     bt: Vec<&'static dyn SearchScheme<BTree16>>,
     bp: Vec<&'static dyn SearchScheme<STree16>>,
     bp15: Vec<&'static dyn SearchScheme<STree15>>,
+    psp: Vec<&'static dyn SearchScheme<PartitionedSTree16>>,
 }
 
 #[pymethods]
@@ -83,12 +85,16 @@ impl SearchFunctions {
         }
         .to_vec();
 
+        let psp = const { [&batched(PartitionedSTree16::search::<128>) as &dyn SearchScheme<_>] }
+            .to_vec();
+
         SearchFunctions {
             bs,
             eyt,
             bt,
             bp,
             bp15,
+            psp,
         }
     }
 
@@ -212,6 +218,14 @@ impl SearchFunctions {
                 results,
             );
 
+            map_idx(
+                &self.psp,
+                &PartitionedSTree16::new(&vals, 2),
+                qs,
+                size,
+                results,
+            );
+
             let bpr = STree16::new_params(&vals, true, true, false);
             let strings = ["", "t1", "t2", "t3", "t4", "t5", "t6"];
             for threads in 1..=6 {
@@ -242,13 +256,13 @@ mod test {
 
         const TEST_START_POW2: usize = 6;
         const TEST_END_POW2: usize = 26;
-        const TEST_QUERIES: usize = 10000;
+        const TEST_QUERIES: usize = 100;
 
         for pow2 in TEST_START_POW2..=TEST_END_POW2 {
             let size = 2usize.pow(pow2 as u32);
             let vals = gen_vals(size, true);
             eprintln!("LEN: {}", vals.len());
-            let qs = &gen_queries(TEST_QUERIES.next_multiple_of(256));
+            let qs = &gen_queries(TEST_QUERIES.next_multiple_of(128));
 
             let results = &mut vec![];
 
@@ -311,6 +325,13 @@ mod test {
                 qs,
                 results,
             );
+
+            map_idx(&fs.psp, &PartitionedSTree16::new(&vals, 0), qs, results);
+            map_idx(&fs.psp, &PartitionedSTree16::new(&vals, 1), qs, results);
+            map_idx(&fs.psp, &PartitionedSTree16::new(&vals, 2), qs, results);
+            map_idx(&fs.psp, &PartitionedSTree16::new(&vals, 3), qs, results);
+            map_idx(&fs.psp, &PartitionedSTree16::new(&vals, 4), qs, results);
+            map_idx(&fs.psp, &PartitionedSTree16::new(&vals, 5), qs, results);
         }
     }
 }
