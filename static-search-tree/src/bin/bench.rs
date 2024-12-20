@@ -2,6 +2,7 @@
 #![allow(unused)]
 
 use clap::Parser;
+use itertools::Itertools;
 use rdst::RadixSort;
 use static_search_tree::{
     batched,
@@ -176,16 +177,21 @@ fn main() {
             let expsl: T<_, _> = const {
                 [
                     &batched(PartitionedSTree16L::search::<128, false>),
-                    &batched(PartitionedSTree16L::search::<128, true>),
+                    // &batched(PartitionedSTree16L::search::<128, true>),
                 ]
             };
-            for b in (4..=20).step_by(4) {
+            let bs = (4..=20).step_by(4).collect_vec();
+            for &b in &bs {
                 let index = PartitionedSTree16::new(vals, b);
                 run_exps(&mut results, size, &index, qs, run, &exps, &format!("{b}"));
+            }
 
+            for &b in &bs {
                 let index = PartitionedSTree16C::new(vals, b);
                 run_exps(&mut results, size, &index, qs, run, &expsc, &format!("{b}"));
+            }
 
+            for &b in &bs {
                 let index = PartitionedSTree16L::new(vals, b);
                 run_exps(&mut results, size, &index, qs, run, &expsl, &format!("{b}"));
             }
