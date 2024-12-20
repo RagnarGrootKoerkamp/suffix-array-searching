@@ -1,11 +1,10 @@
 use std::array::from_fn;
-use std::mem::forget;
 use std::{fmt::Debug, iter::zip, simd::Simd};
 
 use itertools::Itertools;
 
 use crate::node::{BTreeNode, MAX};
-use crate::{prefetch_index, prefetch_ptr, SearchIndex};
+use crate::{prefetch_index, prefetch_ptr, vec_on_hugepages, SearchIndex};
 
 /// N total elements in a node.
 /// B branching factor.
@@ -115,29 +114,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         };
 
         let mut tree = if hugepages {
-            let len = n_blocks;
-            let size = len * std::mem::size_of::<BTreeNode<N>>();
-            // Round size up to the next multiple of 2MB. Or actually, round up to
-            // a multiple of 32MB to avoid reusing existing allocated heap memory.
-            const NO_HEAP: bool = true;
-            let mbs = if NO_HEAP { 32 } else { 2 };
-            let size = size.next_multiple_of(mbs * 1024 * 1024);
-            let mut mem = alloc_madvise::Memory::allocate(size, false, false).unwrap();
-            let mem_mut: &mut [usize] = mem.as_mut();
-            let (pref, mem_mut, suf) = unsafe { mem_mut.align_to_mut::<BTreeNode<N>>() };
-            assert!(pref.is_empty());
-            assert!(suf.is_empty());
-
-            // eprintln!("Allocated {} bytes", size);
-            let vec = unsafe {
-                Vec::from_raw_parts(
-                    mem_mut.as_mut_ptr(),
-                    n_blocks,
-                    size / std::mem::size_of::<BTreeNode<N>>(),
-                )
-            };
-            forget(mem);
-            vec
+            vec_on_hugepages(n_blocks)
         } else {
             vec![BTreeNode { data: [MAX; N] }; n_blocks]
         };

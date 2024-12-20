@@ -1,4 +1,4 @@
-use std::{hint::black_box, sync::LazyLock, time::Instant};
+use std::{hint::black_box, mem::forget, sync::LazyLock, time::Instant};
 
 use itertools::Itertools;
 use log::info;
@@ -114,3 +114,24 @@ fn init_trace() {
 }
 
 pub static INIT_TRACE: LazyLock<()> = LazyLock::new(init_trace);
+
+pub(crate) fn vec_on_hugepages<T>(len: usize) -> Vec<T> {
+    let len = len;
+    let size = len * std::mem::size_of::<T>();
+    // Round size up to the next multiple of 2MB. Or actually, round up to
+    // a multiple of 32MB to avoid reusing existing allocated heap memory.
+    const NO_HEAP: bool = true;
+    let mbs = if NO_HEAP { 32 } else { 2 };
+    let size = size.next_multiple_of(mbs * 1024 * 1024);
+    let mut mem = alloc_madvise::Memory::allocate(size, false, false).unwrap();
+    let mem_mut: &mut [usize] = mem.as_mut();
+    let (pref, mem_mut, suf) = unsafe { mem_mut.align_to_mut::<T>() };
+    assert!(pref.is_empty());
+    assert!(suf.is_empty());
+
+    // eprintln!("Allocated {} bytes", size);
+    let vec =
+        unsafe { Vec::from_raw_parts(mem_mut.as_mut_ptr(), len, size / std::mem::size_of::<T>()) };
+    forget(mem);
+    vec
+}
