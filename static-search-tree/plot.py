@@ -7,12 +7,18 @@ import tabulate
 from matplotlib.ticker import LogLocator
 import re
 
-l1_size = 192 * 1024 / 6
-l2_size = 1.5 * 1024 * 1024 / 6
-l3_size = 12 * 1024 * 1024
-
 palette = None
 dashes = {"": "", "Latency": (1, 1), "Prefetch": (2, 1)}
+
+
+def caches():
+    sizes = []
+    # Note: index1 for me is the L1 instruction cache.
+    # Note: All read strings are eg 32K.
+    for i, name in [(0, "L1"), (2, "L2"), (3, "L3")]:
+        t = Path(f"/sys/devices/system/cpu/cpu0/cache/index{i}/size").read_text()
+        sizes.append((int(t[:-2]) * 1024, name))
+    return sizes
 
 
 def plot(experiment_name, title, data, names, skip=0, ymax=None, latency=False):
@@ -53,14 +59,14 @@ def plot(experiment_name, title, data, names, skip=0, ymax=None, latency=False):
     ax.xaxis.set_major_locator(LogLocator(base=4, numticks=20))
     ax.set_ylim(0, ymax)
     ax.grid(True, alpha=0.4)
+    ax.grid(which="minor", color="gray", alpha=0.2)
     ax.legend(loc="upper left")
 
     # Add vertical lines for cache sizes
-    for size, name in [(l1_size, "L1"), (l2_size, "L2"), (l3_size, "L3")]:
+    for size, name in caches():
         ax.axvline(x=size, color="red", linestyle="--", zorder=0)
         ax.text(size, 0, f"{name} ", color="red", va="bottom", ha="right")
 
-    #
     if l3_size < data.sz.max():
         ax.text(data.sz.max(), 0, "RAM", color="red", va="bottom", ha="right")
 
