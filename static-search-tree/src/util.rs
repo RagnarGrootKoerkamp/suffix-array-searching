@@ -11,7 +11,7 @@ pub type Seq = [u8];
 pub type Sequence = Vec<u8>;
 
 const LOWEST_GENERATED: u32 = 0;
-const HIGHEST_GENERATED: u32 = 1 << 30;
+const HIGHEST_GENERATED: u32 = MAX;
 
 pub fn gen_queries(n: usize) -> Vec<u32> {
     (0..n)
