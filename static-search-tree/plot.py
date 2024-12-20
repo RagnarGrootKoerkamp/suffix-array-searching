@@ -99,7 +99,7 @@ def plot(
     # Save
     # fig.savefig(f"plots/{experiment_name}.png", bbox_inches="tight", dpi=600)
     # print(f"Saved {experiment_name}.png")
-    fig.savefig(f"plots/{experiment_name}.svg", bbox_inches="tight")
+    # fig.savefig(f"plots/{experiment_name}.svg", bbox_inches="tight")
     print(f"Saved {experiment_name}.svg")
     return fig
 
@@ -137,25 +137,29 @@ def read_file(filename):
     data = pd.read_json(filename)
 
     data["sz"] = data["size"]
-    data["name"] = (
+    data["scheme"] = (
         data.scheme.str.replace("\\b[a-z_]+::", "", n=-1, regex=True)
         # No type info here
         .str.replace("::{{closure}}", "")
         # Duplicated 16 from the STree
         .str.replace("BTreeNode<16>::", "")
         # The batched and full wrappers are not so interesting.
-        .str.replace("(Batched|Full)<(\d+, )?STree<\d+, \d+>, (.*)>", "\\3", regex=True)
+        .str.replace(
+            "(Batched|Full)<(\\d+, )?(Partitioned)?STree<[^<>]*>, (.*)>",
+            "\\4",
+            regex=True,
+        )
         # N is always 16; lets skip it.
         .str.replace("16, 16", "16")
     )
     # Cancat 'name' and 'index' columns.
-    print(data.name.unique())
+    print(data.scheme.unique())
     print(data.params.unique())
-    data.name = data.name + " " + data.params.astype(str)
+    data["name"] = (data.scheme + " " + data.params.astype(str)).str.strip()
     print(data.name.unique())
     data["display_size"] = data["sz"].apply(display_size)
 
-    r = re.compile("<(\d+)>+$")
+    r = re.compile("<(\\d+)>+$")
 
     def style(scheme):
         m = None
@@ -165,36 +169,38 @@ def read_file(filename):
         var = m.group(1)
         return var
 
-    # def batchsize(name):
-    #     if "batch" in name:
-    #         return int(name.split("<")[1].split(">")[0])
-    #     return 0
-
-    # def color(name):
-    #     name = name.split("<")[0]
-    #     return name
-
     data["Style"] = [style(scheme) for scheme in data.scheme]
-    # data["batchsize"] = [batchsize(name) for name in data.name]
-    # data["Color"] = [color(name) for name in data.display_name]
 
     global palette
 
-    # names = sorted(data.display_name.unique())
     names = sorted(data.name.unique())
     colors = sns.color_palette(n_colors=10)
     colors = colors + colors + colors + colors + colors + colors
     palette = dict(zip(names, colors))
-    # palette["Latency"] = "black"
 
     return data
 
 
+def select(select, all_names):
+    if not isinstance(select, list):
+        select = [select]
+    selected = []
+    for n in all_names:
+        for s in select:
+            if s in n:
+                selected.append(n)
+                break
+    print(f"select {select} from {all_names} -> {selected}")
+    return selected
+
+
 # Read all files in the 'results' directory and iterate over them.
 def plot_binary_search():
-    data = read_file(f"results/results.json")
+    data = read_file(f"results/results-release.json")
     all_names = data.name.unique().tolist()
     keep = []
+
+    print(all_names)
 
     def prune(names):
         nonlocal all_names, keep
@@ -202,83 +208,99 @@ def plot_binary_search():
             if n in all_names and n not in keep:
                 all_names.remove(n)
 
-    def select(select):
+    def sel(name):
         nonlocal all_names
-        if not isinstance(select, list):
-            select = [select]
-        selected = []
-        for n in all_names:
-            for s in select:
-                if s in n:
-                    selected.append(n)
-                    break
-        print(f"select {select} from {all_names} -> {selected}")
-        return selected
+        return select(name, all_names)
 
-    spare_names = select(["Rev", "Fwd"])
+    spare_names = sel(["Rev", "Fwd"])
     prune(spare_names)
 
-    names = ["SortedVec::binary_search_std", "Eytzinger::search_prefetch<4>"]
-    # plot(
-    #     "1-binary-search",
-    #     "Binary search and Eytzinger layout",
-    #     data,
-    #     names,
-    #     latency=True,
-    # ).show()
-    keep.append(names[-1])
+    names = sel(["binary_search", "Eytzinger"])
+    plot(
+        "1-binary-search",
+        "Binary search and Eytzinger layout",
+        data,
+        names,
+        latency=True,
+    ).show()
+    keep += names
+
+    names = keep + sel("search_with_find<find_linear>")
+    plot("2-hugepages", "Stree and hugepages", data, names).show()
+    prune(sel("NoHuge"))
+
+    names = keep + sel("search_with_find")
+    plot(
+        "3-find", "Optimizing the BTreeNode find function", data, names, ymax=240
+    ).show()
     prune(names)
 
-    names = keep + select("search_with_find<find_linear>")
-    plot("2-hugepages", "Hugepages", data, names).show()
-    prune(select("NoHuge"))
-
-    names = keep + select("search_with_find")
-    plot("3-find", "Optimizing the BTreeNode find function", data, names).show()
-    prune(names)
-
-    names = keep + select("batch<")
+    names = keep + sel("batch<")
     plot("4-batching", "Batch size", data, names, ymax=120).show()
-    keep += select("batch<128>")
+    keep += sel("batch<128>")
     prune(names)
 
-    names = keep + select(["batch_prefetch"])
+    names = keep + sel(["batch_prefetch"])
     keep.append(names[-1])
     plot("5-prefetch", "Prefetching", data, names, ymax=60).show()
     prune(names)
 
-    names = keep + select(
+    names = keep + sel(
         ["batch_prefetch<128", "splat<128", "ptr<128", "ptr2<128", "ptr3<128"]
     )
     keep.append(names[-1])
     plot("6-improvements", "Improvements", data, names, ymax=30).show()
     prune(names)
 
-    names = keep + select("skip_prefetch")
+    names = keep + sel("skip_prefetch")
     plot("7-skip-prefetch", "Skip prefetch", data, names, ymax=30).show()
     prune(names)
 
-    names = keep + select("interleave")
+    names = keep + sel("interleave")
     plot("8-interleave", "Interleave", data, names, ymax=30).show()
     prune(names)
 
     # Add construction parameter variants
     all_names += spare_names
 
-    names = keep + select("Rev")
+    names = keep + sel("Rev")
     names = [n for n in names if "<15" not in n]
     plot("9-params", "Memory layout", data, names, ymax=30).show()
-    keep.append(select("Rev")[0])
+    keep.append(sel("Rev")[0])
     prune(names)
 
-    names = keep + select("<15")
+    names = keep + sel("<15")
     plot("10-base15", "Base 15", data, names, ymax=30).show()
     prune(names)
 
-    plot("99-base15", "Remainder", data, all_names, ymax=30).show()
+    plot("11-summary", "Summary", data, keep, ymax=30).show()
+
+    plot("99", "Remainder", data, all_names, ymax=30).show()
     # summary_table(data)
+
+
+def filter_large(data, x=2.5):
+    data["latency"] = data.apply(
+        lambda row: (row.latency if row["index_size"] < x * row.sz else 0), axis=1
+    )
+    data = data[data.sz > 2**12]
+    return data
+
+
+def plot_all():
+    data = read_file(f"results/results.json")
+    data = filter_large(data, 1.3)
+    names = data.name.unique().tolist()
+    keep = select("ptr3", names)
+    names2 = keep + select("16, false, false", names)
+    plot("parts", "Parts", data, names2, style="scheme", ymax=30).show()
+    names2 = keep + select("16, true, false", names)
+    plot("compact", "Compact parts", data, names2, style="scheme", ymax=30).show()
+    names2 = keep + select("16, false, true", names)
+    plot("parts-l1", "Parts L1", data, names2, style="scheme", ymax=30).show()
 
 
 plt.style.use("dark_background")
 plt.close("all")
-plot_binary_search()
+# plot_binary_search()
+plot_all()
