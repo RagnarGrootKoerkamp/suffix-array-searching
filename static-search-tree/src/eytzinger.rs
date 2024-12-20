@@ -47,11 +47,12 @@ impl Eytzinger {
     /// L: number of levels ahead to prefetch.
     pub fn search_prefetch<const L: usize>(&self, q: u32) -> u32 {
         let mut idx = 1;
+        while (1 << L) * idx < self.vals.len() {
+            idx = 2 * idx + (q > self.get(idx)) as usize;
+            prefetch_index(&self.vals, (1 << L) * idx);
+        }
         while idx < self.vals.len() {
             idx = 2 * idx + (q > self.get(idx)) as usize;
-            if L * idx < self.vals.len() {
-                prefetch_index(&self.vals, (1 << L) * idx);
-            }
         }
         let zeros = idx.trailing_ones() + 1;
         let idx = idx >> zeros;
