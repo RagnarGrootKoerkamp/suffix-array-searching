@@ -26,6 +26,16 @@ pub type STree16 = STree<16, 16>;
 pub type STree15 = STree<15, 16>;
 
 impl<const B: usize, const N: usize> STree<B, N> {
+    // Helper functions for unchecked indexing.
+    fn node(&self, b: usize) -> &BTreeNode<N> {
+        unsafe { &*self.tree.get_unchecked(b) }
+    }
+
+    fn get(&self, b: usize, i: usize) -> u32 {
+        unsafe { *self.tree.get_unchecked(b).data.get_unchecked(i) }
+    }
+
+    // Helper functions for construction.
     fn blocks(n: usize) -> usize {
         n.div_ceil(B)
     }
@@ -44,18 +54,6 @@ impl<const B: usize, const N: usize> STree<B, N> {
             n = Self::prev_keys(n);
         }
         n
-    }
-
-    fn go_to(k: usize, j: usize) -> usize {
-        k * (B + 1) + j + 1
-    }
-
-    fn node(&self, b: usize) -> &BTreeNode<N> {
-        unsafe { &*self.tree.get_unchecked(b) }
-    }
-
-    fn get(&self, b: usize, i: usize) -> u32 {
-        unsafe { *self.tree.get_unchecked(b).data.get_unchecked(i) }
     }
 
     pub fn new_params(vals: &[u32], fwd: bool, rev: bool, full_array: bool) -> Self {
@@ -98,30 +96,25 @@ impl<const B: usize, const N: usize> STree<B, N> {
         let n_blocks = layer_sizes.iter().sum::<usize>();
 
         let offsets = if fwd {
-            let mut sum = 0;
             layer_sizes
                 .iter()
-                .map(|sz| {
-                    let offset = sum;
-                    sum += sz;
-                    offset
+                .scan(0, |sum, sz| {
+                    let offset = *sum;
+                    *sum += sz;
+                    Some(offset)
                 })
                 .collect_vec()
         } else {
-            let mut sum = 0;
             layer_sizes
                 .iter()
-                .map(|sz| {
-                    sum += sz;
-                    n_blocks - sum
+                .scan(0, |sum, sz| {
+                    *sum += sz;
+                    Some(n_blocks - *sum)
                 })
                 .collect_vec()
         };
 
         let mut tree = if hugepages {
-            // let n_blocks =
-            //     n_blocks.next_multiple_of(32 * 1024 * 1024 / std::mem::size_of::<BTreeNode<N>>());
-            // vec![BTreeNode { data: [MAX; N] }; n_blocks]
             let len = n_blocks;
             let size = len * std::mem::size_of::<BTreeNode<N>>();
             // Round size up to the next multiple of 2MB. Or actually, round up to
@@ -159,6 +152,12 @@ impl<const B: usize, const N: usize> STree<B, N> {
                 tree[ol + i / B - 1].data[B] = val;
             }
         }
+
+        // Pad the last node in the initial layer with MAX.
+        if n / B < layer_sizes[height - 1] {
+            tree[ol + n / B].data[n % B..].fill(MAX);
+        }
+
         // Initialize layers; based on Algorithmica.
         // https://en.algorithmica.org/hpc/data-structures/s-tree/#construction-1
         for h in (0..height - 1).rev() {
@@ -172,8 +171,6 @@ impl<const B: usize, const N: usize> STree<B, N> {
                 let mut k = i / B;
                 let j = i % B;
                 k = k * (B + 1) + j + 1;
-                // compare to right of key
-                // and then to the left
                 for _l in h..height - 2 {
                     k *= B + 1;
                 }
