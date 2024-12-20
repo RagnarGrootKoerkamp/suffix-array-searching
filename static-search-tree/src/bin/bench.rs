@@ -1,4 +1,5 @@
 #![feature(generic_arg_infer)]
+#![allow(unused)]
 
 use clap::Parser;
 use rdst::RadixSort;
@@ -8,7 +9,7 @@ use static_search_tree::{
     eytzinger::Eytzinger,
     full,
     node::BTreeNode,
-    partitioned_s_tree::PartitionedSTree16,
+    partitioned_s_tree::{PartitionedSTree16, PartitionedSTree16C, PartitionedSTree16L},
     s_tree::{STree15, STree16},
     util::{gen_queries, gen_vals},
     SearchIndex, SearchScheme,
@@ -80,29 +81,27 @@ fn main() {
             /// Wrapper type for the cast to &dyn.
             type T<I, const N: usize> = [&'static dyn SearchScheme<I>; N];
 
-            if false {
-                let exps: T<_, _> = [&SortedVec::binary_search_std];
-                run_exps(
-                    &mut results,
-                    size,
-                    &SortedVec::new(vals),
-                    qs,
-                    run,
-                    &exps,
-                    "",
-                );
+            let exps: T<_, _> = [&SortedVec::binary_search_std];
+            run_exps(
+                &mut results,
+                size,
+                &SortedVec::new(vals),
+                qs,
+                run,
+                &exps,
+                "",
+            );
 
-                let exps: T<_, _> = [&Eytzinger::search_prefetch::<4>];
-                run_exps(
-                    &mut results,
-                    size,
-                    &Eytzinger::new(vals),
-                    qs,
-                    run,
-                    &exps,
-                    "",
-                );
-            }
+            let exps: T<_, _> = [&Eytzinger::search_prefetch::<4>];
+            run_exps(
+                &mut results,
+                size,
+                &Eytzinger::new(vals),
+                qs,
+                run,
+                &exps,
+                "",
+            );
 
             let exps: T<_, _> = const {
                 [
@@ -172,10 +171,23 @@ fn main() {
             let index = STree15::new_params(vals, true, true, true);
             run_exps(&mut results, size, &index, qs, run, &exps, "Rev+Fwd+Full");
 
-            let exps: T<_, _> = const { [&batched(PartitionedSTree16::search::<128>)] };
-            for b in 0..16 {
+            let exps: T<_, _> = const { [&batched(PartitionedSTree16::search::<128, false>)] };
+            let expsc: T<_, _> = const { [&batched(PartitionedSTree16C::search::<128, false>)] };
+            let expsl: T<_, _> = const {
+                [
+                    &batched(PartitionedSTree16L::search::<128, false>),
+                    &batched(PartitionedSTree16L::search::<128, true>),
+                ]
+            };
+            for b in (4..=20).step_by(4) {
                 let index = PartitionedSTree16::new(vals, b);
-                run_exps(&mut results, size, &index, qs, run, &exps, "Rev+Fwd");
+                run_exps(&mut results, size, &index, qs, run, &exps, &format!("{b}"));
+
+                let index = PartitionedSTree16C::new(vals, b);
+                run_exps(&mut results, size, &index, qs, run, &expsc, &format!("{b}"));
+
+                let index = PartitionedSTree16L::new(vals, b);
+                run_exps(&mut results, size, &index, qs, run, &expsl, &format!("{b}"));
             }
         }
 

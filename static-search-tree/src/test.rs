@@ -1,10 +1,12 @@
 #![cfg(test)]
 
+use itertools::Itertools;
+
 use crate::binary_search::SortedVec;
 use crate::btree::{BTree, BTree16};
 use crate::eytzinger::Eytzinger;
 use crate::node::BTreeNode;
-use crate::partitioned_s_tree::PartitionedSTree16;
+use crate::partitioned_s_tree::{PartitionedSTree16, PartitionedSTree16C, PartitionedSTree16L};
 use crate::s_tree::{STree, STree15, STree16};
 use crate::SearchIndex;
 use crate::{batched, full, util::*, SearchScheme};
@@ -17,6 +19,8 @@ pub struct SearchSchemes {
     bp: Vec<&'static dyn SearchScheme<STree16>>,
     bp15: Vec<&'static dyn SearchScheme<STree15>>,
     psp: Vec<&'static dyn SearchScheme<PartitionedSTree16>>,
+    pspc: Vec<&'static dyn SearchScheme<PartitionedSTree16C>>,
+    pspl: Vec<&'static dyn SearchScheme<PartitionedSTree16L>>,
 }
 
 fn get_search_schemes() -> SearchSchemes {
@@ -78,8 +82,14 @@ fn get_search_schemes() -> SearchSchemes {
     }
     .to_vec();
 
-    let psp =
-        const { [&batched(PartitionedSTree16::search::<128>) as &dyn SearchScheme<_>] }.to_vec();
+    let psp = const { [&batched(PartitionedSTree16::search::<128, true>) as &dyn SearchScheme<_>] }
+        .to_vec();
+    let pspc =
+        const { [&batched(PartitionedSTree16C::search::<128, true>) as &dyn SearchScheme<_>] }
+            .to_vec();
+    let pspl =
+        const { [&batched(PartitionedSTree16L::search::<128, true>) as &dyn SearchScheme<_>] }
+            .to_vec();
 
     SearchSchemes {
         bs,
@@ -88,6 +98,8 @@ fn get_search_schemes() -> SearchSchemes {
         bp,
         bp15,
         psp,
+        pspc,
+        pspl,
     }
 }
 
@@ -97,10 +109,14 @@ fn test_search() {
 
     const TEST_START_POW2: usize = 6;
     const TEST_END_POW2: usize = 26;
-    const TEST_QUERIES: usize = 100;
+    const TEST_QUERIES: usize = 10000;
 
-    for pow2 in TEST_START_POW2..=TEST_END_POW2 {
-        let size = 2usize.pow(pow2 as u32);
+    let mut sizes = (TEST_START_POW2..=TEST_END_POW2)
+        .map(|p| 1 << p)
+        .collect_vec();
+    sizes.extend((TEST_START_POW2..TEST_END_POW2).map(|p| (1 << p) * 3 / 2));
+
+    for size in sizes {
         let vals = gen_vals(size, true);
         eprintln!("LEN: {}", vals.len());
         let qs = &gen_queries(TEST_QUERIES.next_multiple_of(128));
@@ -167,11 +183,23 @@ fn test_search() {
             results,
         );
 
+        eprintln!("PARTS");
         map_idx(&fs.psp, &PartitionedSTree16::new(&vals, 0), qs, results);
-        map_idx(&fs.psp, &PartitionedSTree16::new(&vals, 1), qs, results);
-        map_idx(&fs.psp, &PartitionedSTree16::new(&vals, 2), qs, results);
-        map_idx(&fs.psp, &PartitionedSTree16::new(&vals, 3), qs, results);
         map_idx(&fs.psp, &PartitionedSTree16::new(&vals, 4), qs, results);
-        map_idx(&fs.psp, &PartitionedSTree16::new(&vals, 5), qs, results);
+        map_idx(&fs.psp, &PartitionedSTree16::new(&vals, 8), qs, results);
+        map_idx(&fs.psp, &PartitionedSTree16::new(&vals, 16), qs, results);
+        map_idx(&fs.psp, &PartitionedSTree16::new(&vals, 20), qs, results);
+        eprintln!("PARTS COMPACT");
+        map_idx(&fs.pspc, &PartitionedSTree16C::new(&vals, 0), qs, results);
+        map_idx(&fs.pspc, &PartitionedSTree16C::new(&vals, 4), qs, results);
+        map_idx(&fs.pspc, &PartitionedSTree16C::new(&vals, 8), qs, results);
+        map_idx(&fs.pspc, &PartitionedSTree16C::new(&vals, 16), qs, results);
+        map_idx(&fs.pspc, &PartitionedSTree16C::new(&vals, 20), qs, results);
+        eprintln!("PARTS L1");
+        map_idx(&fs.pspl, &PartitionedSTree16L::new(&vals, 0), qs, results);
+        map_idx(&fs.pspl, &PartitionedSTree16L::new(&vals, 4), qs, results);
+        map_idx(&fs.pspl, &PartitionedSTree16L::new(&vals, 8), qs, results);
+        map_idx(&fs.pspl, &PartitionedSTree16L::new(&vals, 16), qs, results);
+        map_idx(&fs.pspl, &PartitionedSTree16L::new(&vals, 20), qs, results);
     }
 }
