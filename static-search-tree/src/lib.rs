@@ -1,4 +1,9 @@
-#![feature(array_chunks, portable_simd, array_windows)]
+#![feature(
+    array_chunks,
+    portable_simd,
+    array_windows,
+    type_changing_struct_update
+)]
 
 pub mod binary_search;
 pub mod btree;

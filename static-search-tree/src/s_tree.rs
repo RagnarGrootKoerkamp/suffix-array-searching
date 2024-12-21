@@ -18,30 +18,30 @@ pub struct STree<const B: usize, const N: usize> {
 pub type STree16 = STree<16, 16>;
 pub type STree15 = STree<15, 16>;
 
+pub(crate) struct TreeBase<const B: usize>;
+
 /// Wrap some helper functions.
-pub(crate) trait TreeBase<const B: usize> {
-    fn blocks(n: usize) -> usize {
+impl<const B: usize> TreeBase<B> {
+    pub fn blocks(n: usize) -> usize {
         n.div_ceil(B)
     }
-    fn prev_keys(n: usize) -> usize {
+    pub fn prev_keys(n: usize) -> usize {
         Self::blocks(n).div_ceil(B + 1) * B
     }
-    fn height(n: usize) -> usize {
+    pub fn height(n: usize) -> usize {
         if n <= B {
             1
         } else {
             Self::height(Self::prev_keys(n)) + 1
         }
     }
-    fn layer_size(mut n: usize, h: usize, height: usize) -> usize {
+    pub fn layer_size(mut n: usize, h: usize, height: usize) -> usize {
         for _ in h..height - 1 {
             n = Self::prev_keys(n);
         }
         n
     }
 }
-
-impl<const B: usize, const N: usize> TreeBase<B> for STree<B, N> {}
 
 impl<const B: usize, const N: usize> SearchIndex for STree<B, N> {
     fn new(vals: &[u32]) -> Self {
@@ -90,13 +90,13 @@ impl<const B: usize, const N: usize> STree<B, N> {
         let n = vals.len();
 
         assert!(n > 0);
-        let height = Self::height(n);
+        let height = TreeBase::<B>::height(n);
         assert!(height > 0);
         let layer_sizes = if full_array {
             (0..height).map(|h| (B + 1).pow(h as u32)).collect_vec()
         } else {
             (0..height)
-                .map(|h| Self::layer_size(n, h, height).div_ceil(B))
+                .map(|h| TreeBase::<B>::layer_size(n, h, height).div_ceil(B))
                 .collect_vec()
         };
         assert!(layer_sizes[0] > 0);

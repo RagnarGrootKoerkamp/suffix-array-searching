@@ -11,8 +11,9 @@ use crate::{prefetch_ptr, vec_on_hugepages, SearchIndex};
 /// B-1 actual elements in a node.
 /// COMPACT: instead of a single tree with the first few layers removed,
 ///          store many small packed trees.
+/// L1: reduce first branching factor to level 1.
 #[derive(Debug)]
-pub struct PartitionedSTree<const B: usize, const N: usize, const COMPACT: bool, const L1: bool> {
+pub struct PartitionedSTree<const B: usize, const N: usize, Tp> {
     tree: Vec<BTreeNode<N>>,
     offsets: Vec<usize>,
     /// Amount to shift values/queries to the right to get their part.
@@ -22,43 +23,60 @@ pub struct PartitionedSTree<const B: usize, const N: usize, const COMPACT: bool,
     /// Number of nodes in layer 1.
     /// Number of values in the root is l1-1.
     l1: usize,
+    _tp: std::marker::PhantomData<Tp>,
 }
 
-impl<const B: usize, const N: usize, const COMPACT: bool, const L1: bool> SearchIndex
-    for PartitionedSTree<B, N, COMPACT, L1>
-{
+pub trait Marker {
+    const COMPACT: bool;
+    const L1: bool;
+    const OL: bool;
+}
+
+// Marker traits for the type of tree.
+pub struct Simple;
+pub struct Compact;
+// Extension of simple layout; not compact.
+pub struct L1;
+
+impl Marker for Simple {
+    const COMPACT: bool = false;
+    const L1: bool = false;
+    const OL: bool = false;
+}
+impl Marker for Compact {
+    const COMPACT: bool = true;
+    const L1: bool = false;
+    const OL: bool = false;
+}
+impl Marker for L1 {
+    const COMPACT: bool = false;
+    const L1: bool = true;
+    const OL: bool = false;
+}
+
+// Workaround because <Marker<COMPACT=false>> is not supported.
+pub trait NotCompact {}
+impl NotCompact for Simple {}
+impl NotCompact for L1 {}
+
+pub type PartitionedSTree16 = PartitionedSTree<16, 16, Simple>;
+pub type PartitionedSTree15 = PartitionedSTree<15, 16, Simple>;
+pub type PartitionedSTree16C = PartitionedSTree<16, 16, Compact>;
+pub type PartitionedSTree15C = PartitionedSTree<15, 16, Compact>;
+pub type PartitionedSTree16L = PartitionedSTree<16, 16, L1>;
+pub type PartitionedSTree15L = PartitionedSTree<15, 16, L1>;
+
+impl<const B: usize, const N: usize, T> SearchIndex for PartitionedSTree<B, N, T> {
     fn size(&self) -> usize {
         std::mem::size_of_val(self.tree.as_slice())
     }
 }
 
-pub type PartitionedSTree16 = PartitionedSTree<16, 16, false, false>;
-pub type PartitionedSTree15 = PartitionedSTree<15, 16, false, false>;
-pub type PartitionedSTree16C = PartitionedSTree<16, 16, true, false>;
-pub type PartitionedSTree15C = PartitionedSTree<15, 16, true, false>;
-pub type PartitionedSTree16L = PartitionedSTree<16, 16, false, true>;
-pub type PartitionedSTree15L = PartitionedSTree<15, 16, false, true>;
-
-impl<const B: usize, const N: usize, const COMPACT: bool, const L1: bool> TreeBase<B>
-    for PartitionedSTree<B, N, COMPACT, L1>
-{
-}
-
-impl<const B: usize, const N: usize, const COMPACT: bool, const L1: bool>
-    PartitionedSTree<B, N, COMPACT, L1>
-{
-    /// Partition on the first `b` bits of each key before building the tree.
-    /// Any bits beyond the maximum value are skipped.
-    /// - uses hugepages.
-    /// - uses forward layout.
-    /// - uses 'rev' bucket order.
-    /// - uses the full array.
-    pub fn new(vals: &[u32], b: usize) -> Self {
+impl<const B: usize, const N: usize, Tp: Marker> PartitionedSTree<B, N, Tp> {
+    fn get_part_size(vals: &[u32], b: usize) -> (usize, usize, usize, usize) {
         assert!(vals.is_sorted());
         assert!(*vals.last().unwrap() <= MAX);
-
-        let n = vals.len();
-        assert!(n > 0);
+        assert!(vals.len() > 0);
 
         let bits = 1 + vals.last().unwrap().ilog2() as usize;
         let mut shift = bits.saturating_sub(b);
@@ -67,7 +85,7 @@ impl<const B: usize, const N: usize, const COMPACT: bool, const L1: bool>
 
         // Compute bucket sizes.
         // For compact case, we need to store one sentinel of padding at the end of each part.
-        let mut bucket_sizes = vec![if COMPACT { 1 } else { 0 }; parts];
+        let mut bucket_sizes = vec![if Tp::COMPACT { 1 } else { 0 }; parts];
         for &val in vals {
             let bucket = (val >> shift) as usize;
             bucket_sizes[bucket] += 1;
@@ -76,7 +94,7 @@ impl<const B: usize, const N: usize, const COMPACT: bool, const L1: bool>
         // Find largest bucket.
         let mut max_bucket = *bucket_sizes.iter().max().unwrap();
         // Number of layers for largest bucket.
-        let height = Self::height(max_bucket);
+        let height = TreeBase::<B>::height(max_bucket);
 
         // Try reducing the number of parts if the height stays the same.
         let mut b2 = b;
@@ -90,13 +108,13 @@ impl<const B: usize, const N: usize, const COMPACT: bool, const L1: bool>
             }
             let shift2 = bits.saturating_sub(b2);
             let parts2 = 1 << (bits - shift2);
-            let mut bucket_sizes2 = vec![if COMPACT { 1 } else { 0 }; parts2];
+            let mut bucket_sizes2 = vec![if Tp::COMPACT { 1 } else { 0 }; parts2];
             for &val in vals {
                 let bucket = (val >> shift2) as usize;
                 bucket_sizes2[bucket] += 1;
             }
             let max_bucket2 = *bucket_sizes2.iter().max().unwrap();
-            let height2 = Self::height(max_bucket2);
+            let height2 = TreeBase::<B>::height(max_bucket2);
             if height2 > height {
                 // eprintln!("{bucket_sizes2:?}");
                 break;
@@ -105,196 +123,241 @@ impl<const B: usize, const N: usize, const COMPACT: bool, const L1: bool>
             parts = parts2;
             max_bucket = max_bucket2;
         }
+        (shift, parts, max_bucket, height)
+    }
+}
+
+impl<const B: usize, const N: usize> PartitionedSTree<B, N, Compact> {
+    /// Partition on the first `b` bits of each key before building the tree.
+    /// Any bits beyond the maximum value are skipped.
+    /// - uses hugepages.
+    /// - uses forward layout.
+    /// - uses 'rev' bucket order.
+    /// - uses the full array.
+    pub fn new(vals: &[u32], b: usize) -> Self {
+        let n = vals.len();
+
+        let (shift, parts, max_bucket, height) = Self::get_part_size(vals, b);
 
         let layer_sizes;
         let offsets;
         let mut tree;
         let bpp;
-        let mut l1 = 0;
-        if COMPACT {
-            // In this case, L1 is meaningless!
-            assert!(
-                !L1,
-                "In the compact case, a separate level 0 size doesn't do anything."
-            );
-            assert!(height > 0);
-            // All layers are full, for indexing purposes.
-            // TODO: Layer sizes given by max_bucket_size.
-            layer_sizes = (0..height)
-                .map(|h| Self::layer_size(max_bucket, h, height).div_ceil(B))
-                .collect_vec();
-            assert!(layer_sizes[0] == 1);
-            bpp = layer_sizes.iter().sum::<usize>();
-            let n_blocks = parts * bpp;
+        // In this case, L1 is meaningless!
+        assert!(height > 0);
+        // All layers are full, for indexing purposes.
+        // TODO: Layer sizes given by max_bucket_size.
+        layer_sizes = (0..height)
+            .map(|h| TreeBase::<B>::layer_size(max_bucket, h, height).div_ceil(B))
+            .collect_vec();
+        assert!(layer_sizes[0] == 1);
+        bpp = layer_sizes.iter().sum::<usize>();
+        let n_blocks = parts * bpp;
 
-            // Offsets within a part.
-            offsets = layer_sizes
-                .iter()
-                .scan(0, |sum, sz| {
-                    let offset = *sum;
-                    *sum += sz;
-                    Some(offset)
-                })
-                .collect_vec();
+        // Offsets within a part.
+        offsets = layer_sizes
+            .iter()
+            .scan(0, |sum, sz| {
+                let offset = *sum;
+                *sum += sz;
+                Some(offset)
+            })
+            .collect_vec();
 
-            tree = vec_on_hugepages::<BTreeNode<N>>(n_blocks);
+        tree = vec_on_hugepages::<BTreeNode<N>>(n_blocks);
 
-            // First initialize all nodes in the layer with MAX.
-            for node in &mut tree {
-                node.data.fill(MAX);
+        // First initialize all nodes in the layer with MAX.
+        for node in &mut tree {
+            node.data.fill(MAX);
+        }
+
+        // Initialize the last layer.
+        let mut prev_part = 0;
+        let mut idx = 0;
+
+        let h = height - 1;
+        let ol = offsets[h]; // last-level offset
+        for &val in vals {
+            let part = (val >> shift) as usize;
+
+            // For each completed part (typically just 1), append the current val.
+            while prev_part < part {
+                if idx / B < layer_sizes[h] {
+                    tree[prev_part * bpp + ol + idx / B].data[idx % B..].fill(val);
+                }
+                prev_part += 1;
+                idx = 0;
             }
 
-            // Initialize the last layer.
-            let mut prev_part = 0;
-            let mut idx = 0;
+            tree[part * bpp + ol + idx / B].data[idx % B] = val;
+            // If B<N and there is some buffer space in each node,
+            // put us also in the last element of the previous node.
+            if B < N && idx % B == 0 && idx > 0 {
+                tree[part * bpp + ol + idx / B - 1].data[B] = val;
+            }
+            idx += 1;
+        }
 
-            let h = height - 1;
-            let ol = offsets[h]; // last-level offset
-            for &val in vals {
-                let part = (val >> shift) as usize;
+        // Initialize the inner layers.
+        for h in (0..height - 1).rev() {
+            let oh = offsets[h];
 
-                // For each completed part (typically just 1), append the current val.
-                while prev_part < part {
-                    if idx / B < layer_sizes[h] {
-                        tree[prev_part * bpp + ol + idx / B].data[idx % B..].fill(val);
+            for part in 0..parts {
+                for i in 0..B * layer_sizes[h] {
+                    let mut k = i / B;
+                    let j = i % B;
+                    k = k * (B + 1) + j + 1;
+                    for _l in h..height - 2 {
+                        k *= B + 1;
                     }
-                    prev_part += 1;
-                    idx = 0;
-                }
-
-                tree[part * bpp + ol + idx / B].data[idx % B] = val;
-                // If B<N and there is some buffer space in each node,
-                // put us also in the last element of the previous node.
-                if B < N && idx % B == 0 && idx > 0 {
-                    tree[part * bpp + ol + idx / B - 1].data[B] = val;
-                }
-                idx += 1;
-            }
-
-            // Initialize the inner layers.
-            for h in (0..height - 1).rev() {
-                let oh = offsets[h];
-
-                for part in 0..parts {
-                    for i in 0..B * layer_sizes[h] {
-                        let mut k = i / B;
-                        let j = i % B;
-                        k = k * (B + 1) + j + 1;
-                        for _l in h..height - 2 {
-                            k *= B + 1;
-                        }
-                        tree[part * bpp + oh + i / B].data[i % B] = if k * B < max_bucket {
-                            tree[part * bpp + ol + k - 1].data[B - 1]
-                        } else {
-                            MAX
-                        };
-                    }
-                }
-            }
-        } else {
-            assert!(height > 0);
-            // All layers are full, for indexing purposes.
-            // Unless, L1 is set. Then, the first layer below the root (ie the number of entries in the root) can be smaller.
-            layer_sizes = if !L1 {
-                (0..height).map(|h| (B + 1).pow(h as u32)).collect_vec()
-            } else {
-                // let normal_layer_sizes = (0..height)
-                //     .map(|h| Self::layer_size(max_bucket, h, height))
-                //     .collect_vec();
-                // eprintln!("normal_layer_sizes={:?}", normal_layer_sizes);
-                // let normal_layer_sizes = (0..height)
-                //     .map(|h| Self::layer_size(max_bucket, h, height).div_ceil(B))
-                //     .collect_vec();
-                // eprintln!("normal_layer_sizes={:?}", normal_layer_sizes);
-
-                // Number of nodes in level 1 is number of values in level 0 + 1.
-                l1 = Self::layer_size(max_bucket, 1, height).div_ceil(B);
-                eprintln!("size: {n} l1 {l1}");
-                (0..height)
-                    .map(|h| ((B + 1).pow(h as u32) * l1).div_ceil(B + 1))
-                    .collect_vec()
-            };
-            eprintln!("layer_sizes={:?}", layer_sizes);
-
-            assert!(
-                layer_sizes[0] == 1,
-                "layer_sizes={:?} has unexpected root size?",
-                layer_sizes
-            );
-
-            bpp = layer_sizes.iter().sum::<usize>();
-            let n_blocks = parts * bpp;
-
-            offsets = layer_sizes
-                .iter()
-                .scan(0, |sum, sz| {
-                    let offset = *sum;
-                    *sum += parts * sz;
-                    Some(offset)
-                })
-                .collect_vec();
-
-            tree = vec_on_hugepages::<BTreeNode<N>>(n_blocks);
-
-            // First initialize all nodes in the layer with MAX.
-            // TODO: Maybe we can omit this and avoid mapping some of the pages of the tree?
-            for node in &mut tree {
-                node.data.fill(MAX);
-            }
-
-            // Initialize the last layer.
-            let ol = offsets[height - 1];
-            let mut prev_part = 0;
-            let mut idx = 0;
-
-            for &val in vals {
-                let part = (val >> shift) as usize;
-
-                // For each completed part (typically just 1), append the current val.
-                while prev_part < part {
-                    if idx < (prev_part + 1) * B * layer_sizes[height - 1] {
-                        tree[ol + idx / B].data[idx % B..].fill(val);
-                    }
-                    prev_part += 1;
-                    idx = prev_part * B * layer_sizes[height - 1];
-                }
-
-                tree[ol + idx / B].data[idx % B] = val;
-                // If B<N and there is some buffer space in each node,
-                // put us also in the last element of the previous node.
-                if B < N && idx % B == 0 && idx > 0 {
-                    tree[ol + idx / B - 1].data[B] = val;
-                }
-                idx += 1;
-            }
-
-            // Initialize the inner layers.
-            for h in (0..height - 1).rev() {
-                let oh = offsets[h];
-
-                let l = layer_sizes[h];
-                let ll = layer_sizes[height - 1];
-                for p in 0..parts {
-                    for i in 0..B * layer_sizes[h] {
-                        let mut k = i / B;
-                        let j = i % B;
-                        k = k * (B + 1) + j + 1;
-                        for _l in h..height - 2 {
-                            k *= B + 1;
-                        }
-                        tree[oh + l * p + i / B].data[i % B] = if k * B < max_bucket {
-                            tree[ol + ll * p + k - 1].data[B - 1]
-                        } else {
-                            MAX
-                        };
-                    }
+                    tree[part * bpp + oh + i / B].data[i % B] = if k * B < max_bucket {
+                        tree[part * bpp + ol + k - 1].data[B - 1]
+                    } else {
+                        MAX
+                    };
                 }
             }
         }
         assert!(offsets.len() > 0);
 
         eprintln!(
-            "PartitionedSTree: n={} b={} shift={} parts={} height={} layer_sizes={:?} offsets={:?} compact={COMPACT} max_bucket={max_bucket}",
+            "PartitionedSTree: n={} b={} shift={} parts={} height={} layer_sizes={:?} offsets={:?} compact=true max_bucket={max_bucket}",
+            n, b, shift, parts, height, layer_sizes, offsets
+        );
+        // for (i, node) in tree.iter().enumerate() {
+        //     eprintln!("{i:>2} {:?}", node);
+        // }
+
+        Self {
+            tree,
+            offsets,
+            shift,
+            bpp,
+            l1: 0,
+            _tp: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B, N, Tp> {
+    /// Partition on the first `b` bits of each key before building the tree.
+    /// Any bits beyond the maximum value are skipped.
+    /// - uses hugepages.
+    /// - uses forward layout.
+    /// - uses 'rev' bucket order.
+    /// - uses the full array.
+    pub fn new(vals: &[u32], b: usize) -> Self {
+        let n = vals.len();
+
+        let (shift, parts, max_bucket, height) = Self::get_part_size(vals, b);
+
+        let layer_sizes;
+        let offsets;
+        let mut tree;
+        let bpp;
+        let mut l1 = 0;
+        assert!(height > 0);
+        // All layers are full, for indexing purposes.
+        // Unless, L1 is set. Then, the first layer below the root (ie the number of entries in the root) can be smaller.
+        layer_sizes = if !Tp::L1 {
+            (0..height).map(|h| (B + 1).pow(h as u32)).collect_vec()
+        } else {
+            // let normal_layer_sizes = (0..height)
+            //     .map(|h| Self::layer_size(max_bucket, h, height))
+            //     .collect_vec();
+            // eprintln!("normal_layer_sizes={:?}", normal_layer_sizes);
+            // let normal_layer_sizes = (0..height)
+            //     .map(|h| Self::layer_size(max_bucket, h, height).div_ceil(B))
+            //     .collect_vec();
+            // eprintln!("normal_layer_sizes={:?}", normal_layer_sizes);
+
+            // Number of nodes in level 1 is number of values in level 0 + 1.
+            l1 = TreeBase::<B>::layer_size(max_bucket, 1, height).div_ceil(B);
+            eprintln!("size: {n} l1 {l1}");
+            (0..height)
+                .map(|h| ((B + 1).pow(h as u32) * l1).div_ceil(B + 1))
+                .collect_vec()
+        };
+        eprintln!("layer_sizes={:?}", layer_sizes);
+
+        assert!(
+            layer_sizes[0] == 1,
+            "layer_sizes={:?} has unexpected root size?",
+            layer_sizes
+        );
+
+        bpp = layer_sizes.iter().sum::<usize>();
+        let n_blocks = parts * bpp;
+
+        offsets = layer_sizes
+            .iter()
+            .scan(0, |sum, sz| {
+                let offset = *sum;
+                *sum += parts * sz;
+                Some(offset)
+            })
+            .collect_vec();
+
+        tree = vec_on_hugepages::<BTreeNode<N>>(n_blocks);
+
+        // First initialize all nodes in the layer with MAX.
+        // TODO: Maybe we can omit this and avoid mapping some of the pages of the tree?
+        for node in &mut tree {
+            node.data.fill(MAX);
+        }
+
+        // Initialize the last layer.
+        let ol = offsets[height - 1];
+        let mut prev_part = 0;
+        let mut idx = 0;
+
+        for &val in vals {
+            let part = (val >> shift) as usize;
+
+            // For each completed part (typically just 1), append the current val.
+            while prev_part < part {
+                if idx < (prev_part + 1) * B * layer_sizes[height - 1] {
+                    tree[ol + idx / B].data[idx % B..].fill(val);
+                }
+                prev_part += 1;
+                idx = prev_part * B * layer_sizes[height - 1];
+            }
+
+            tree[ol + idx / B].data[idx % B] = val;
+            // If B<N and there is some buffer space in each node,
+            // put us also in the last element of the previous node.
+            if B < N && idx % B == 0 && idx > 0 {
+                tree[ol + idx / B - 1].data[B] = val;
+            }
+            idx += 1;
+        }
+
+        // Initialize the inner layers.
+        for h in (0..height - 1).rev() {
+            let oh = offsets[h];
+
+            let l = layer_sizes[h];
+            let ll = layer_sizes[height - 1];
+            for p in 0..parts {
+                for i in 0..B * layer_sizes[h] {
+                    let mut k = i / B;
+                    let j = i % B;
+                    k = k * (B + 1) + j + 1;
+                    for _l in h..height - 2 {
+                        k *= B + 1;
+                    }
+                    tree[oh + l * p + i / B].data[i % B] = if k * B < max_bucket {
+                        tree[ol + ll * p + k - 1].data[B - 1]
+                    } else {
+                        MAX
+                    };
+                }
+            }
+        }
+        assert!(offsets.len() > 0);
+
+        eprintln!(
+            "PartitionedSTree: n={} b={} shift={} parts={} height={} layer_sizes={:?} offsets={:?} compact=false max_bucket={max_bucket}",
             n, b, shift, parts, height, layer_sizes, offsets
         );
         // for (i, node) in tree.iter().enumerate() {
@@ -307,6 +370,8 @@ impl<const B: usize, const N: usize, const COMPACT: bool, const L1: bool>
             shift,
             bpp,
             l1,
+            // FIXME
+            _tp: std::marker::PhantomData,
         }
     }
 }
@@ -314,7 +379,7 @@ impl<const B: usize, const N: usize, const COMPACT: bool, const L1: bool>
 /// Partitions, full
 /// First layer 0 of all parts, then layer 1 of all parts, ...
 /// Inefficient, because layers much have their 'full' size and grown by B+1 each level.
-impl<const B: usize, const N: usize> PartitionedSTree<B, N, false, false> {
+impl<const B: usize, const N: usize> PartitionedSTree<B, N, Simple> {
     pub fn search<const P: usize, const PF: bool>(&self, qb: &[u32; P]) -> [u32; P] {
         let offsets = self
             .offsets
@@ -353,7 +418,7 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, false, false> {
 /// Layout: tree for part 1, tree for part 2, ...
 /// More efficient because each part is stored compactly.
 /// Slightly slower though, because we must explicitly track to which part each query belongs.
-impl<const B: usize, const N: usize> PartitionedSTree<B, N, true, false> {
+impl<const B: usize, const N: usize> PartitionedSTree<B, N, Compact> {
     pub fn search<const P: usize, const PF: bool>(&self, qb: &[u32; P]) -> [u32; P] {
         let offsets = self
             .offsets
@@ -395,7 +460,7 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, true, false> {
 /// Partitions, full with level1 compression.
 /// First layer 0 of all parts, then layer 1 of all parts, ...
 /// The number of children of each level0 node (root) is only `self.l1`, instead of the full `B+1`, saving some memory.
-impl<const B: usize, const N: usize> PartitionedSTree<B, N, false, true> {
+impl<const B: usize, const N: usize> PartitionedSTree<B, N, L1> {
     pub fn search<const P: usize, const PF: bool>(&self, qb: &[u32; P]) -> [u32; P] {
         let offsets = self
             .offsets
