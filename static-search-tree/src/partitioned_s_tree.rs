@@ -359,7 +359,6 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, false, false> {
         let o = offsets.last().unwrap();
         from_fn(|i| {
             let idx = unsafe { *o.byte_add(k[i]) }.find_splat(q_simd[i]);
-
             unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
         })
     }

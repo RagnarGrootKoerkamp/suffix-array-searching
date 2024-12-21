@@ -200,7 +200,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         self.get(o + k + idx / N, idx % N)
     }
 
-    fn batch_impl<'a, const P: usize, const PF: bool>(&self, qb: &[u32; P]) -> [u32; P] {
+    fn batch_impl<const P: usize, const PF: bool>(&self, qb: &[u32; P]) -> [u32; P] {
         let mut k = [0; P];
         for [o, o2] in self.offsets.array_windows() {
             for i in 0..P {
@@ -220,10 +220,10 @@ impl<const B: usize, const N: usize> STree<B, N> {
         })
     }
 
-    pub fn batch<'a, const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
+    pub fn batch<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
         self.batch_impl::<P, false>(qb)
     }
-    pub fn batch_prefetch<'a, const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
+    pub fn batch_prefetch<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
         self.batch_impl::<P, true>(qb)
     }
 
