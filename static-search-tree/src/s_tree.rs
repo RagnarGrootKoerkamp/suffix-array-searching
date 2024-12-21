@@ -15,30 +15,11 @@ pub struct STree<const B: usize, const N: usize> {
     offsets: Vec<usize>,
 }
 
-impl<const B: usize, const N: usize> SearchIndex for STree<B, N> {
-    fn new(vals: &[u32]) -> Self {
-        Self::new_params(vals, false, false, false)
-    }
-
-    fn size(&self) -> usize {
-        std::mem::size_of_val(self.tree.as_slice())
-    }
-}
-
 pub type STree16 = STree<16, 16>;
 pub type STree15 = STree<15, 16>;
 
-impl<const B: usize, const N: usize> STree<B, N> {
-    // Helper functions for unchecked indexing.
-    fn node(&self, b: usize) -> &BTreeNode<N> {
-        unsafe { &*self.tree.get_unchecked(b) }
-    }
-
-    fn get(&self, b: usize, i: usize) -> u32 {
-        unsafe { *self.tree.get_unchecked(b).data.get_unchecked(i) }
-    }
-
-    // Helper functions for construction.
+/// Wrap some helper functions.
+pub(crate) trait TreeBase<const B: usize> {
     fn blocks(n: usize) -> usize {
         n.div_ceil(B)
     }
@@ -57,6 +38,29 @@ impl<const B: usize, const N: usize> STree<B, N> {
             n = Self::prev_keys(n);
         }
         n
+    }
+}
+
+impl<const B: usize, const N: usize> TreeBase<B> for STree<B, N> {}
+
+impl<const B: usize, const N: usize> SearchIndex for STree<B, N> {
+    fn new(vals: &[u32]) -> Self {
+        Self::new_params(vals, false, false, false)
+    }
+
+    fn size(&self) -> usize {
+        std::mem::size_of_val(self.tree.as_slice())
+    }
+}
+
+impl<const B: usize, const N: usize> STree<B, N> {
+    // Helper functions for unchecked indexing.
+    fn node(&self, b: usize) -> &BTreeNode<N> {
+        unsafe { &*self.tree.get_unchecked(b) }
+    }
+
+    fn get(&self, b: usize, i: usize) -> u32 {
+        unsafe { *self.tree.get_unchecked(b).data.get_unchecked(i) }
     }
 
     pub fn new_params(vals: &[u32], fwd: bool, rev: bool, full_array: bool) -> Self {

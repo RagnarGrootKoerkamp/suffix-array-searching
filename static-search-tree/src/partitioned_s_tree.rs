@@ -3,6 +3,7 @@ use std::array::from_fn;
 use std::{fmt::Debug, simd::Simd};
 
 use crate::node::{BTreeNode, MAX};
+use crate::s_tree::TreeBase;
 use crate::{prefetch_ptr, vec_on_hugepages, SearchIndex};
 
 /// N total elements in a node.
@@ -38,30 +39,14 @@ pub type PartitionedSTree15C = PartitionedSTree<15, 16, true, false>;
 pub type PartitionedSTree16L = PartitionedSTree<16, 16, false, true>;
 pub type PartitionedSTree15L = PartitionedSTree<15, 16, false, true>;
 
+impl<const B: usize, const N: usize, const COMPACT: bool, const L1: bool> TreeBase<B>
+    for PartitionedSTree<B, N, COMPACT, L1>
+{
+}
+
 impl<const B: usize, const N: usize, const COMPACT: bool, const L1: bool>
     PartitionedSTree<B, N, COMPACT, L1>
 {
-    // Helper functions for construction.
-    fn blocks(n: usize) -> usize {
-        n.div_ceil(B)
-    }
-    fn prev_keys(n: usize) -> usize {
-        Self::blocks(n).div_ceil(B + 1) * B
-    }
-    fn height(n: usize) -> usize {
-        if n <= B {
-            1
-        } else {
-            Self::height(Self::prev_keys(n)) + 1
-        }
-    }
-    fn layer_size(mut n: usize, h: usize, height: usize) -> usize {
-        for _ in h..height - 1 {
-            n = Self::prev_keys(n);
-        }
-        n
-    }
-
     /// Partition on the first `b` bits of each key before building the tree.
     /// Any bits beyond the maximum value are skipped.
     /// - uses hugepages.
