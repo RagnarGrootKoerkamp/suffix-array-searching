@@ -240,7 +240,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
         let o = self.offsets.last().unwrap();
         from_fn(|i| {
-            let idx = self.node(o + k[i]).find(qb[i]);
+            let idx = self.node(o + k[i]).find_splat(q_simd[i]);
             self.get(o + k[i] + idx / N, idx % N)
         })
     }
@@ -263,10 +263,10 @@ impl<const B: usize, const N: usize> STree<B, N> {
             }
         }
 
-        let o = self.offsets.last().unwrap();
+        let o = offsets.last().unwrap();
         from_fn(|i| {
-            let idx = self.node(o + k[i]).find(qb[i]);
-            self.get(o + k[i] + idx / N, idx % N)
+            let idx = unsafe { *o.add(k[i]) }.find_splat(q_simd[i]);
+            unsafe { *(*o.add(k[i] + idx / N)).data.get_unchecked(idx % N) }
         })
     }
 
