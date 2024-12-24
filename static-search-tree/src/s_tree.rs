@@ -682,6 +682,20 @@ impl<const B: usize, const N: usize> STree<B, N> {
         out
     }
 
+    pub fn batch_interleave_full_128(&self, qs: &[u32]) -> Vec<u32> {
+        match self.offsets.len() {
+            1 => self.batch_interleave_full::<128, 1, 128>(qs),
+            2 => self.batch_interleave_full::<64, 2, 128>(qs),
+            3 => self.batch_interleave_full::<32, 3, 96>(qs),
+            4 => self.batch_interleave_full::<32, 4, 128>(qs),
+            5 => self.batch_interleave_full::<16, 5, 80>(qs),
+            6 => self.batch_interleave_full::<16, 6, 96>(qs),
+            7 => self.batch_interleave_full::<16, 7, 112>(qs),
+            8 => self.batch_interleave_full::<16, 8, 128>(qs),
+            _ => panic!("Unsupported tree height {}", self.offsets.len()),
+        }
+    }
+
     pub fn batch_interleave_full<const P: usize, const L: usize, const PL: usize>(
         &self,
         qs: &[u32],
@@ -818,6 +832,12 @@ impl<const B: usize, const N: usize> STree<B, N> {
         }
         assert!(out.len() > 0, "qs {}", qs.len());
         out
+    }
+
+    /// Copy queries to a new output vector.
+    #[inline(never)]
+    pub fn baseline(&self, qs: &[u32]) -> Vec<u32> {
+        qs.iter().map(|x| 2 * x).collect()
     }
 }
 

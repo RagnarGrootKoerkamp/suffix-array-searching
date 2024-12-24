@@ -52,7 +52,7 @@ fn main() {
         .unwrap_or(if ARGS.release {
             1_000_000usize
         } else {
-            100_000
+            1_000_000
         })
         .next_multiple_of(256);
 
@@ -168,20 +168,13 @@ fn main() {
                     //         &batched(STree16::batch_skip_prefetch::<128, 1>),
                     //         &batched(STree16::batch_skip_prefetch::<128, 2>),
                     //         &batched(STree16::batch_skip_prefetch::<128, 3>),
-                    &full(STree16::batch_interleave_half::<64>),
+                    // &full(STree16::batch_interleave_half::<64>),
                     // &full(STree16::batch_interleave_last::<64, 1>),
                     // &full(STree16::batch_interleave_last::<64, 2>),
-                    &full(STree16::batch_interleave_last::<64, 3>),
+                    // &full(STree16::batch_interleave_last::<64, 3>),
                     // &full(STree16::batch_interleave_last::<64, 4>),
-                    &full(STree16::batch_interleave_last::<64, 3>),
-                    &full(STree16::batch_interleave_full::<128, 1, 128>),
-                    &full(STree16::batch_interleave_full::<64, 2, 128>),
-                    &full(STree16::batch_interleave_full::<32, 3, 96>),
-                    &full(STree16::batch_interleave_full::<32, 4, 128>),
-                    &full(STree16::batch_interleave_full::<16, 5, 80>),
-                    &full(STree16::batch_interleave_full::<16, 6, 96>),
-                    &full(STree16::batch_interleave_full::<16, 7, 112>),
-                    &full(STree16::batch_interleave_full::<16, 8, 128>),
+                    &full(STree16::batch_interleave_full_128),
+                    // &full(STree16::baseline),
                 ]
             };
             // // Let's just always use hugepages.
