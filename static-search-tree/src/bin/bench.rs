@@ -77,7 +77,21 @@ fn main() {
                 name: &str,
             ) {
                 for &exp in exps {
-                    results.push(Result::new(name, size, index, qs, exp, run));
+                    results.push(Result::new(name, size, index, qs, exp, run, 1));
+                }
+            }
+
+            fn run_exps_multithreaded<I: SearchIndex>(
+                results: &mut Vec<Result>,
+                size: usize,
+                index: &I,
+                qs: &Vec<u32>,
+                run: usize,
+                exps: &[&(dyn SearchScheme<I>)],
+                name: &str,
+            ) {
+                for &exp in exps {
+                    results.push(Result::new(name, size, index, qs, exp, run, 6));
                 }
             }
 
@@ -105,6 +119,27 @@ fn main() {
                 &exps,
                 "",
             );
+            // let exps: T<_, _> = [&SortedVec::binary_search_std];
+            // run_exps_multithreaded(
+            //     &mut results,
+            //     size,
+            //     &SortedVec::new(vals),
+            //     qs,
+            //     run,
+            //     &exps,
+            //     "6 threads",
+            // );
+
+            // let exps: T<_, _> = [&Eytzinger::search_prefetch::<4>];
+            // run_exps_multithreaded(
+            //     &mut results,
+            //     size,
+            //     &Eytzinger::new(vals),
+            //     qs,
+            //     run,
+            //     &exps,
+            //     "6 threads",
+            // );
 
             let exps: T<_, _> = const {
                 [
@@ -276,9 +311,26 @@ impl Result {
         qs: &[u32],
         scheme: &dyn SearchScheme<I>,
         run: usize,
+        threads: usize,
     ) -> Result {
+        // println!("n = {size:>8} {} / {} RUNNING", scheme.name(), name);
+        let chunk_size = qs.len().div_ceil(threads);
+
         let start = Instant::now();
-        black_box(scheme.query(index, qs));
+
+        rayon::scope(|scope| {
+            for idx in 0..threads {
+                let index = &index;
+                // let scheme = scheme;
+                scope.spawn(move |_| {
+                    let start_idx = idx * chunk_size;
+                    let end = ((idx + 1) * chunk_size).min(qs.len());
+                    let qs_thread = &qs[start_idx..end];
+                    black_box(scheme.query(index, qs_thread));
+                });
+            }
+        });
+
         let duration = start.elapsed();
         let queries = qs.len();
         let freq = get_cpu_freq().unwrap();
