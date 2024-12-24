@@ -1,5 +1,6 @@
 #![feature(
     array_chunks,
+    iter_array_chunks,
     portable_simd,
     array_windows,
     type_changing_struct_update

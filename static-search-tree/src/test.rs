@@ -63,9 +63,21 @@ fn get_search_schemes() -> SearchSchemes {
             &batched(STree::batch_ptr::<128>),
             &batched(STree::batch_skip_prefetch::<128, 1>),
             &batched(STree::batch_skip_prefetch::<128, 2>),
-            &full(STree::batch_interleave::<64>),
             // &batched(STree::batch_byte_ptr::<128>),
             // &batched(STree::batch_final::<128>),
+            // // &full(STree::batch_interleave::<64>),
+            // &full(STree::batch_interleave_last::<64, 1>),
+            // &full(STree::batch_interleave_last::<64, 2>),
+            // &full(STree::batch_interleave_last::<64, 3>),
+            // &full(STree::batch_interleave_last::<64, 4>),
+            &full(STree16::batch_interleave_full::<128, 1, 128>),
+            &full(STree16::batch_interleave_full::<64, 2, 128>),
+            &full(STree16::batch_interleave_full::<32, 3, 96>),
+            &full(STree16::batch_interleave_full::<32, 4, 128>),
+            &full(STree16::batch_interleave_full::<16, 5, 80>),
+            &full(STree16::batch_interleave_full::<16, 6, 96>),
+            &full(STree16::batch_interleave_full::<16, 7, 112>),
+            &full(STree16::batch_interleave_full::<16, 8, 128>),
         ]
     }
     .to_vec();
@@ -80,7 +92,7 @@ fn get_search_schemes() -> SearchSchemes {
             &batched(STree::batch_final::<128>),
             &batched(STree::batch_skip_prefetch::<128, 1>),
             &batched(STree::batch_skip_prefetch::<128, 2>),
-            &full(STree::batch_interleave::<64>),
+            &full(STree::batch_interleave_half::<64>),
         ]
     }
     .to_vec();

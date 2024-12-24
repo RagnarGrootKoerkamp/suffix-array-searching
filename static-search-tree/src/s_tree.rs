@@ -1,4 +1,5 @@
 use std::array::from_fn;
+use std::iter::repeat;
 use std::{fmt::Debug, iter::zip, simd::Simd};
 
 use itertools::Itertools;
@@ -383,7 +384,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         })
     }
 
-    pub fn batch_interleave<const P: usize>(&self, qs: &[u32]) -> Vec<u32> {
+    pub fn batch_interleave_half<const P: usize>(&self, qs: &[u32]) -> Vec<u32> {
         if self.offsets.len() % 2 != 0 {
             return vec![];
         }
@@ -395,8 +396,8 @@ impl<const B: usize, const N: usize> STree<B, N> {
             .map(|o| unsafe { self.tree.as_ptr().add(*o) })
             .collect_vec();
 
-        let mut k1 = &mut [0; P];
-        let mut k2 = &mut [0; P];
+        let mut k1 = [0; P];
+        let mut k2 = [0; P];
 
         // temporary: assert h is even
 
@@ -414,9 +415,9 @@ impl<const B: usize, const N: usize> STree<B, N> {
         let mut out = Vec::with_capacity(qs.len());
 
         let c1 = chunks.next().unwrap();
-        let mut q_simd1 = &mut [Simd::<u32, 8>::splat(0); P];
-        let mut q_simd2 = &mut [Simd::<u32, 8>::splat(0); P];
-        *q_simd1 = c1.map(|q| Simd::<u32, 8>::splat(q));
+        let mut q_simd1 = [Simd::<u32, 8>::splat(0); P];
+        let mut q_simd2 = [Simd::<u32, 8>::splat(0); P];
+        q_simd2 = c1.map(|q| Simd::<u32, 8>::splat(q));
 
         let hs_first = 0..hh;
         let hs_second = hh..offsets.len() - 1;
@@ -426,18 +427,23 @@ impl<const B: usize, const N: usize> STree<B, N> {
             let o = unsafe { *offsets.get_unchecked(h1) };
             let o2 = unsafe { *offsets.get_unchecked(h1 + 1) };
             for i in 0..P {
-                let jump_to = unsafe { *o.byte_add(k1[i]) }.find_splat64(q_simd1[i]);
-                k1[i] = k1[i] * (B + 1) + jump_to;
-                prefetch_ptr(unsafe { o2.byte_add(k1[i]) });
+                let jump_to = unsafe { *o.byte_add(k2[i]) }.find_splat64(q_simd2[i]);
+                k2[i] = k2[i] * (B + 1) + jump_to;
+                prefetch_ptr(unsafe { o2.byte_add(k2[i]) });
             }
         }
 
+        assert!(qs.len() % (2 * P) == 0);
+
         // 2
-        for c1 in chunks {
+        for [c1, c2] in chunks.array_chunks() {
             // swap
-            (q_simd1, q_simd2) = (q_simd2, q_simd1);
-            (k1, k2) = (k2, k1);
-            *q_simd1 = c1.map(|q| Simd::<u32, 8>::splat(q));
+            // (q_simd1, q_simd2) = (q_simd2, q_simd1);
+            // (k1, k2) = (k2, k1);
+
+            // C1
+
+            q_simd1 = c1.map(|q| Simd::<u32, 8>::splat(q));
             k1.fill(0);
 
             // First hh levels of c1.
@@ -478,10 +484,185 @@ impl<const B: usize, const N: usize> STree<B, N> {
                 unsafe { (o.byte_add(k2[i]) as *const u32).add(idx).read() }
             });
             out.extend_from_slice(&ans);
+
+            // C2
+
+            q_simd2 = c2.map(|q| Simd::<u32, 8>::splat(q));
+            k2.fill(0);
+
+            // First hh levels of c2.
+            // Last hh levels of c1, with the last level special.
+
+            for (h1, h2) in zip(hs_first.clone(), hs_second.clone()) {
+                // eprintln!("h1: {}, h2: {}", h1, h2);
+                let o1 = unsafe { *offsets.get_unchecked(h1) };
+                let o12 = unsafe { *offsets.get_unchecked(h1 + 1) };
+                let o2 = unsafe { *offsets.get_unchecked(h2) };
+                let o22 = unsafe { *offsets.get_unchecked(h2 + 1) };
+                for i in 0..P {
+                    // 1
+                    let jump_to = unsafe { *o1.byte_add(k2[i]) }.find_splat64(q_simd2[i]);
+                    k2[i] = k2[i] * (B + 1) + jump_to;
+                    prefetch_ptr(unsafe { o12.byte_add(k2[i]) });
+
+                    // 2
+                    let jump_to = unsafe { *o2.byte_add(k1[i]) }.find_splat64(q_simd1[i]);
+                    k1[i] = k1[i] * (B + 1) + jump_to;
+                    prefetch_ptr(unsafe { o22.byte_add(k1[i]) });
+                }
+            }
+
+            // eprintln!("h1: {}, h2: {}", hh, 0);
+
+            let o1 = unsafe { *offsets.get_unchecked(hh - 1) };
+            let o12 = unsafe { *offsets.get_unchecked(hh) };
+
+            // last iteration is special, where h2 = 0.
+            let o = offsets.last().unwrap();
+            let ans: [u32; P] = from_fn(|i| {
+                let jump_to = unsafe { *o1.byte_add(k2[i]) }.find_splat64(q_simd2[i]);
+                k2[i] = k2[i] * (B + 1) + jump_to;
+                prefetch_ptr(unsafe { o12.byte_add(k2[i]) });
+
+                let idx = unsafe { *o.byte_add(k1[i]) }.find_splat(q_simd1[i]);
+                unsafe { (o.byte_add(k1[i]) as *const u32).add(idx).read() }
+            });
+            out.extend_from_slice(&ans);
         }
 
         // 3
         for h2 in hs_second {
+            // eprintln!("h2: {}", h2);
+            let o = unsafe { *offsets.get_unchecked(h2) };
+            let o2 = unsafe { *offsets.get_unchecked(h2 + 1) };
+            for i in 0..P {
+                let jump_to = unsafe { *o.byte_add(k2[i]) }.find_splat64(q_simd1[i]);
+                k1[i] = k1[i] * (B + 1) + jump_to;
+                prefetch_ptr(unsafe { o2.byte_add(k1[i]) });
+            }
+        }
+        // h=0
+        let o = offsets.last().unwrap();
+        let ans: [u32; P] = from_fn(|i| {
+            let idx = unsafe { *o.byte_add(k2[i]) }.find_splat(q_simd2[i]);
+            unsafe { (o.byte_add(k2[i]) as *const u32).add(idx).read() }
+        });
+        out.extend_from_slice(&ans);
+        out
+    }
+
+    pub fn batch_interleave_last<const P: usize, const X: usize>(&self, qs: &[u32]) -> Vec<u32> {
+        if self.offsets.len() < 2 + X - 1 {
+            return vec![];
+        }
+
+        let offsets = self
+            .offsets
+            .iter()
+            .map(|o| unsafe { self.tree.as_ptr().add(*o) })
+            .collect_vec();
+
+        let mut k1 = &mut [0; P];
+        let mut k2 = &mut [0; P];
+
+        // temporary: assert h is even
+
+        // 1. setup first P queries
+        // 2. do 2nd half of first P queries, and first half of next; repeat
+        // 3. last half of last P queries.
+
+        let mut chunks = qs.array_chunks::<P>();
+        assert!(
+            chunks.remainder().is_empty(),
+            "Interleave does not process trailing bits"
+        );
+        let mut out = Vec::with_capacity(qs.len());
+
+        let c1 = chunks.next().unwrap();
+        let mut q_simd1 = &mut [Simd::<u32, 8>::splat(0); P];
+        let mut q_simd2 = &mut [Simd::<u32, 8>::splat(0); P];
+        *q_simd1 = c1.map(|q| Simd::<u32, 8>::splat(q));
+
+        let hs_first = 0..X - 1;
+        let hs_mid = X - 1..offsets.len() - 2;
+        let hs_second = offsets.len() - 2;
+
+        // 1
+        for h1 in hs_first.clone() {
+            let o = unsafe { *offsets.get_unchecked(h1) };
+            let o2 = unsafe { *offsets.get_unchecked(h1 + 1) };
+            for i in 0..P {
+                let jump_to = unsafe { *o.byte_add(k1[i]) }.find_splat64(q_simd1[i]);
+                k1[i] = k1[i] * (B + 1) + jump_to;
+                prefetch_ptr(unsafe { o2.byte_add(k1[i]) });
+            }
+        }
+
+        // 2
+        for c1 in chunks {
+            // swap
+            (q_simd1, q_simd2) = (q_simd2, q_simd1);
+            (k1, k2) = (k2, k1);
+
+            *q_simd1 = c1.map(|q| Simd::<u32, 8>::splat(q));
+            k1.fill(0);
+
+            // First hh levels of c1.
+            // Last hh levels of c2, with the last level special.
+
+            for h1 in hs_mid.clone() {
+                let o1 = unsafe { *offsets.get_unchecked(h1) };
+                let o12 = unsafe { *offsets.get_unchecked(h1 + 1) };
+                for i in 0..P {
+                    let jump_to = unsafe { *o1.byte_add(k2[i]) }.find_splat64(q_simd2[i]);
+                    k2[i] = k2[i] * (B + 1) + jump_to;
+                    prefetch_ptr(unsafe { o12.byte_add(k2[i]) });
+                }
+            }
+
+            let h2 = hs_second;
+            // eprintln!("h1: {}, h2: {}", h1, h2);
+            let o2 = unsafe { *offsets.get_unchecked(h2) };
+            let o22 = unsafe { *offsets.get_unchecked(h2 + 1) };
+
+            let ols: [_; X] = from_fn(|i| unsafe { *offsets.get_unchecked(i) });
+            for i in 0..P {
+                for j in 0..X - 1 {
+                    let jump_to = unsafe { *ols[j].byte_add(k1[i]) }.find_splat64(q_simd1[i]);
+                    k1[i] = k1[i] * (B + 1) + jump_to;
+                }
+                // prefetch_ptr(unsafe { ols[X - 1].byte_add(k1[i]) });
+
+                // 2
+                let jump_to = unsafe { *o2.byte_add(k2[i]) }.find_splat64(q_simd2[i]);
+                k2[i] = k2[i] * (B + 1) + jump_to;
+                prefetch_ptr(unsafe { o22.byte_add(k2[i]) });
+            }
+
+            // eprintln!("h1: {}, h2: {}", hh, 0);
+
+            // last iteration is special, where h2 = 0.
+            let o = offsets.last().unwrap();
+            let ans: [u32; P] = from_fn(|i| {
+                let idx = unsafe { *o.byte_add(k2[i]) }.find_splat(q_simd2[i]);
+                unsafe { (o.byte_add(k2[i]) as *const u32).add(idx).read() }
+            });
+            out.extend_from_slice(&ans);
+        }
+
+        for h1 in hs_mid.clone() {
+            let o1 = unsafe { *offsets.get_unchecked(h1) };
+            let o12 = unsafe { *offsets.get_unchecked(h1 + 1) };
+            for i in 0..P {
+                let jump_to = unsafe { *o1.byte_add(k1[i]) }.find_splat64(q_simd1[i]);
+                k1[i] = k1[i] * (B + 1) + jump_to;
+                prefetch_ptr(unsafe { o12.byte_add(k1[i]) });
+            }
+        }
+
+        // 3
+        let h2 = hs_second;
+        {
             // eprintln!("h2: {}", h2);
             let o = unsafe { *offsets.get_unchecked(h2) };
             let o2 = unsafe { *offsets.get_unchecked(h2 + 1) };
@@ -498,6 +679,144 @@ impl<const B: usize, const N: usize> STree<B, N> {
             unsafe { (o.byte_add(k1[i]) as *const u32).add(idx).read() }
         });
         out.extend_from_slice(&ans);
+        out
+    }
+
+    pub fn batch_interleave_full<const P: usize, const L: usize, const PL: usize>(
+        &self,
+        qs: &[u32],
+    ) -> Vec<u32>
+    where
+        [(); PL]:,
+    {
+        if self.offsets.len() != L {
+            return vec![];
+        }
+        assert_eq!(self.offsets.len(), L);
+
+        let offsets = self
+            .offsets
+            .iter()
+            .map(|o| unsafe { self.tree.as_ptr().add(*o) })
+            .collect_vec();
+
+        let offsets: &[_; L] = offsets.split_first_chunk().unwrap().0;
+
+        // temporary: assert h is even
+
+        // 1. setup first P queries
+        // 2. do 2nd half of first P queries, and first half of next; repeat
+        // 3. last half of last P queries.
+
+        let zeros = [0; P];
+        let buf = repeat(&zeros).take(L);
+        let chunks = qs.array_chunks::<P>();
+        assert!(
+            chunks.remainder().is_empty(),
+            "Interleave does not process trailing bits"
+        );
+        let chunks = chunks.chain(buf);
+
+        let mut out = Vec::with_capacity(qs.len());
+
+        let mut q_simd = [Simd::<u32, 8>::splat(0); PL];
+        let mut k = [0; PL];
+
+        let mut ans = [0; P];
+        let ol = offsets.last().unwrap();
+
+        // 2
+        let mut first_i = (-(L as isize) as usize).wrapping_add(1);
+        for (c, c1) in chunks.enumerate() {
+            ///////////////////////////////// new
+
+            let mut i = first_i;
+            first_i = first_i.wrapping_sub(1);
+            if first_i == -(L as isize) as usize {
+                first_i = 0;
+            }
+            let mut j = 0;
+
+            // First incomplete iteration.
+            {
+                for l in 0..L - 1 {
+                    // i>=0, but i is unsigned so we check from the other end.
+                    if i < L * P {
+                        let jump_to = unsafe { *offsets[l].byte_add(k[i]) }.find_splat64(q_simd[i]);
+                        k[i] = k[i] * (B + 1) + jump_to;
+                        prefetch_ptr(unsafe { offsets[l + 1].byte_add(k[i]) });
+                    }
+                    i = i.wrapping_add(1);
+                }
+
+                if i < PL {
+                    ans[j] = {
+                        let idx = unsafe { *ol.byte_add(k[i]) }.find_splat(q_simd[i]);
+                        unsafe { (ol.byte_add(k[i]) as *const u32).add(idx).read() }
+                    };
+                    k[i] = 0;
+                    q_simd[i] = Simd::splat(c1[j]);
+                    j += 1;
+                }
+
+                i = i.wrapping_add(1);
+
+                assert!(i < P);
+            }
+
+            // Middle
+
+            loop {
+                for l in 0..L - 1 {
+                    let jump_to = unsafe { *offsets[l].byte_add(k[i]) }.find_splat64(q_simd[i]);
+                    k[i] = k[i] * (B + 1) + jump_to;
+                    prefetch_ptr(unsafe { offsets[l + 1].byte_add(k[i]) });
+                    i += 1;
+                }
+
+                ans[j] = {
+                    let idx = unsafe { *ol.byte_add(k[i]) }.find_splat(q_simd[i]);
+                    unsafe { (ol.byte_add(k[i]) as *const u32).add(idx).read() }
+                };
+                k[i] = 0;
+                q_simd[i] = Simd::splat(c1[j]);
+
+                i += 1;
+                j += 1;
+
+                if i > PL - L {
+                    break;
+                }
+            }
+
+            // Last incomplete iteration.
+            {
+                for l in 0..L - 1 {
+                    if i < L * P {
+                        let jump_to = unsafe { *offsets[l].byte_add(k[i]) }.find_splat64(q_simd[i]);
+                        k[i] = k[i] * (B + 1) + jump_to;
+                        prefetch_ptr(unsafe { offsets[l + 1].byte_add(k[i]) });
+                    }
+                    i += 1;
+                }
+
+                if i < L * P {
+                    ans[j] = {
+                        let idx = unsafe { *ol.byte_add(k[i]) }.find_splat(q_simd[i]);
+                        unsafe { (ol.byte_add(k[i]) as *const u32).add(idx).read() }
+                    };
+                }
+                i += 1;
+                // j += 1;
+
+                assert!(i >= PL);
+            }
+
+            if c >= L {
+                out.extend_from_slice(&ans);
+            }
+        }
+        assert!(out.len() > 0, "qs {}", qs.len());
         out
     }
 }
