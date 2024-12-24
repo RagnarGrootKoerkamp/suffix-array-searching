@@ -13,6 +13,7 @@ use crate::s_tree::{STree, STree15, STree16};
 use crate::SearchIndex;
 use crate::{batched, full, util::*, SearchScheme};
 use std::any::type_name;
+use std::iter::zip;
 
 pub struct SearchSchemes {
     bs: Vec<&'static dyn SearchScheme<SortedVec>>,
@@ -157,8 +158,12 @@ fn test_search() {
                     *results = new_results;
                 } else {
                     if *results != new_results {
-                        eprintln!("Expected\n{results:?}\ngot\n{new_results:?}");
-                        panic!();
+                        for (i, (&x, &y)) in zip(results.iter(), new_results.iter()).enumerate() {
+                            if x != y {
+                                eprintln!("{i}: Expected {x:>10} got {y:>10}");
+                            }
+                        }
+                        assert_eq!(results, &new_results);
                     }
                 }
             }
