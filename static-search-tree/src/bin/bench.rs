@@ -143,27 +143,21 @@ fn main() {
 
             let exps: T<_, _> = const {
                 [
-                    &STree16::search_with_find(BTreeNode::find_linear) as _,
-                    &STree16::search_with_find(BTreeNode::find_linear_count) as _,
-                    &STree16::search_with_find(BTreeNode::find_ctz) as _,
-                    &STree16::search_with_find(BTreeNode::find_ctz_signed) as _,
-                    &STree16::search_with_find(BTreeNode::find_popcnt_portable) as _,
-                    &STree16::search_with_find(BTreeNode::find_popcnt) as _,
-                    &batched(STree16::batch::<1>),
-                    &batched(STree16::batch::<2>),
-                    &batched(STree16::batch::<4>),
-                    &batched(STree16::batch::<8>),
-                    &batched(STree16::batch::<16>),
-                    &batched(STree16::batch::<32>),
-                    &batched(STree16::batch::<64>),
-                    &batched(STree16::batch::<128>),
-                    &batched(STree16::batch_prefetch::<128>),
-                    &batched(STree16::batch_splat::<128>),
-                    &batched(STree16::batch_skip_prefetch::<128, 0>),
-                    &batched(STree16::batch_skip_prefetch::<128, 1>),
-                    &batched(STree16::batch_skip_prefetch::<128, 2>),
-                    &batched(STree16::batch_skip_prefetch::<128, 3>),
-                    &full(STree16::batch_interleave::<16>),
+                    //         &STree16::search_with_find(BTreeNode::find_linear) as _,
+                    //         &STree16::search_with_find(BTreeNode::find_linear_count) as _,
+                    //         &STree16::search_with_find(BTreeNode::find_ctz) as _,
+                    //         &STree16::search_with_find(BTreeNode::find_ctz_signed) as _,
+                    //         &STree16::search_with_find(BTreeNode::find_popcnt_portable) as _,
+                    //         &STree16::search_with_find(BTreeNode::find_popcnt) as _,
+                    //         &batched(STree16::batch::<1>),
+                    //         &batched(STree16::batch::<2>),
+                    //         &batched(STree16::batch::<4>),
+                    //         &batched(STree16::batch::<8>),
+                    //         &batched(STree16::batch::<16>),
+                    //         &batched(STree16::batch::<32>),
+                    //         &batched(STree16::batch::<64>),
+                    //         &batched(STree16::batch::<128>),
+                    //         &batched(STree16::batch_prefetch::<128>),
                     //         &batched(STree16::batch_splat::<128>),
                     //         &batched(STree16::batch_ptr::<128>),
                     //         &batched(STree16::batch_ptr2::<128>),
@@ -171,6 +165,9 @@ fn main() {
                     // &batched(STree16::batch_final::<32>),
                     // &batched(STree16::batch_final::<64>),
                     &batched(STree16::batch_final::<128>),
+                    //         &batched(STree16::batch_skip_prefetch::<128, 1>),
+                    //         &batched(STree16::batch_skip_prefetch::<128, 2>),
+                    //         &batched(STree16::batch_skip_prefetch::<128, 3>),
                     &full(STree16::batch_interleave_half::<64>),
                     // &full(STree16::batch_interleave_last::<64, 1>),
                     // &full(STree16::batch_interleave_last::<64, 2>),
@@ -187,15 +184,16 @@ fn main() {
                     &full(STree16::batch_interleave_full::<16, 8, 128>),
                 ]
             };
-            run_exps(
-                &mut results,
-                size,
-                &STree16::new_no_hugepages(vals),
-                qs,
-                run,
-                &exps[..2],
-                "NoHuge",
-            );
+            // // Let's just always use hugepages.
+            // // run_exps(
+            // //     &mut results,
+            // //     size,
+            // //     &STree16::new_no_hugepages(vals),
+            // //     qs,
+            // //     run,
+            // //     &exps[..2],
+            // //     "NoHuge",
+            // // );
             run_exps(&mut results, size, &STree16::new(vals), qs, run, &exps, "");
 
             // // STree construction parameters: Rev, Fwd, Full
