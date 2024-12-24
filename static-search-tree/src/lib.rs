@@ -21,11 +21,11 @@ use util::*;
 
 #[ctor::ctor]
 fn init_color_backtrace() {
-    color_backtrace::install();
+    // color_backtrace::install();
 }
 
 /// Construct the data structure from a sorted vector.
-pub trait SearchIndex: Sized {
+pub trait SearchIndex: Sized + Sync {
     fn new(_vals: &[u32]) -> Self {
         unimplemented!()
     }

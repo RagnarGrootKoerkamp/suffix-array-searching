@@ -10,7 +10,9 @@ use static_search_tree::{
     eytzinger::Eytzinger,
     full,
     node::BTreeNode,
-    partitioned_s_tree::{PartitionedSTree16, PartitionedSTree16C, PartitionedSTree16L},
+    partitioned_s_tree::{
+        PartitionedSTree16, PartitionedSTree16C, PartitionedSTree16L, PartitionedSTree16O,
+    },
     s_tree::{STree15, STree16},
     util::{gen_queries, gen_vals},
     SearchIndex, SearchScheme,
@@ -180,6 +182,7 @@ fn main() {
                     // &batched(PartitionedSTree16L::search::<128, true>),
                 ]
             };
+            let expso: T<_, _> = const { [&batched(PartitionedSTree16O::search::<128, false>)] };
             let bs = (4..=20).step_by(4).collect_vec();
             for &b in &bs {
                 let index = PartitionedSTree16::new(vals, b);
@@ -194,6 +197,11 @@ fn main() {
             for &b in &bs {
                 let index = PartitionedSTree16L::new(vals, b);
                 run_exps(&mut results, size, &index, qs, run, &expsl, &format!("{b}"));
+            }
+
+            for &b in &bs {
+                let index = PartitionedSTree16O::new(vals, b);
+                run_exps(&mut results, size, &index, qs, run, &expso, &format!("{b}"));
             }
         }
 

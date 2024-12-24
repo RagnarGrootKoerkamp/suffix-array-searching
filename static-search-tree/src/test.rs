@@ -6,7 +6,9 @@ use crate::binary_search::SortedVec;
 use crate::btree::{BTree, BTree16};
 use crate::eytzinger::Eytzinger;
 use crate::node::BTreeNode;
-use crate::partitioned_s_tree::{PartitionedSTree16, PartitionedSTree16C, PartitionedSTree16L};
+use crate::partitioned_s_tree::{
+    PartitionedSTree16, PartitionedSTree16C, PartitionedSTree16L, PartitionedSTree16O,
+};
 use crate::s_tree::{STree, STree15, STree16};
 use crate::SearchIndex;
 use crate::{batched, full, util::*, SearchScheme};
@@ -21,6 +23,7 @@ pub struct SearchSchemes {
     psp: Vec<&'static dyn SearchScheme<PartitionedSTree16>>,
     pspc: Vec<&'static dyn SearchScheme<PartitionedSTree16C>>,
     pspl: Vec<&'static dyn SearchScheme<PartitionedSTree16L>>,
+    pspo: Vec<&'static dyn SearchScheme<PartitionedSTree16O>>,
 }
 
 fn get_search_schemes() -> SearchSchemes {
@@ -90,6 +93,9 @@ fn get_search_schemes() -> SearchSchemes {
     let pspl =
         const { [&batched(PartitionedSTree16L::search::<128, true>) as &dyn SearchScheme<_>] }
             .to_vec();
+    let pspo =
+        const { [&batched(PartitionedSTree16O::search::<128, true>) as &dyn SearchScheme<_>] }
+            .to_vec();
 
     SearchSchemes {
         bs,
@@ -100,6 +106,7 @@ fn get_search_schemes() -> SearchSchemes {
         psp,
         pspc,
         pspl,
+        pspo,
     }
 }
 
@@ -109,12 +116,12 @@ fn test_search() {
 
     const TEST_START_POW2: usize = 6;
     const TEST_END_POW2: usize = 26;
-    const TEST_QUERIES: usize = 10000;
+    const TEST_QUERIES: usize = 1000;
 
     let mut sizes = (TEST_START_POW2..=TEST_END_POW2)
         .map(|p| 1 << p)
+        .flat_map(|x| [x, x * 5 / 4, x * 6 / 4, x * 7 / 4])
         .collect_vec();
-    sizes.extend((TEST_START_POW2..TEST_END_POW2).map(|p| (1 << p) * 3 / 2));
 
     for size in sizes {
         let vals = gen_vals(size, true);
@@ -201,5 +208,12 @@ fn test_search() {
         map_idx(&fs.pspl, &PartitionedSTree16L::new(&vals, 8), qs, results);
         map_idx(&fs.pspl, &PartitionedSTree16L::new(&vals, 16), qs, results);
         map_idx(&fs.pspl, &PartitionedSTree16L::new(&vals, 20), qs, results);
+
+        // eprintln!("PARTS OVERLAPPING");
+        // map_idx(&fs.pspo, &PartitionedSTree16O::new(&vals, 0), qs, results);
+        // map_idx(&fs.pspo, &PartitionedSTree16O::new(&vals, 4), qs, results);
+        // map_idx(&fs.pspo, &PartitionedSTree16O::new(&vals, 8), qs, results);
+        // map_idx(&fs.pspo, &PartitionedSTree16O::new(&vals, 16), qs, results);
+        // map_idx(&fs.pspo, &PartitionedSTree16O::new(&vals, 20), qs, results);
     }
 }
