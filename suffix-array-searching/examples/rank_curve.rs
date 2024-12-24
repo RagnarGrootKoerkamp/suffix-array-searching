@@ -5,6 +5,7 @@ use suffix_array_searching::util::read_human_genome;
 #[derive(Parser)]
 struct Args {
     k: usize,
+    random: bool,
 }
 
 fn main() {
@@ -12,6 +13,7 @@ fn main() {
 
     let args = Args::parse();
     let k = args.k;
+    let random = args.random;
 
     let mut counts = vec![0u32; 1 << (2 * k)];
     let mut countsr = vec![0u32; 1 << (2 * k)];
@@ -26,7 +28,9 @@ fn main() {
         key = key << 2 | seq[i] as usize;
         key &= (1 << (2 * k)) - 1;
         counts[key] += 1;
-        countsr[rng.gen_range(0..counts.len())] += 1;
+        if random {
+            countsr[rng.gen_range(0..counts.len())] += 1;
+        }
     }
 
     // histogram of sizes
@@ -75,30 +79,32 @@ fn main() {
     );
     eprintln!("max: {}", counts.iter().max().unwrap());
 
-    eprintln!("RANDOM");
+    if random {
+        eprintln!("RANDOM");
 
-    eprintln!(
-        "size {:>10} {:>10} {:>10} {:>10} {:>10}",
-        "#buckets", "#kmers", "acc #kmers", "acc #kmers %", "acc #kmers %",
-    );
-    for i in 0..histr.len() {
-        let h = histr[i];
-        let s = sumr[i];
-        acc += s;
         eprintln!(
-            "2^{i:>2} {h:>10} {s:>10} {acc:>10} {:>10.4} {:>10.4}",
-            acc as f64 / kmers as f64,
-            1. - acc as f64 / kmers as f64
+            "size {:>10} {:>10} {:>10} {:>10} {:>10}",
+            "#buckets", "#kmers", "acc #kmers", "acc #kmers %", "acc #kmers %",
         );
+        for i in 0..histr.len() {
+            let h = histr[i];
+            let s = sumr[i];
+            acc += s;
+            eprintln!(
+                "2^{i:>2} {h:>10} {s:>10} {acc:>10} {:>10.4} {:>10.4}",
+                acc as f64 / kmers as f64,
+                1. - acc as f64 / kmers as f64
+            );
+        }
+
+        eprintln!("min: {}", countsr.iter().min().unwrap());
+        eprintln!(
+            "avg: {}",
+            countsr.iter().sum::<u32>() as usize / counts.len()
+        );
+        eprintln!("max: {}", countsr.iter().max().unwrap());
+
+        // let out = serde_json::to_string(&counts).unwrap();
+        // eprintln!("{}", out);
     }
-
-    eprintln!("min: {}", countsr.iter().min().unwrap());
-    eprintln!(
-        "avg: {}",
-        countsr.iter().sum::<u32>() as usize / counts.len()
-    );
-    eprintln!("max: {}", countsr.iter().max().unwrap());
-
-    // let out = serde_json::to_string(&counts).unwrap();
-    // eprintln!("{}", out);
 }
