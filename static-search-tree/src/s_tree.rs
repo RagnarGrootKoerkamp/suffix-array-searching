@@ -274,7 +274,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         })
     }
 
-    pub fn batch_ptr2<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
+    pub fn batch_byte_ptr<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
         let mut k = [0; P];
         let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
 
@@ -299,7 +299,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         })
     }
 
-    pub fn batch_ptr3<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
+    pub fn batch_final<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
         let mut k = [0; P];
         let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
 
@@ -363,7 +363,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         })
     }
 
-    pub fn batch_ptr3_full<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
+    pub fn batch_final_full<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
         let mut k = [0; P];
         let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
 

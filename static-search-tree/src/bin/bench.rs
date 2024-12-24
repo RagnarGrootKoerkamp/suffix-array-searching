@@ -159,14 +159,18 @@ fn main() {
                     &batched(STree16::batch::<128>),
                     &batched(STree16::batch_prefetch::<128>),
                     &batched(STree16::batch_splat::<128>),
-                    &batched(STree16::batch_ptr::<128>),
-                    &batched(STree16::batch_ptr2::<128>),
-                    &batched(STree16::batch_ptr3::<128>),
                     &batched(STree16::batch_skip_prefetch::<128, 0>),
                     &batched(STree16::batch_skip_prefetch::<128, 1>),
                     &batched(STree16::batch_skip_prefetch::<128, 2>),
                     &batched(STree16::batch_skip_prefetch::<128, 3>),
                     &full(STree16::batch_interleave::<16>),
+                    //         &batched(STree16::batch_splat::<128>),
+                    //         &batched(STree16::batch_ptr::<128>),
+                    //         &batched(STree16::batch_ptr2::<128>),
+                    // &batched(STree16::batch_final::<16>),
+                    // &batched(STree16::batch_final::<32>),
+                    // &batched(STree16::batch_final::<64>),
+                    &batched(STree16::batch_final::<128>),
                 ]
             };
             run_exps(
@@ -180,8 +184,8 @@ fn main() {
             );
             run_exps(&mut results, size, &STree16::new(vals), qs, run, &exps, "");
 
-            // STree construction parameters: Rev, Fwd, Full
-            let exps: T<_, _> = const { [&batched(STree16::batch_ptr3::<128>)] };
+            // // STree construction parameters: Rev, Fwd, Full
+            let exps: T<_, _> = const { [&batched(STree16::batch_final::<128>)] };
             let index = STree16::new_params(vals, false, true, false);
             run_exps(&mut results, size, &index, qs, run, &exps, "Rev");
             let index = STree16::new_params(vals, true, true, false);
