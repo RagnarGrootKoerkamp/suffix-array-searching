@@ -179,7 +179,7 @@ fn main() {
                 qs,
                 run,
                 &exps,
-                "Reverse",
+                "LeftMax+Reverse",
             );
 
             // full
@@ -194,7 +194,7 @@ fn main() {
                     &full(STree16::batch_interleave_all_128),
                     &batched(STree16::batch_final_full::<128>),
                 ],
-                "Full",
+                "LeftMax+Full",
             );
 
             // SECTION 4.3: B=15
@@ -210,7 +210,7 @@ fn main() {
                     &batched(STree15::batch_final::<128>),
                     &full(STree15::batch_interleave_all_128),
                 ],
-                "Rev+Fwd",
+                "LeftMax",
             );
 
             let index = STree15::new_params(vals, true, true, true);
@@ -225,7 +225,7 @@ fn main() {
                     &full(STree15::batch_interleave_all_128),
                     &batched(STree15::batch_final_full::<128>),
                 ],
-                "Rev+Fwd+Full",
+                "LeftMax+Full",
             );
 
             // SECTION 5: Prefix partitioning
@@ -305,16 +305,13 @@ fn main() {
                     qs,
                     run,
                     &[
-                        &batched(PartitionedSTree16M::search::<128, false>),
                         &batched(PartitionedSTree16M::search::<128, true>),
+                        // SECTION 5.6: Prefix lookup + interleaving
+                        &full(PartitionedSTree16M::search_interleave_128),
                     ],
                     &format!("{b}"),
                 );
             }
-
-            // TODO: Interleaved partitioning
-
-            // TODO SECTION 6: Multithreading
         }
 
         save_results(
@@ -374,6 +371,7 @@ fn run_exps<I: SearchIndex>(
 ) {
     for &exp in exps {
         results.push(Result::new(name, size, index, qs, exp, run, 1));
+        results.push(Result::new(name, size, index, qs, exp, run, 6));
     }
 }
 fn try_run_exps<I: SearchIndex>(
@@ -391,20 +389,6 @@ fn try_run_exps<I: SearchIndex>(
         for &exp in exps {
             results.push(Result::skip(name, size, qs, exp, run, 1));
         }
-    }
-}
-
-fn run_exps_multithreaded<I: SearchIndex>(
-    results: &mut Vec<Result>,
-    size: usize,
-    index: &I,
-    qs: &Vec<u32>,
-    run: usize,
-    exps: &[&(dyn SearchScheme<I>)],
-    name: &str,
-) {
-    for &exp in exps {
-        results.push(Result::new(name, size, index, qs, exp, run, 6));
     }
 }
 

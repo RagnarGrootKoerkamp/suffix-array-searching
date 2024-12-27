@@ -879,7 +879,9 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, Map> {
         })
     }
 
-    pub fn search_interleave_128<const PF: bool>(&self, qs: &[u32]) -> Vec<u32> {
+    pub fn search_interleave_128(&self, qs: &[u32]) -> Vec<u32> {
+        /// Prefetching doesn't really help.
+        const PF: bool = false;
         match self.offsets.len() {
             1 => self.search_interleave::<128, 1, 128, PF>(qs),
             2 => self.search_interleave::<64, 2, 128, PF>(qs),
