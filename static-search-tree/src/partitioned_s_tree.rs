@@ -1,6 +1,7 @@
 use itertools::Itertools;
 use std::any::type_name;
 use std::array::from_fn;
+use std::mem::{size_of, size_of_val};
 use std::{fmt::Debug, simd::Simd};
 
 use crate::node::{BTreeNode, MAX};
@@ -17,7 +18,7 @@ use crate::{prefetch_ptr, vec_on_hugepages, SearchIndex};
 pub struct PartitionedSTree<const B: usize, const N: usize, Tp> {
     tree: Vec<BTreeNode<N>>,
     offsets: Vec<usize>,
-    prefix_map: Vec<usize>,
+    prefix_map: Vec<u32>,
     /// Amount to shift values/queries to the right to get their part.
     shift: usize,
     /// blocks per part
@@ -564,6 +565,7 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
         } else {
             prefix_map = vec![0; parts];
             let max_idx = layer_sizes[0] * B - B;
+            assert!(max_idx < u32::MAX as usize);
             assert_eq!(B, 16);
             // Iterate over layer 0, and find where each prefix starts.
             let mut p = 0;
@@ -573,12 +575,12 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
                 let pi = (val >> shift) as usize;
                 while p < pi {
                     p += 1;
-                    prefix_map[p] = i.min(max_idx);
+                    prefix_map[p] = i.min(max_idx) as u32;
                 }
             }
             while p + 1 < parts {
                 p += 1;
-                prefix_map[p] = max_idx;
+                prefix_map[p] = max_idx as u32;
             }
             // eprintln!("Prefix map: {prefix_map:?}");
         }
@@ -806,7 +808,8 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, Map> {
         // Initial parts, and prefetch them.
         let o0 = offsets[0];
         let mut k: [usize; P] = qb.map(|q| {
-            let k = 4 * unsafe { *self.prefix_map.get_unchecked(q as usize >> self.shift) };
+            let k =
+                4 * unsafe { *self.prefix_map.get_unchecked(q as usize >> self.shift) as usize };
             if PF {
                 prefetch_ptr(unsafe { o0.byte_add(k) });
             }
