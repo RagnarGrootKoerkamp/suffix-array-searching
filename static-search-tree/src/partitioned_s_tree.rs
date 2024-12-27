@@ -98,8 +98,7 @@ pub type PartitionedSTree16M = PartitionedSTree<16, 16, Map>;
 
 impl<const B: usize, const N: usize, T: Sync> SearchIndex for PartitionedSTree<B, N, T> {
     fn size(&self) -> usize {
-        std::mem::size_of_val(self.tree.as_slice())
-            + std::mem::size_of_val(self.prefix_map.as_slice())
+        size_of_val(self.tree.as_slice()) + size_of_val(self.prefix_map.as_slice())
     }
 }
 
@@ -224,13 +223,17 @@ impl<const B: usize, const N: usize, Tp: Marker> PartitionedSTree<B, N, Tp> {
 }
 
 impl<const B: usize, const N: usize> PartitionedSTree<B, N, Compact> {
+    pub fn new(vals: &[u32], b: usize) -> Self {
+        Self::try_new(vals, b).unwrap()
+    }
+
     /// Partition on the first `b` bits of each key before building the tree.
     /// Any bits beyond the maximum value are skipped.
     /// - uses hugepages.
     /// - uses forward layout.
     /// - uses 'rev' bucket order.
     /// - uses the full array.
-    pub fn new(vals: &[u32], b: usize) -> Self {
+    pub fn try_new(vals: &[u32], b: usize) -> Option<Self> {
         let n = vals.len();
 
         let (shift, parts, max_bucket, height, _overlap) = Self::get_part_size(vals, b);
@@ -260,8 +263,12 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, Compact> {
             })
             .collect_vec();
 
-        // tree = vec_on_hugepages::<BTreeNode<N>>(n_blocks);
-        tree = vec![BTreeNode::<N>::default(); n_blocks];
+        if n_blocks * size_of::<BTreeNode<N>>() > 4 * n * size_of::<u32>() {
+            // Too much overhead.
+            return None;
+        }
+
+        tree = vec_on_hugepages::<BTreeNode<N>>(n_blocks)?;
 
         // First initialize all nodes in the layer with MAX.
         for node in &mut tree {
@@ -325,7 +332,7 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, Compact> {
         //     eprintln!("{i:>2} {:?}", node);
         // }
 
-        Self {
+        Some(Self {
             tree,
             offsets,
             prefix_map: vec![],
@@ -334,18 +341,22 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, Compact> {
             l1: 0,
             overlap: 0,
             _tp: std::marker::PhantomData,
-        }
+        })
     }
 }
 
 impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B, N, Tp> {
+    pub fn new(vals: &[u32], b: usize) -> Self {
+        Self::try_new(vals, b).unwrap()
+    }
+
     /// Partition on the first `b` bits of each key before building the tree.
     /// Any bits beyond the maximum value are skipped.
     /// - uses hugepages.
     /// - uses forward layout.
     /// - uses 'rev' bucket order.
     /// - uses the full array.
-    pub fn new(vals: &[u32], b: usize) -> Self {
+    pub fn try_new(vals: &[u32], b: usize) -> Option<Self> {
         let n = vals.len();
 
         let (shift, parts, max_bucket, height, overlap) = Self::get_part_size(vals, b);
@@ -439,7 +450,12 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
             eprintln!("offsets={:?}", offsets);
         }
 
-        tree = vec_on_hugepages::<BTreeNode<N>>(n_blocks);
+        if n_blocks * size_of::<BTreeNode<N>>() > 4 * n * size_of::<u32>() {
+            // Too much overhead.
+            return None;
+        }
+
+        tree = vec_on_hugepages::<BTreeNode<N>>(n_blocks)?;
 
         // First initialize all nodes in the layer with MAX.
         // TODO: Maybe we can omit this and avoid mapping some of the pages of the tree?
@@ -499,6 +515,7 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
             idx += 1;
         }
 
+        eprintln!("Fill tree");
         // Initialize the inner layers.
         for h in (0..height - 1).rev() {
             let oh = offsets[h];
@@ -559,10 +576,16 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
         }
         assert!(offsets.len() > 0);
 
+        eprintln!("Prefix map..");
         let mut prefix_map;
         if !Tp::MAP {
             prefix_map = vec![];
         } else {
+            if size_of_val(&tree) + parts * size_of::<u32>() > 4 * n * size_of::<u32>() {
+                // Too much overhead.
+                return None;
+            }
+
             prefix_map = vec![0; parts];
             let max_idx = layer_sizes[0] * B - B;
             assert!(max_idx < u32::MAX as usize);
@@ -597,7 +620,7 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
         //     eprintln!("{i:>2} {:?}", node.data);
         // }
 
-        Self {
+        Some(Self {
             tree,
             offsets,
             shift,
@@ -611,7 +634,7 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
             },
             overlap: overlap.unwrap_or(0),
             _tp: std::marker::PhantomData,
-        }
+        })
     }
 }
 
@@ -798,6 +821,7 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, Overlapping> {
 }
 
 impl<const B: usize, const N: usize> PartitionedSTree<B, N, Map> {
+    // NOTE: Call this with PF (prefetch) = true, to avoid slow auto-vectorization of the first loop.
     pub fn search<const P: usize, const PF: bool>(&self, qb: &[u32; P]) -> [u32; P] {
         let offsets = self
             .offsets

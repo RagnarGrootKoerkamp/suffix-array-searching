@@ -246,18 +246,21 @@ fn main() {
             }
 
             for &b in &bs {
-                let index = PartitionedSTree16L::new(vals, b);
-                run_exps(&mut results, size, &index, qs, run, &expsl, &format!("{b}"));
+                if let Some(index) = PartitionedSTree16L::try_new(vals, b) {
+                    run_exps(&mut results, size, &index, qs, run, &expsl, &format!("{b}"));
+                }
             }
 
             for &b in &bs {
-                let index = PartitionedSTree16O::new(vals, b);
-                run_exps(&mut results, size, &index, qs, run, &expso, &format!("{b}"));
+                if let Some(index) = PartitionedSTree16O::try_new(vals, b) {
+                    run_exps(&mut results, size, &index, qs, run, &expso, &format!("{b}"));
+                }
             }
 
             for &b in &bs {
-                let index = PartitionedSTree16M::new(vals, b);
-                run_exps(&mut results, size, &index, qs, run, &expsm, &format!("{b}"));
+                if let Some(index) = PartitionedSTree16M::try_new(vals, b) {
+                    run_exps(&mut results, size, &index, qs, run, &expsm, &format!("{b}"));
+                }
             }
         }
 

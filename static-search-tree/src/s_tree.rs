@@ -123,7 +123,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         };
 
         let mut tree = if hugepages {
-            vec_on_hugepages(n_blocks)
+            vec_on_hugepages(n_blocks).unwrap()
         } else {
             vec![BTreeNode { data: [MAX; N] }; n_blocks]
         };
