@@ -267,7 +267,7 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, Compact> {
             })
             .collect_vec();
 
-        if n_blocks * size_of::<BTreeNode<N>>() > 4 * n * size_of::<u32>() {
+        if n_blocks * size_of::<BTreeNode<N>>() > (32 << 30) {
             // Too much overhead.
             return None;
         }
@@ -419,7 +419,12 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
             );
 
             // FIXME: We can be more precise and add only single-node subtrees, instead of l1 copies at a time.
-            extra_parts = overlap.unwrap_or(0).div_ceil(l1);
+            extra_parts = if l1 == 0 {
+                assert_eq!(overlap.unwrap_or(0), 0);
+                0
+            } else {
+                overlap.unwrap_or(0).div_ceil(l1)
+            };
             let mut layer_blocks = layer_sizes
                 .iter()
                 .map(|x| x * (parts + extra_parts))
@@ -454,7 +459,7 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
             eprintln!("offsets={:?}", offsets);
         }
 
-        if n_blocks * size_of::<BTreeNode<N>>() > 4 * n * size_of::<u32>() {
+        if n_blocks * size_of::<BTreeNode<N>>() > (32 << 30) {
             // Too much overhead.
             return None;
         }
