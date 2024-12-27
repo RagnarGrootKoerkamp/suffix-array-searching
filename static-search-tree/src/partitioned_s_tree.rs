@@ -30,7 +30,7 @@ pub struct PartitionedSTree<const B: usize, const N: usize, Tp> {
     _tp: std::marker::PhantomData<Tp>,
 }
 
-pub trait Marker {
+pub trait Marker: Sync {
     const COMPACT: bool;
     const L1: bool;
     const OL: bool;
@@ -96,9 +96,13 @@ pub type PartitionedSTree16O = PartitionedSTree<16, 16, Overlapping>;
 pub type PartitionedSTree15O = PartitionedSTree<15, 16, Overlapping>;
 pub type PartitionedSTree16M = PartitionedSTree<16, 16, Map>;
 
-impl<const B: usize, const N: usize, T: Sync> SearchIndex for PartitionedSTree<B, N, T> {
+impl<const B: usize, const N: usize, Tp: Marker> SearchIndex for PartitionedSTree<B, N, Tp> {
     fn size(&self) -> usize {
         size_of_val(self.tree.as_slice()) + size_of_val(self.prefix_map.as_slice())
+    }
+
+    fn layers(&self) -> usize {
+        self.offsets.len() + Tp::MAP as usize
     }
 }
 

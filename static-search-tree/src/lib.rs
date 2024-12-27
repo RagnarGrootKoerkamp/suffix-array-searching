@@ -34,6 +34,9 @@ pub trait SearchIndex: Sized + Sync {
     /// Size of the index in bytes.
     fn size(&self) -> usize;
 
+    /// Number of layers in the tree, corresponding to the number of memory accesses needed for each query.
+    fn layers(&self) -> usize;
+
     // Convenience methods to forward to a search scheme.
     fn query_one(&self, q: u32, scheme: &(impl SearchScheme<Self> + ?Sized)) -> u32 {
         scheme.query_one(&self, q)

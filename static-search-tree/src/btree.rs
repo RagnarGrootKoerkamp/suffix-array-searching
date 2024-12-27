@@ -62,6 +62,10 @@ impl<const B: usize, const N: usize> SearchIndex for BTree<B, N> {
         btree
     }
 
+    fn layers(&self) -> usize {
+        todo!()
+    }
+
     fn size(&self) -> usize {
         std::mem::size_of_val(self.tree.as_slice())
     }

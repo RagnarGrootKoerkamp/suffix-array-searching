@@ -32,6 +32,10 @@ impl SearchIndex for Eytzinger {
         e
     }
 
+    fn layers(&self) -> usize {
+        self.vals.len().ilog2() as usize + 1
+    }
+
     fn size(&self) -> usize {
         std::mem::size_of_val(self.vals.as_slice())
     }

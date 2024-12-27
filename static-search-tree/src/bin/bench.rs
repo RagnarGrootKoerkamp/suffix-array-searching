@@ -428,6 +428,8 @@ pub struct Result {
     pub duration: Duration,
     /// Latency (or reverse throughput) of each operation, in nanoseconds.
     pub latency: f64,
+    /// Number of layers in the tree.
+    pub layers: usize,
     /// Number of clock cycles per operation.
     pub cycles: f64,
     /// CPU frequency in Hz.
@@ -479,6 +481,7 @@ impl Result {
             index_size: index.size(),
             queries,
             threads,
+            layers: index.layers(),
             run,
             duration,
             latency,
@@ -503,6 +506,7 @@ impl Result {
             queries: qs.len(),
             threads,
             run,
+            layers: 0,
             duration: Duration::ZERO,
             latency: 0.,
             cycles: 0.,

@@ -49,6 +49,10 @@ impl<const B: usize, const N: usize> SearchIndex for STree<B, N> {
         Self::new_params(vals, false, false, false)
     }
 
+    fn layers(&self) -> usize {
+        self.offsets.len()
+    }
+
     fn size(&self) -> usize {
         std::mem::size_of_val(self.tree.as_slice())
     }
@@ -737,8 +741,6 @@ impl<const B: usize, const N: usize> STree<B, N> {
         // 2
         let mut first_i = (-(L as isize) as usize).wrapping_add(1);
         for (c, c1) in chunks.enumerate() {
-            ///////////////////////////////// new
-
             let mut i = first_i;
             first_i = first_i.wrapping_sub(1);
             if first_i == -(L as isize) as usize {
