@@ -17,6 +17,7 @@ use crate::{prefetch_ptr, vec_on_hugepages, SearchIndex};
 pub struct PartitionedSTree<const B: usize, const N: usize, Tp> {
     tree: Vec<BTreeNode<N>>,
     offsets: Vec<usize>,
+    prefix_map: Vec<usize>,
     /// Amount to shift values/queries to the right to get their part.
     shift: usize,
     /// blocks per part
@@ -32,35 +33,49 @@ pub trait Marker {
     const COMPACT: bool;
     const L1: bool;
     const OL: bool;
+    const MAP: bool;
 }
 
 // Marker traits for the type of tree.
 pub struct Simple;
+// Compact layout: each tree is packed separately.
 pub struct Compact;
 // Extension of simple layout; not compact.
 pub struct L1;
 // Extension of L1 layout; not compact.
 pub struct Overlapping;
+// Extension over Overlapping.
+pub struct Map;
 
 impl Marker for Simple {
     const COMPACT: bool = false;
     const L1: bool = false;
     const OL: bool = false;
+    const MAP: bool = false;
 }
 impl Marker for Compact {
     const COMPACT: bool = true;
     const L1: bool = false;
     const OL: bool = false;
+    const MAP: bool = false;
 }
 impl Marker for L1 {
     const COMPACT: bool = false;
     const L1: bool = true;
     const OL: bool = false;
+    const MAP: bool = false;
 }
 impl Marker for Overlapping {
     const COMPACT: bool = false;
     const L1: bool = true;
     const OL: bool = true;
+    const MAP: bool = false;
+}
+impl Marker for Map {
+    const COMPACT: bool = false;
+    const L1: bool = true;
+    const OL: bool = true;
+    const MAP: bool = true;
 }
 
 // Workaround because <Marker<COMPACT=false>> is not supported.
@@ -68,6 +83,7 @@ pub trait NotCompact {}
 impl NotCompact for Simple {}
 impl NotCompact for L1 {}
 impl NotCompact for Overlapping {}
+impl NotCompact for Map {}
 
 pub type PartitionedSTree16 = PartitionedSTree<16, 16, Simple>;
 pub type PartitionedSTree15 = PartitionedSTree<15, 16, Simple>;
@@ -77,10 +93,12 @@ pub type PartitionedSTree16L = PartitionedSTree<16, 16, L1>;
 pub type PartitionedSTree15L = PartitionedSTree<15, 16, L1>;
 pub type PartitionedSTree16O = PartitionedSTree<16, 16, Overlapping>;
 pub type PartitionedSTree15O = PartitionedSTree<15, 16, Overlapping>;
+pub type PartitionedSTree16M = PartitionedSTree<16, 16, Map>;
 
 impl<const B: usize, const N: usize, T: Sync> SearchIndex for PartitionedSTree<B, N, T> {
     fn size(&self) -> usize {
         std::mem::size_of_val(self.tree.as_slice())
+            + std::mem::size_of_val(self.prefix_map.as_slice())
     }
 }
 
@@ -103,10 +121,14 @@ impl<const B: usize, const N: usize, Tp: Marker> PartitionedSTree<B, N, Tp> {
             bucket_sizes[bucket] += 1;
         }
 
+        // When mapping, we play it safe and only assume a branching factor of 16 at the top level.
+        let get_height =
+            |x: usize| TreeBase::<B>::height(if Tp::MAP { (x * 17).div_ceil(16) } else { x });
+
         // Find largest bucket.
         let mut max_bucket = *bucket_sizes.iter().max().unwrap();
         // Number of layers for largest bucket.
-        let mut height = TreeBase::<B>::height(max_bucket);
+        let mut height = get_height(max_bucket);
         eprintln!("{b}: Max bucket {max_bucket} => height {height}");
 
         // Try reducing the number of parts if the height stays the same.
@@ -127,7 +149,7 @@ impl<const B: usize, const N: usize, Tp: Marker> PartitionedSTree<B, N, Tp> {
                 bucket_sizes2[bucket] += 1;
             }
             let max_bucket2 = *bucket_sizes2.iter().max().unwrap();
-            let height2 = TreeBase::<B>::height(max_bucket2);
+            let height2 = get_height(max_bucket2);
             eprintln!("{b2}: Max bucket {max_bucket2} => height {height2}");
             if height2 > height {
                 // eprintln!("{bucket_sizes2:?}");
@@ -140,7 +162,9 @@ impl<const B: usize, const N: usize, Tp: Marker> PartitionedSTree<B, N, Tp> {
             height = height2;
         }
 
-        let overlap = if Tp::OL {
+        let overlap = if Tp::MAP {
+            Some(0)
+        } else if Tp::OL {
             let subtree_size = if height == 1 {
                 1
             } else {
@@ -303,6 +327,7 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, Compact> {
         Self {
             tree,
             offsets,
+            prefix_map: vec![],
             shift,
             bpp,
             l1: 0,
@@ -331,7 +356,18 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
         assert!(height > 0);
         // All layers are full, for indexing purposes.
         // Unless, L1 is set. Then, the first layer below the root (ie the number of entries in the root) can be smaller.
-        layer_sizes = if !Tp::L1 {
+        layer_sizes = if Tp::MAP {
+            let mut layer_sizes = (0..height)
+                .map(|h| TreeBase::<B>::layer_size(n, h, height).div_ceil(B))
+                .collect_vec();
+            if height > 1 {
+                layer_sizes[0] = TreeBase::<B>::layer_size(n, 1, height)
+                    .div_ceil(B)
+                    .div_ceil(B);
+            }
+
+            layer_sizes
+        } else if !Tp::L1 {
             (0..height).map(|h| (B + 1).pow(h as u32)).collect_vec()
         } else {
             // let normal_layer_sizes = (0..height)
@@ -357,35 +393,50 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
         };
         eprintln!("layer_sizes={:?}", layer_sizes);
 
-        assert!(
-            layer_sizes[0] == 1,
-            "layer_sizes={:?} has unexpected root size?",
-            layer_sizes
-        );
+        let n_blocks;
+        let mut extra_parts = 0;
+        if !Tp::MAP {
+            assert!(
+                layer_sizes[0] == 1,
+                "layer_sizes={:?} has unexpected root size?",
+                layer_sizes
+            );
 
-        // FIXME: We can be more precise and add only single-node subtrees, instead of l1 copies at a time.
-        let extra_parts = overlap.unwrap_or(0).div_ceil(l1);
-        let mut layer_blocks = layer_sizes
-            .iter()
-            .map(|x| x * (parts + extra_parts))
-            .collect_vec();
-        if let Some(o) = overlap {
-            layer_blocks[0] = (parts * (16 - o) + o).div_ceil(16);
-        };
-        eprintln!("layer_blocks={:?}", layer_blocks);
+            // FIXME: We can be more precise and add only single-node subtrees, instead of l1 copies at a time.
+            extra_parts = overlap.unwrap_or(0).div_ceil(l1);
+            let mut layer_blocks = layer_sizes
+                .iter()
+                .map(|x| x * (parts + extra_parts))
+                .collect_vec();
+            if let Some(o) = overlap {
+                layer_blocks[0] = (parts * (16 - o) + o).div_ceil(16);
+            };
+            eprintln!("layer_blocks={:?}", layer_blocks);
 
-        let n_blocks = layer_blocks.iter().sum::<usize>();
-        eprintln!("n_blocks={}", n_blocks);
+            n_blocks = layer_blocks.iter().sum::<usize>();
+            eprintln!("n_blocks={}", n_blocks);
 
-        offsets = layer_blocks
-            .iter()
-            .scan(0, |sum, sz| {
-                let offset = *sum;
-                *sum += sz;
-                Some(offset)
-            })
-            .collect_vec();
-        eprintln!("offsets={:?}", offsets);
+            offsets = layer_blocks
+                .iter()
+                .scan(0, |sum, sz| {
+                    let offset = *sum;
+                    *sum += sz;
+                    Some(offset)
+                })
+                .collect_vec();
+            eprintln!("offsets={:?}", offsets);
+        } else {
+            n_blocks = layer_sizes.iter().sum::<usize>();
+            offsets = layer_sizes
+                .iter()
+                .scan(0, |sum, sz| {
+                    let offset = *sum;
+                    *sum += sz;
+                    Some(offset)
+                })
+                .collect_vec();
+            eprintln!("offsets={:?}", offsets);
+        }
 
         tree = vec_on_hugepages::<BTreeNode<N>>(n_blocks);
 
@@ -422,15 +473,17 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
 
         eprintln!("Build base layer");
         for &val in vals {
-            let part = (val >> shift) as usize;
+            if !Tp::MAP {
+                let part = (val >> shift) as usize;
 
-            // For each completed part (typically just 1), append the current val.
-            while prev_part < part {
-                prev_part += 1;
-                while idx < prev_part * part_size {
-                    // eprintln!("write {val} to {idx}");
-                    tree[ol + idx / B].data[idx % B] = val;
-                    idx += 1;
+                // For each completed part (typically just 1), append the current val.
+                while prev_part < part {
+                    prev_part += 1;
+                    while idx < prev_part * part_size {
+                        // eprintln!("write {val} to {idx}");
+                        tree[ol + idx / B].data[idx % B] = val;
+                        idx += 1;
+                    }
                 }
             }
 
@@ -454,7 +507,12 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
                     // In case of overlap, layer 0 is special.
                     let o0 = offsets[0];
                     // FIXME: (parts+extra_parts)*l1?
-                    for i in 0..parts * l1 + o {
+                    let range = if Tp::MAP {
+                        0..layer_sizes[1] - 1
+                    } else {
+                        0..parts * l1 + o
+                    };
+                    for i in range {
                         let j = (i + 1) * subtree_size - 1;
                         // eprintln!("root: copy from {j} to {i}");
                         tree[o0 + i / B].data[i % B] = tree[ol + j / B].data[j % B];
@@ -466,7 +524,7 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
 
             let l = layer_sizes[h];
             let ll = layer_sizes[height - 1];
-            for p in 0..parts + extra_parts {
+            if Tp::MAP {
                 for i in 0..B * layer_sizes[h] {
                     let mut k = i / B;
                     let j = i % B;
@@ -474,15 +532,56 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
                     for _l in h..height - 2 {
                         k *= B + 1;
                     }
-                    tree[oh + l * p + i / B].data[i % B] = if k * B < max_bucket {
-                        tree[ol + ll * p + k - 1].data[B - 1]
+                    tree[oh + i / B].data[i % B] = if k * B < n {
+                        tree[ol + k - 1].data[B - 1]
                     } else {
                         MAX
                     };
                 }
+            } else {
+                for p in 0..parts + extra_parts {
+                    for i in 0..B * layer_sizes[h] {
+                        let mut k = i / B;
+                        let j = i % B;
+                        k = k * (B + 1) + j + 1;
+                        for _l in h..height - 2 {
+                            k *= B + 1;
+                        }
+                        tree[oh + l * p + i / B].data[i % B] = if k * B < max_bucket {
+                            tree[ol + ll * p + k - 1].data[B - 1]
+                        } else {
+                            MAX
+                        };
+                    }
+                }
             }
         }
         assert!(offsets.len() > 0);
+
+        let mut prefix_map;
+        if !Tp::MAP {
+            prefix_map = vec![];
+        } else {
+            prefix_map = vec![0; parts];
+            let max_idx = layer_sizes[0] * B - B;
+            assert_eq!(B, 16);
+            // Iterate over layer 0, and find where each prefix starts.
+            let mut p = 0;
+            let o0 = offsets[0];
+            for i in 0..layer_sizes[0] * B {
+                let val = tree[o0 + i / B].data[i % B];
+                let pi = (val >> shift) as usize;
+                while p < pi {
+                    p += 1;
+                    prefix_map[p] = i.min(max_idx);
+                }
+            }
+            while p + 1 < parts {
+                p += 1;
+                prefix_map[p] = max_idx;
+            }
+            // eprintln!("Prefix map: {prefix_map:?}");
+        }
 
         eprintln!(
             "PartitionedSTree {}: n={} b={} shift={} parts={} height={} layer_sizes={:?} offsets={:?} compact=false max_bucket={max_bucket}",
@@ -493,13 +592,14 @@ impl<const B: usize, const N: usize, Tp: Marker + NotCompact> PartitionedSTree<B
         eprintln!("subtree_size {}", subtree_size);
         eprintln!("l1 {}", l1);
         // for (i, node) in tree.iter().enumerate() {
-        //     eprintln!("{i:>2} {:?}", node);
+        //     eprintln!("{i:>2} {:?}", node.data);
         // }
 
         Self {
             tree,
             offsets,
             shift,
+            prefix_map,
             bpp: 0,
             l1: if Tp::OL {
                 // either 16 or 17
@@ -616,16 +716,11 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, L1> {
         });
         let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
 
-        if offsets.len() >= 2 {
-            // Extract the first iteration over levels, because we multiply by l1 instead of B+1 here.
-            let o = offsets[0];
-            let o2 = offsets[1];
+        if let Some([o, o2]) = offsets.array_windows().next() {
             for i in 0..P {
                 let jump_to = unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i]);
                 //            vvvvvvv
-                let old = k[i];
                 k[i] = k[i] * self.l1 + jump_to;
-                let new = k[i];
                 prefetch_ptr(unsafe { o2.byte_add(k[i]) });
             }
         }
@@ -671,34 +766,71 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, Overlapping> {
         });
         let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
 
-        let mut layer = 0;
-        if offsets.len() >= 2 {
-            // Extract the first iteration over levels, because we multiply by l1 instead of B+1 here.
-            let o = offsets[0];
-            let o2 = offsets[1];
+        if let Some([o, o2]) = offsets.array_windows().next() {
             for i in 0..P {
                 // First level read is intentionally unaligned.
                 let jump_to = unsafe { o.byte_add(k[i]).read_unaligned() }.find_splat64(q_simd[i]);
                 //            vvvvvvv
-                // k[i] = k[i] * self.l1 + jump_to;
-                let old = k[i];
                 k[i] = k[i] * self.l1 + jump_to;
-                let new = k[i];
                 prefetch_ptr(unsafe { o2.byte_add(k[i]) });
             }
-            layer += 1;
         }
 
         for [o, o2] in offsets[1..].array_windows() {
             for i in 0..P {
                 let jump_to = unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i]);
                 //            vvvvvvv
-                let old = k[i];
                 k[i] = k[i] * (B + 1) + jump_to;
-                let new = k[i];
                 prefetch_ptr(unsafe { o2.byte_add(k[i]) });
             }
-            layer += 1;
+        }
+
+        let o = offsets.last().unwrap();
+        from_fn(|i| {
+            // Read can be unaligned when the height of the tree is 1.
+            let idx = unsafe { o.byte_add(k[i]).read_unaligned() }.find_splat(q_simd[i]);
+
+            unsafe { (o.byte_add(k[i]) as *const u32).add(idx).read() }
+        })
+    }
+}
+
+impl<const B: usize, const N: usize> PartitionedSTree<B, N, Map> {
+    pub fn search<const P: usize, const PF: bool>(&self, qb: &[u32; P]) -> [u32; P] {
+        let offsets = self
+            .offsets
+            .iter()
+            .map(|o| unsafe { self.tree.as_ptr().add(*o) })
+            .collect_vec();
+
+        // Initial parts, and prefetch them.
+        let o0 = offsets[0];
+        let mut k: [usize; P] = qb.map(|q| {
+            let k = 4 * unsafe { *self.prefix_map.get_unchecked(q as usize >> self.shift) };
+            if PF {
+                prefetch_ptr(unsafe { o0.byte_add(k) });
+            }
+            k
+        });
+        let q_simd = qb.map(|q| Simd::<u32, 8>::splat(q));
+
+        if let Some([o, o2]) = offsets.array_windows().next() {
+            for i in 0..P {
+                // First level read is intentionally unaligned.
+                let jump_to = unsafe { o.byte_add(k[i]).read_unaligned() }.find_splat64(q_simd[i]);
+                //            vvvvvvv
+                k[i] = k[i] * 16 + jump_to;
+                prefetch_ptr(unsafe { o2.byte_add(k[i]) });
+            }
+        }
+
+        for [o, o2] in offsets[1..].array_windows() {
+            for i in 0..P {
+                let jump_to = unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i]);
+                //            vvvvvvv
+                k[i] = k[i] * (B + 1) + jump_to;
+                prefetch_ptr(unsafe { o2.byte_add(k[i]) });
+            }
         }
 
         let o = offsets.last().unwrap();

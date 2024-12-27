@@ -11,7 +11,8 @@ use static_search_tree::{
     full,
     node::BTreeNode,
     partitioned_s_tree::{
-        PartitionedSTree16, PartitionedSTree16C, PartitionedSTree16L, PartitionedSTree16O,
+        PartitionedSTree16, PartitionedSTree16C, PartitionedSTree16L, PartitionedSTree16M,
+        PartitionedSTree16O,
     },
     s_tree::{STree15, STree16},
     util::{gen_queries, gen_vals},
@@ -227,6 +228,12 @@ fn main() {
                 ]
             };
             let expso: T<_, _> = const { [&batched(PartitionedSTree16O::search::<128, false>)] };
+            let expsm: T<_, _> = const {
+                [
+                    &batched(PartitionedSTree16M::search::<128, false>),
+                    &batched(PartitionedSTree16M::search::<128, true>),
+                ]
+            };
             let bs = (4..=20).step_by(4).collect_vec();
             for &b in &bs {
                 let index = PartitionedSTree16::new(vals, b);
@@ -246,6 +253,11 @@ fn main() {
             for &b in &bs {
                 let index = PartitionedSTree16O::new(vals, b);
                 run_exps(&mut results, size, &index, qs, run, &expso, &format!("{b}"));
+            }
+
+            for &b in &bs {
+                let index = PartitionedSTree16M::new(vals, b);
+                run_exps(&mut results, size, &index, qs, run, &expsm, &format!("{b}"));
             }
         }
 
