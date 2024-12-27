@@ -23,7 +23,7 @@ fn main() {
         eprintln!("Building B+Tree DONE");
 
         for _ in 0..1000 {
-            let scheme = &full(STree::batch_interleave_full_128);
+            let scheme = &full(STree::batch_interleave_all_128);
             bench_scheme(bp, scheme, queries);
         }
     }

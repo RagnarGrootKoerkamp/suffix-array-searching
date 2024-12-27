@@ -679,19 +679,19 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
     pub fn batch_interleave_all_128(&self, qs: &[u32]) -> Vec<u32> {
         match self.offsets.len() {
-            1 => self.batch_interleave_full::<128, 1, 128>(qs),
-            2 => self.batch_interleave_full::<64, 2, 128>(qs),
-            3 => self.batch_interleave_full::<32, 3, 96>(qs),
-            4 => self.batch_interleave_full::<32, 4, 128>(qs),
-            5 => self.batch_interleave_full::<16, 5, 80>(qs),
-            6 => self.batch_interleave_full::<16, 6, 96>(qs),
-            7 => self.batch_interleave_full::<16, 7, 112>(qs),
-            8 => self.batch_interleave_full::<16, 8, 128>(qs),
+            1 => self.batch_interleave_all::<128, 1, 128>(qs),
+            2 => self.batch_interleave_all::<64, 2, 128>(qs),
+            3 => self.batch_interleave_all::<32, 3, 96>(qs),
+            4 => self.batch_interleave_all::<32, 4, 128>(qs),
+            5 => self.batch_interleave_all::<16, 5, 80>(qs),
+            6 => self.batch_interleave_all::<16, 6, 96>(qs),
+            7 => self.batch_interleave_all::<16, 7, 112>(qs),
+            8 => self.batch_interleave_all::<16, 8, 128>(qs),
             _ => panic!("Unsupported tree height {}", self.offsets.len()),
         }
     }
 
-    pub fn batch_interleave_full<const P: usize, const L: usize, const PL: usize>(
+    pub fn batch_interleave_all<const P: usize, const L: usize, const PL: usize>(
         &self,
         qs: &[u32],
     ) -> Vec<u32>
