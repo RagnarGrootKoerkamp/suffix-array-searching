@@ -370,7 +370,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
         let o = self.tree.as_ptr();
 
-        for _h in 0..self.offsets.len() - 1 {
+        for _l in 0..self.offsets.len() - 1 {
             for i in 0..P {
                 let jump_to = unsafe { *o.byte_add(k[i]) }.find_splat64(q_simd[i]);
                 k[i] = k[i] * (B + 1) + jump_to + 64;
@@ -416,8 +416,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
 
         let c1 = chunks.next().unwrap();
         let mut q_simd1 = [Simd::<u32, 8>::splat(0); P];
-        let mut q_simd2 = [Simd::<u32, 8>::splat(0); P];
-        q_simd2 = c1.map(|q| Simd::<u32, 8>::splat(q));
+        let mut q_simd2 = c1.map(|q| Simd::<u32, 8>::splat(q));
 
         let hs_first = 0..hh;
         let hs_second = hh..offsets.len() - 1;

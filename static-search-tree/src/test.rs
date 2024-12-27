@@ -130,7 +130,7 @@ fn test_search() {
     const TEST_END_POW2: usize = 26;
     const TEST_QUERIES: usize = 1000;
 
-    let mut sizes = (TEST_START_POW2..=TEST_END_POW2)
+    let sizes = (TEST_START_POW2..=TEST_END_POW2)
         .map(|p| 1 << p)
         .flat_map(|x| [x, x * 5 / 4, x * 6 / 4, x * 7 / 4])
         .collect_vec();
