@@ -1,6 +1,3 @@
-#![feature(generic_arg_infer)]
-#![allow(unused)]
-
 use clap::Parser;
 use itertools::Itertools;
 use rdst::RadixSort;
@@ -89,200 +86,235 @@ fn main() {
             let vals = &mut vals[..len];
             vals.radix_sort_unstable();
 
-            fn run_exps<I: SearchIndex>(
-                results: &mut Vec<Result>,
-                size: usize,
-                index: &I,
-                qs: &Vec<u32>,
-                run: usize,
-                exps: &[&(dyn SearchScheme<I>)],
-                name: &str,
-            ) {
-                for &exp in exps {
-                    results.push(Result::new(name, size, index, qs, exp, run, 1));
-                }
-            }
-
-            fn run_exps_multithreaded<I: SearchIndex>(
-                results: &mut Vec<Result>,
-                size: usize,
-                index: &I,
-                qs: &Vec<u32>,
-                run: usize,
-                exps: &[&(dyn SearchScheme<I>)],
-                name: &str,
-            ) {
-                for &exp in exps {
-                    results.push(Result::new(name, size, index, qs, exp, run, 6));
-                }
-            }
-
-            /// Wrapper type for the cast to &dyn.
-            type T<I, const N: usize> = [&'static dyn SearchScheme<I>; N];
-
-            let exps: T<_, _> = [&SortedVec::binary_search_std];
+            // SECTION 1.3: Binary search & Eytzinger
             run_exps(
                 &mut results,
                 size,
                 &SortedVec::new(vals),
                 qs,
                 run,
-                &exps,
+                &[&SortedVec::binary_search_std],
                 "",
             );
 
-            let exps: T<_, _> = [&Eytzinger::search_prefetch::<4>];
             run_exps(
                 &mut results,
                 size,
                 &Eytzinger::new(vals),
                 qs,
                 run,
-                &exps,
+                &[&Eytzinger::search_prefetch::<4>],
                 "",
             );
-            // let exps: T<_, _> = [&SortedVec::binary_search_std];
-            // run_exps_multithreaded(
-            //     &mut results,
-            //     size,
-            //     &SortedVec::new(vals),
-            //     qs,
-            //     run,
-            //     &exps,
-            //     "6 threads",
-            // );
 
-            // let exps: T<_, _> = [&Eytzinger::search_prefetch::<4>];
-            // run_exps_multithreaded(
-            //     &mut results,
-            //     size,
-            //     &Eytzinger::new(vals),
-            //     qs,
-            //     run,
-            //     &exps,
-            //     "6 threads",
-            // );
-
-            let exps: T<_, _> = const {
-                [
-                    //         &STree16::search_with_find(BTreeNode::find_linear) as _,
-                    //         &STree16::search_with_find(BTreeNode::find_linear_count) as _,
-                    //         &STree16::search_with_find(BTreeNode::find_ctz) as _,
-                    //         &STree16::search_with_find(BTreeNode::find_ctz_signed) as _,
-                    //         &STree16::search_with_find(BTreeNode::find_popcnt_portable) as _,
-                    //         &STree16::search_with_find(BTreeNode::find_popcnt) as _,
-                    //         &batched(STree16::batch::<1>),
-                    //         &batched(STree16::batch::<2>),
-                    //         &batched(STree16::batch::<4>),
-                    //         &batched(STree16::batch::<8>),
-                    //         &batched(STree16::batch::<16>),
-                    //         &batched(STree16::batch::<32>),
-                    //         &batched(STree16::batch::<64>),
-                    //         &batched(STree16::batch::<128>),
-                    //         &batched(STree16::batch_prefetch::<128>),
-                    //         &batched(STree16::batch_splat::<128>),
-                    //         &batched(STree16::batch_ptr::<128>),
-                    //         &batched(STree16::batch_ptr2::<128>),
-                    // &batched(STree16::batch_final::<16>),
-                    // &batched(STree16::batch_final::<32>),
-                    // &batched(STree16::batch_final::<64>),
+            run_exps(
+                &mut results,
+                size,
+                &STree16::new(vals),
+                qs,
+                run,
+                &[
+                    // SECTION 2: Optimizing find
+                    &STree16::search_with_find(BTreeNode::find_linear) as _,
+                    &STree16::search_with_find(BTreeNode::find_linear_count) as _,
+                    &STree16::search_with_find(BTreeNode::find_ctz) as _,
+                    &STree16::search_with_find(BTreeNode::find_ctz_signed) as _,
+                    &STree16::search_with_find(BTreeNode::find_popcnt_portable) as _,
+                    &STree16::search_with_find(BTreeNode::find_popcnt) as _,
+                    // SECTION 3.1: Batching
+                    &batched(STree16::batch::<1>),
+                    &batched(STree16::batch::<2>),
+                    &batched(STree16::batch::<4>),
+                    &batched(STree16::batch::<8>),
+                    &batched(STree16::batch::<16>),
+                    &batched(STree16::batch::<32>),
+                    &batched(STree16::batch::<64>),
+                    &batched(STree16::batch::<128>),
+                    // SECTION 3.2: prefetch
+                    &batched(STree16::batch_prefetch::<128>),
+                    // SECTION 3.3: pointer arithmetic
+                    &batched(STree16::batch_splat::<128>),
+                    &batched(STree16::batch_ptr::<128>),
+                    &batched(STree16::batch_byte_ptr::<128>),
                     &batched(STree16::batch_final::<128>),
-                    //         &batched(STree16::batch_skip_prefetch::<128, 1>),
-                    //         &batched(STree16::batch_skip_prefetch::<128, 2>),
-                    //         &batched(STree16::batch_skip_prefetch::<128, 3>),
-                    // &full(STree16::batch_interleave_half::<64>),
-                    // &full(STree16::batch_interleave_last::<64, 1>),
-                    // &full(STree16::batch_interleave_last::<64, 2>),
-                    // &full(STree16::batch_interleave_last::<64, 3>),
-                    // &full(STree16::batch_interleave_last::<64, 4>),
-                    &full(STree16::batch_interleave_full_128),
-                    // &full(STree16::baseline),
-                ]
-            };
-            // // Let's just always use hugepages.
-            // // run_exps(
-            // //     &mut results,
-            // //     size,
-            // //     &STree16::new_no_hugepages(vals),
-            // //     qs,
-            // //     run,
-            // //     &exps[..2],
-            // //     "NoHuge",
-            // // );
-            run_exps(&mut results, size, &STree16::new(vals), qs, run, &exps, "");
+                    // SECTION 3.4: skip prefetch
+                    &batched(STree16::batch_skip_prefetch::<128, 1>),
+                    &batched(STree16::batch_skip_prefetch::<128, 2>),
+                    &batched(STree16::batch_skip_prefetch::<128, 3>),
+                    // SECTION 3.4: interleaving
+                    &full(STree16::batch_interleave_half::<64>),
+                    &full(STree16::batch_interleave_last::<64, 1>),
+                    &full(STree16::batch_interleave_last::<64, 2>),
+                    &full(STree16::batch_interleave_last::<64, 3>),
+                    &full(STree16::batch_interleave_last::<64, 4>),
+                    &full(STree16::batch_interleave_all_128),
+                ],
+                "",
+            );
 
-            // // STree construction parameters: Rev, Fwd, Full
-            let exps: T<_, _> = const { [&batched(STree16::batch_final::<128>)] };
-            let index = STree16::new_params(vals, false, true, false);
-            run_exps(&mut results, size, &index, qs, run, &exps, "Rev");
-            let index = STree16::new_params(vals, true, true, false);
-            run_exps(&mut results, size, &index, qs, run, &exps, "Rev+Fwd");
-            let exps: T<_, _> = const {
-                [
-                    &batched(STree16::batch_ptr3::<128>),
-                    &batched(STree16::batch_ptr3_full::<128>),
-                ]
-            };
-            let index = STree16::new_params(vals, true, true, true);
-            run_exps(&mut results, size, &index, qs, run, &exps, "Rev+Fwd+Full");
+            // SECTION 4: layout
 
-            // B=15
-            let exps: T<_, _> = const { [&batched(STree15::batch_ptr3::<128>)] };
+            // SECTION 4.1: left-max tree
+            let exps = [
+                &batched(STree16::batch_final::<128>) as &dyn SearchScheme<_>,
+                &full(STree16::batch_interleave_all_128),
+            ];
+            run_exps(
+                &mut results,
+                size,
+                &STree16::new_params(vals, true, false, false),
+                qs,
+                run,
+                &exps,
+                "LeftMax",
+            );
+
+            // SECTION 4.2: Memory layouts
+
+            // reverse
+            run_exps(
+                &mut results,
+                size,
+                &STree16::new_params(vals, true, true, false),
+                qs,
+                run,
+                &exps,
+                "Reverse",
+            );
+
+            // full
+            run_exps(
+                &mut results,
+                size,
+                &STree16::new_params(vals, true, false, true),
+                qs,
+                run,
+                &[
+                    &batched(STree16::batch_final::<128>),
+                    &full(STree16::batch_interleave_all_128),
+                    &batched(STree16::batch_final_full::<128>),
+                ],
+                "Full",
+            );
+
+            // SECTION 4.3: B=15
+
             let index = STree15::new_params(vals, true, true, false);
-            run_exps(&mut results, size, &index, qs, run, &exps, "Rev+Fwd");
+            run_exps(
+                &mut results,
+                size,
+                &index,
+                qs,
+                run,
+                &[
+                    &batched(STree15::batch_final::<128>),
+                    &full(STree15::batch_interleave_all_128),
+                ],
+                "Rev+Fwd",
+            );
 
-            let exps: T<_, _> = const {
-                [
-                    &batched(STree15::batch_ptr3::<128>),
-                    &batched(STree15::batch_ptr3_full::<128>),
-                ]
-            };
             let index = STree15::new_params(vals, true, true, true);
-            run_exps(&mut results, size, &index, qs, run, &exps, "Rev+Fwd+Full");
+            run_exps(
+                &mut results,
+                size,
+                &index,
+                qs,
+                run,
+                &[
+                    &batched(STree15::batch_final::<128>),
+                    &full(STree15::batch_interleave_all_128),
+                    &batched(STree15::batch_final_full::<128>),
+                ],
+                "Rev+Fwd+Full",
+            );
 
-            let exps: T<_, _> = const { [&batched(PartitionedSTree16::search::<128, false>)] };
-            let expsc: T<_, _> = const { [&batched(PartitionedSTree16C::search::<128, false>)] };
-            let expsl: T<_, _> = const {
-                [
-                    &batched(PartitionedSTree16L::search::<128, false>),
-                    // &batched(PartitionedSTree16L::search::<128, true>),
-                ]
-            };
-            let expso: T<_, _> = const { [&batched(PartitionedSTree16O::search::<128, false>)] };
-            let expsm: T<_, _> = const {
-                [
-                    &batched(PartitionedSTree16M::search::<128, false>),
-                    &batched(PartitionedSTree16M::search::<128, true>),
-                ]
-            };
+            // SECTION 5: Prefix partitioning
+
+            // SECTION 5.1: Full layout over all subtrees
             let bs = (4..=20).step_by(4).collect_vec();
             for &b in &bs {
-                let index = PartitionedSTree16::new(vals, b);
-                run_exps(&mut results, size, &index, qs, run, &exps, &format!("{b}"));
+                try_run_exps(
+                    &mut results,
+                    size,
+                    &PartitionedSTree16::try_new(vals, b),
+                    qs,
+                    run,
+                    &[
+                        &batched(PartitionedSTree16::search::<128, false>),
+                        &batched(PartitionedSTree16::search::<128, true>),
+                    ],
+                    &format!("{b}"),
+                );
             }
 
+            // SECTION 5.2: Packed subtrees
             for &b in &bs {
-                let index = PartitionedSTree16C::new(vals, b);
-                run_exps(&mut results, size, &index, qs, run, &expsc, &format!("{b}"));
+                try_run_exps(
+                    &mut results,
+                    size,
+                    &PartitionedSTree16C::try_new(vals, b),
+                    qs,
+                    run,
+                    &[
+                        &batched(PartitionedSTree16C::search::<128, false>),
+                        &batched(PartitionedSTree16C::search::<128, true>),
+                    ],
+                    &format!("{b}"),
+                );
             }
 
+            // SECTION 5.3: Reduced level-1 branching factor
             for &b in &bs {
-                if let Some(index) = PartitionedSTree16L::try_new(vals, b) {
-                    run_exps(&mut results, size, &index, qs, run, &expsl, &format!("{b}"));
-                }
+                let index = PartitionedSTree16L::try_new(vals, b);
+                try_run_exps(
+                    &mut results,
+                    size,
+                    &index,
+                    qs,
+                    run,
+                    &[
+                        &batched(PartitionedSTree16L::search::<128, false>),
+                        &batched(PartitionedSTree16L::search::<128, true>),
+                    ],
+                    &format!("{b}"),
+                );
             }
 
+            // SECTION 5.4: Overlapping subtrees
             for &b in &bs {
-                if let Some(index) = PartitionedSTree16O::try_new(vals, b) {
-                    run_exps(&mut results, size, &index, qs, run, &expso, &format!("{b}"));
-                }
+                try_run_exps(
+                    &mut results,
+                    size,
+                    &PartitionedSTree16O::try_new(vals, b),
+                    qs,
+                    run,
+                    &[
+                        &batched(PartitionedSTree16O::search::<128, false>),
+                        &batched(PartitionedSTree16O::search::<128, true>),
+                    ],
+                    &format!("{b}"),
+                );
             }
 
+            // SECTION 5.5: Prefix map
             for &b in &bs {
-                if let Some(index) = PartitionedSTree16M::try_new(vals, b) {
-                    run_exps(&mut results, size, &index, qs, run, &expsm, &format!("{b}"));
-                }
+                try_run_exps(
+                    &mut results,
+                    size,
+                    &PartitionedSTree16M::try_new(vals, b),
+                    qs,
+                    run,
+                    &[
+                        &batched(PartitionedSTree16M::search::<128, false>),
+                        &batched(PartitionedSTree16M::search::<128, true>),
+                    ],
+                    &format!("{b}"),
+                );
             }
+
+            // TODO: Interleaved partitioning
+
+            // TODO SECTION 6: Multithreading
         }
 
         save_results(
@@ -331,6 +363,51 @@ pub fn save_results(results: &Vec<Result>, name: &str) {
     serde_json::to_writer(f, &results).unwrap();
 }
 
+fn run_exps<I: SearchIndex>(
+    results: &mut Vec<Result>,
+    size: usize,
+    index: &I,
+    qs: &Vec<u32>,
+    run: usize,
+    exps: &[&(dyn SearchScheme<I>)],
+    name: &str,
+) {
+    for &exp in exps {
+        results.push(Result::new(name, size, index, qs, exp, run, 1));
+    }
+}
+fn try_run_exps<I: SearchIndex>(
+    results: &mut Vec<Result>,
+    size: usize,
+    index: &Option<I>,
+    qs: &Vec<u32>,
+    run: usize,
+    exps: &[&(dyn SearchScheme<I>)],
+    name: &str,
+) {
+    if let Some(index) = index {
+        run_exps(results, size, index, qs, run, exps, name);
+    } else {
+        for &exp in exps {
+            results.push(Result::skip(name, size, qs, exp, run, 1));
+        }
+    }
+}
+
+fn run_exps_multithreaded<I: SearchIndex>(
+    results: &mut Vec<Result>,
+    size: usize,
+    index: &I,
+    qs: &Vec<u32>,
+    run: usize,
+    exps: &[&(dyn SearchScheme<I>)],
+    name: &str,
+) {
+    for &exp in exps {
+        results.push(Result::new(name, size, index, qs, exp, run, 6));
+    }
+}
+
 #[derive(serde::Serialize)]
 pub struct Result {
     /// Index name
@@ -341,8 +418,10 @@ pub struct Result {
     pub size: usize,
     /// Datastructure size in bytes.
     pub index_size: usize,
-    /// Number of iterations.
+    /// Number of queries.
     pub queries: usize,
+    /// Number of parallel threads
+    pub threads: usize,
     /// Id
     pub run: usize,
     /// Total duration of the experiment.
@@ -399,6 +478,7 @@ impl Result {
             size,
             index_size: index.size(),
             queries,
+            threads,
             run,
             duration,
             latency,
@@ -406,10 +486,33 @@ impl Result {
             freq,
         }
     }
+
+    pub fn skip<I: SearchIndex>(
+        name: &str,
+        size: usize,
+        qs: &[u32],
+        scheme: &dyn SearchScheme<I>,
+        run: usize,
+        threads: usize,
+    ) -> Result {
+        Result {
+            params: name.to_string(),
+            scheme: scheme.name().to_string(),
+            size,
+            index_size: usize::MAX,
+            queries: qs.len(),
+            threads,
+            run,
+            duration: Duration::ZERO,
+            latency: 0.,
+            cycles: 0.,
+            freq: 0.,
+        }
+    }
 }
 
 /// Return the current CPU frequency in Hz.
-pub(crate) fn get_cpu_freq() -> Option<f64> {
+fn get_cpu_freq() -> Option<f64> {
     let cur_cpu = get_cpu()?;
     let path = format!("/sys/devices/system/cpu/cpu{cur_cpu}/cpufreq/scaling_cur_freq");
     let path = &Path::new(&path);
@@ -421,7 +524,7 @@ pub(crate) fn get_cpu_freq() -> Option<f64> {
     Some(val.trim().parse::<f64>().ok()? * 1000.)
 }
 
-pub(crate) fn get_cpu() -> Option<i32> {
+fn get_cpu() -> Option<i32> {
     #[cfg(not(target_os = "macos"))]
     {
         Some(unsafe { libc::sched_getcpu() })
