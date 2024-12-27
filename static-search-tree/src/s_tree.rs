@@ -64,24 +64,20 @@ impl<const B: usize, const N: usize> STree<B, N> {
         unsafe { *self.tree.get_unchecked(b).data.get_unchecked(i) }
     }
 
-    pub fn new_params(vals: &[u32], fwd: bool, rev: bool, full_array: bool) -> Self {
-        Self::new_params_impl(vals, fwd, rev, full_array, true)
-    }
-
-    pub fn new_no_hugepages(vals: &[u32]) -> Self {
-        Self::new_params_impl(vals, false, false, false, false)
-    }
-
     // The `hugepages` parameter is only internal.
-    fn new_params_impl(
+    pub fn new_params(
         vals: &[u32],
-        fwd: bool,
-        rev: bool,
+        left_max: bool,
+        reverse_storage: bool,
         full_array: bool,
-        hugepages: bool,
     ) -> Self {
+        let hugepages = true;
+
         if full_array {
-            assert!(fwd, "Full array only makes sense in forward layout.");
+            assert!(
+                !reverse_storage,
+                "Full array only makes sense in forward layout."
+            );
         }
 
         for &v in vals {
@@ -103,7 +99,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         assert!(layer_sizes[0] > 0);
         let n_blocks = layer_sizes.iter().sum::<usize>();
 
-        let offsets = if fwd {
+        let offsets = if !reverse_storage {
             layer_sizes
                 .iter()
                 .scan(0, |sum, sz| {
@@ -161,7 +157,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
                     k *= B + 1;
                 }
                 tree[oh + i / B].data[i % B] = if k * B < n {
-                    if !rev {
+                    if !left_max {
                         tree[ol + k].data[0]
                     } else {
                         tree[ol + k - 1].data[B - 1]
@@ -681,7 +677,7 @@ impl<const B: usize, const N: usize> STree<B, N> {
         out
     }
 
-    pub fn batch_interleave_full_128(&self, qs: &[u32]) -> Vec<u32> {
+    pub fn batch_interleave_all_128(&self, qs: &[u32]) -> Vec<u32> {
         match self.offsets.len() {
             1 => self.batch_interleave_full::<128, 1, 128>(qs),
             2 => self.batch_interleave_full::<64, 2, 128>(qs),
@@ -848,7 +844,7 @@ mod tests {
     #[test]
     fn test_b_tree_k_2() {
         let vals = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let bptree = STree::<2, 2>::new_params(&vals, false, false, false);
+        let bptree = STree::<2, 2>::new(&vals);
         println!("{:?}", bptree);
     }
 
@@ -856,7 +852,7 @@ mod tests {
     fn test_b_tree_k_3() {
         let vals = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
         // let correct_output = vec![4, 8, 12, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15];
-        let computed_out = STree::<3, 3>::new_params(&vals, false, false, false);
+        let computed_out = STree::<3, 3>::new(&vals);
         println!("{:?}", computed_out);
     }
 
@@ -865,7 +861,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 452;
-        let bptree = STree::<16, 16>::new_params(&vals, false, false, false);
+        let bptree = STree::<16, 16>::new(&vals);
         let bptree_res = bptree.search(q);
 
         let bin_res = SortedVec::new(&vals).binary_search(q);
@@ -878,7 +874,7 @@ mod tests {
         let mut vals: Vec<u32> = (1..2000).collect();
         vals.push(MAX);
         let q = 289;
-        let bptree = STree::<16, 16>::new_params(&vals, false, false, false);
+        let bptree = STree::<16, 16>::new(&vals);
         let bptree_res = bptree.search(q);
 
         let bin_res = SortedVec::new(&vals).binary_search(q);
@@ -890,7 +886,7 @@ mod tests {
     fn test_simd_cmp() {
         let mut vals: Vec<u32> = (1..16).collect();
         vals.push(MAX);
-        let bptree = STree::<16, 16>::new_params(&vals, false, false, false);
+        let bptree = STree::<16, 16>::new(&vals);
         let idx = bptree.tree[0].find(1);
         println!("{}", idx);
         assert_eq!(idx, 0);
