@@ -63,23 +63,23 @@ fn get_search_schemes() -> SearchSchemes {
             &batched(STree::batch_prefetch::<128>),
             &batched(STree::batch_splat::<128>),
             &batched(STree::batch_ptr::<128>),
+            &batched(STree::batch_byte_ptr::<128>),
+            &batched(STree::batch_final::<128>),
             &batched(STree::batch_skip_prefetch::<128, 1>),
             &batched(STree::batch_skip_prefetch::<128, 2>),
-            // &batched(STree::batch_byte_ptr::<128>),
-            // &batched(STree::batch_final::<128>),
-            // // &full(STree::batch_interleave::<64>),
-            // &full(STree::batch_interleave_last::<64, 1>),
-            // &full(STree::batch_interleave_last::<64, 2>),
-            // &full(STree::batch_interleave_last::<64, 3>),
-            // &full(STree::batch_interleave_last::<64, 4>),
-            &full(STree16::batch_interleave_full::<128, 1, 128>),
-            &full(STree16::batch_interleave_full::<64, 2, 128>),
-            &full(STree16::batch_interleave_full::<32, 3, 96>),
-            &full(STree16::batch_interleave_full::<32, 4, 128>),
-            &full(STree16::batch_interleave_full::<16, 5, 80>),
-            &full(STree16::batch_interleave_full::<16, 6, 96>),
-            &full(STree16::batch_interleave_full::<16, 7, 112>),
-            &full(STree16::batch_interleave_full::<16, 8, 128>),
+            &full(STree::batch_interleave_half::<64>),
+            &full(STree::batch_interleave_last::<64, 1>),
+            &full(STree::batch_interleave_last::<64, 2>),
+            &full(STree::batch_interleave_last::<64, 3>),
+            &full(STree::batch_interleave_last::<64, 4>),
+            &full(STree16::batch_interleave_all::<128, 1, 128>),
+            &full(STree16::batch_interleave_all::<64, 2, 128>),
+            &full(STree16::batch_interleave_all::<32, 3, 96>),
+            &full(STree16::batch_interleave_all::<32, 4, 128>),
+            &full(STree16::batch_interleave_all::<16, 5, 80>),
+            &full(STree16::batch_interleave_all::<16, 6, 96>),
+            &full(STree16::batch_interleave_all::<16, 7, 112>),
+            &full(STree16::batch_interleave_all::<16, 8, 128>),
         ]
     }
     .to_vec();
@@ -224,6 +224,7 @@ fn test_search() {
         map_idx(&fs.pspc, &PartitionedSTree16C::new(&vals, 8), qs, results);
         map_idx(&fs.pspc, &PartitionedSTree16C::new(&vals, 16), qs, results);
         map_idx(&fs.pspc, &PartitionedSTree16C::new(&vals, 20), qs, results);
+
         eprintln!("PARTS L1");
         map_idx(&fs.pspl, &PartitionedSTree16L::new(&vals, 0), qs, results);
         map_idx(&fs.pspl, &PartitionedSTree16L::new(&vals, 4), qs, results);
@@ -231,14 +232,14 @@ fn test_search() {
         map_idx(&fs.pspl, &PartitionedSTree16L::new(&vals, 16), qs, results);
         map_idx(&fs.pspl, &PartitionedSTree16L::new(&vals, 20), qs, results);
 
-        // eprintln!("PARTS OVERLAPPING");
-        // map_idx(&fs.pspo, &PartitionedSTree16O::new(&vals, 0), qs, results);
-        // map_idx(&fs.pspo, &PartitionedSTree16O::new(&vals, 4), qs, results);
-        // map_idx(&fs.pspo, &PartitionedSTree16O::new(&vals, 8), qs, results);
-        // map_idx(&fs.pspo, &PartitionedSTree16O::new(&vals, 16), qs, results);
-        // map_idx(&fs.pspo, &PartitionedSTree16O::new(&vals, 20), qs, results);
+        eprintln!("PARTS OVERLAPPING");
+        map_idx(&fs.pspo, &PartitionedSTree16O::new(&vals, 0), qs, results);
+        map_idx(&fs.pspo, &PartitionedSTree16O::new(&vals, 4), qs, results);
+        map_idx(&fs.pspo, &PartitionedSTree16O::new(&vals, 8), qs, results);
+        map_idx(&fs.pspo, &PartitionedSTree16O::new(&vals, 16), qs, results);
+        map_idx(&fs.pspo, &PartitionedSTree16O::new(&vals, 20), qs, results);
 
-        // eprintln!("PARTS MAP");
+        eprintln!("PARTS MAP");
         map_idx(&fs.pspm, &PartitionedSTree16M::new(&vals, 0), qs, results);
         map_idx(&fs.pspm, &PartitionedSTree16M::new(&vals, 4), qs, results);
         map_idx(&fs.pspm, &PartitionedSTree16M::new(&vals, 8), qs, results);
