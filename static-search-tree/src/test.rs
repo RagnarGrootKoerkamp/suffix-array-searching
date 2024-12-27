@@ -112,9 +112,13 @@ fn get_search_schemes() -> SearchSchemes {
     let pspo =
         const { [&batched(PartitionedSTree16O::search::<128, true>) as &dyn SearchScheme<_>] }
             .to_vec();
-    let pspm =
-        const { [&batched(PartitionedSTree16M::search::<128, true>) as &dyn SearchScheme<_>] }
-            .to_vec();
+    let pspm = const {
+        [
+            &batched(PartitionedSTree16M::search::<128, true>) as &dyn SearchScheme<_>,
+            &full(PartitionedSTree16M::search_interleave_128::<false>) as &dyn SearchScheme<_>,
+        ]
+    }
+    .to_vec();
 
     SearchSchemes {
         bs,
