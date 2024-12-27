@@ -24,6 +24,7 @@ use std::{
     sync::LazyLock,
     time::{Duration, Instant},
 };
+use suffix_array_searching::util::read_human_genome;
 
 #[derive(Parser)]
 struct Args {
@@ -39,6 +40,8 @@ struct Args {
     queries: Option<usize>,
     #[clap(long)]
     runs: Option<usize>,
+    #[clap(long)]
+    human: bool,
 }
 
 static ARGS: LazyLock<Args> = LazyLock::new(|| Args::parse());
@@ -48,20 +51,38 @@ fn main() {
 
     let runs = ARGS.runs.unwrap_or(if ARGS.release { 3 } else { 1 });
     let sizes = sizes();
-    let queries = ARGS
-        .queries
-        .unwrap_or(if ARGS.release {
-            1_000_000usize
-        } else {
-            1_000_000
-        })
-        .next_multiple_of(256);
-
     for run in 0..runs {
         // Setup
 
+        let mut vals = if !ARGS.human {
+            gen_vals(*sizes.last().unwrap(), false)
+        } else {
+            let k = 16;
+            let seq = read_human_genome();
+
+            let mut key = 0;
+            for i in 0..k - 1 {
+                key = key << 2 | seq[i] as usize;
+            }
+            let mut vals = vec![];
+            for i in k - 1..seq.len().min(sizes.last().unwrap() + k - 1) {
+                key = key << 2 | seq[i] as usize;
+                key &= (1 << (2 * k)) - 1;
+                vals.push(key as u32 & i32::MAX as u32);
+            }
+            vals[0] = i32::MAX as u32;
+            vals
+        };
+
+        let queries = ARGS
+            .queries
+            .unwrap_or(if ARGS.release {
+                1_000_000usize
+            } else {
+                1_000_000
+            })
+            .next_multiple_of(256);
         let qs = &gen_queries(queries);
-        let mut vals = gen_vals(*sizes.last().unwrap(), false);
 
         for &size in &sizes {
             let len = size / std::mem::size_of::<u32>();
@@ -264,7 +285,14 @@ fn main() {
             }
         }
 
-        save_results(&results, "results");
+        save_results(
+            &results,
+            if ARGS.human {
+                "results-human"
+            } else {
+                "results"
+            },
+        );
         eprintln!("Saved results after run {}", run + 1);
     }
 }

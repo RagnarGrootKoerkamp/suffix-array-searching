@@ -1015,6 +1015,7 @@ dependencies = [
  "serde_json",
  "size",
  "stderrlog",
+ "suffix-array-searching",
 ]
 
 [[package]]

@@ -21,3 +21,4 @@ log = "0.4.22"
 serde = { version = "1.0.216", features = ["derive"] }
 libc = "0.2.168"
 alloc-madvise = "0.5.0"
+suffix-array-searching = { version = "0.1.0", path = "../suffix-array-searching" }
