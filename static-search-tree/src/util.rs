@@ -14,8 +14,16 @@ const LOWEST_GENERATED: u32 = 0;
 const HIGHEST_GENERATED: u32 = MAX;
 
 pub fn gen_queries(n: usize) -> Vec<u32> {
+    let mut thread_rng = rand::thread_rng();
     (0..n)
-        .map(|_| rand::thread_rng().gen_range(LOWEST_GENERATED..HIGHEST_GENERATED))
+        .map(|_| thread_rng.gen_range(LOWEST_GENERATED..HIGHEST_GENERATED))
+        .collect()
+}
+
+pub fn gen_positive_queries(n: usize, vals: &[u32]) -> Vec<u32> {
+    let mut thread_rng = rand::thread_rng();
+    (0..n)
+        .map(|_| vals[thread_rng.gen_range(0..vals.len())])
         .collect()
 }
 

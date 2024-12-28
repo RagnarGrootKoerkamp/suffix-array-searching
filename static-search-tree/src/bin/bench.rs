@@ -12,7 +12,7 @@ use static_search_tree::{
         PartitionedSTree16O,
     },
     s_tree::{STree15, STree16},
-    util::{gen_queries, gen_vals},
+    util::{gen_positive_queries, gen_queries, gen_vals},
     SearchIndex, SearchScheme,
 };
 use std::{
@@ -39,6 +39,10 @@ struct Args {
     runs: Option<usize>,
     #[clap(long)]
     human: bool,
+    #[clap(long)]
+    range: bool,
+    #[clap(long)]
+    positive: bool,
 }
 
 static ARGS: LazyLock<Args> = LazyLock::new(|| Args::parse());
@@ -71,20 +75,38 @@ fn main() {
             vals
         };
 
-        let queries = ARGS
-            .queries
-            .unwrap_or(if ARGS.release {
-                1_000_000usize
-            } else {
-                1_000_000
-            })
-            .next_multiple_of(256 * 3);
-        let qs = &gen_queries(queries);
+        let queries = ARGS.queries.unwrap_or(1_000_000).next_multiple_of(256 * 3);
+        let qs = if ARGS.positive {
+            &gen_positive_queries(queries, &vals)
+        } else {
+            &gen_queries(queries)
+        };
+        let range_queries = qs.iter().flat_map(|&q| [q, q + 1]).collect_vec();
 
         for &size in &sizes {
             let len = size / std::mem::size_of::<u32>();
             let vals = &mut vals[..len];
             vals.radix_sort_unstable();
+
+            if ARGS.range {
+                let exps = [
+                    &batched(STree16::batch_final::<128>) as &dyn SearchScheme<_>,
+                    &full(STree16::batch_interleave_all_128),
+                ];
+                let index = STree16::new_params(vals, true, false, false);
+                run_exps(&mut results, size, &index, qs, run, &exps, "single");
+
+                run_exps(
+                    &mut results,
+                    size,
+                    &index,
+                    &range_queries,
+                    run,
+                    &exps,
+                    "range",
+                );
+                continue;
+            }
 
             let bs = (4..=20).step_by(4).collect_vec();
 
@@ -154,11 +176,8 @@ fn main() {
                     &batched(STree16::batch_skip_prefetch::<128, 2>),
                     &batched(STree16::batch_skip_prefetch::<128, 3>),
                     // SECTION 3.4: interleaving
-                    // &full(STree16::batch_interleave_half::<64>),
-                    // &full(STree16::batch_interleave_last::<64, 1>),
                     &full(STree16::batch_interleave_last::<64, 2>),
                     &full(STree16::batch_interleave_last::<64, 3>),
-                    // &full(STree16::batch_interleave_last::<64, 4>),
                     &full(STree16::batch_interleave_all_128),
                 ],
                 "",
@@ -315,10 +334,18 @@ fn main() {
 
         save_results(
             &results,
-            if ARGS.human {
-                "results-human"
+            if ARGS.range {
+                if ARGS.human {
+                    "results-human-range"
+                } else {
+                    "results-range"
+                }
             } else {
-                "results"
+                if ARGS.human {
+                    "results-human"
+                } else {
+                    "results"
+                }
             },
         );
         eprintln!("Saved results after run {}", run + 1);
