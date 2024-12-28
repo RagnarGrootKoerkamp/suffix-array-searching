@@ -15,6 +15,7 @@ import re
 
 palette = None
 dashes = {"": ""}
+human = ""
 
 
 def caches():
@@ -45,10 +46,11 @@ def plot(
     style="Style",
     size=False,
     highlight=1,
+    spread=False,
 ):
     print("plotting", experiment_name, "\n", names)
     # Create a figure
-    fig, ax = plt.subplots(figsize=(11, 6))
+    fig, ax = plt.subplots(figsize=(11, 8))
     ax.set_title(title)
     ax.set_xlabel("Input size (bytes)")
     if latency:
@@ -79,7 +81,7 @@ def plot(
 
     data["type"] = data.name.apply(type)
 
-    alpha_map = {"old": 0.5, "new": 1, "best": 1, "new_best": 1}
+    alpha_map = {"old": 0.3, "new": 1, "best": 1, "new_best": 1}
     my_palette = {name: to_rgba(palette[name], alpha_map[type(name)]) for name in names}
 
     sns.lineplot(
@@ -90,13 +92,12 @@ def plot(
             # "Color" if len(data.batchsize.unique()) == 1 else "display_name"
         ].tolist(),
         style=style if data.Style.unique().tolist() != [""] else None,
-        # dashes=dashes,
         data=data,
         legend="auto",
         size="type",
         sizes={"old": 0.5, "new": 1, "best": 2, "new_best": 1.5},
         palette=my_palette,
-        errorbar=("pi", 50),
+        errorbar=("pi", 50) if spread else None,
         estimator="median",
     )
 
@@ -105,26 +106,33 @@ def plot(
         size_ax = ax.twinx()
         sns.lineplot(
             x="sz",
-            # y="index_size",
-            y="overhead",
+            y="capped_overhead",
             hue=data["name"].tolist(),
             # style=style,
-            linestyle="dotted",
+            # linestyle="dotted",
+            style=style if data.Style.unique().tolist() != [""] else None,
+            size="type",
+            sizes={"old": 0.5, "new": 1, "best": 2, "new_best": 1.5},
             data=data,
             legend=None,
             palette=palette,
             ax=size_ax,
+            errorbar=("pi", 50) if spread else None,
+            estimator="median",
         )
 
-        # size_ax.set_yscale("log", base=2)
-        # size_ax.set_ylim(2**0, 2**30)
-        size_ax.set_ylim(1, 3)
+        size_ax.set_ylim(0, 7)
         size_ax.grid(True, alpha=0.4, ls="dotted", lw=1)
-        size_ax.set_ylabel("Datastructure size")
+        size_ax.set_ylabel("Size overhead")
+        # Set ticks
+        size_ax.set_yticks([0, 1 / 8, 1 / 4, 1 / 2, 1])
 
     ax.set_xscale("log", base=2)
     ax.xaxis.set_major_locator(LogLocator(base=4, numticks=20))
-    ax.set_ylim(0, ymax)
+    if size:
+        ax.set_ylim(-ymax / 6, ymax)
+    else:
+        ax.set_ylim(0, ymax)
     ax.grid(True, alpha=0.4)
     ax.grid(which="minor", color="gray", alpha=0.2)
 
@@ -139,10 +147,11 @@ def plot(
     new_handles = []
     new_labels = []
     for h, l in zip(handles, labels):
-        if l not in ["new", "old", "best", "new_best", "type", "scheme"]:
+        if l not in ["new", "old", "best", "new_best", "type", "scheme", "Style"]:
             new_handles.append(h)
             new_labels.append(l)
-    ax.legend(new_handles, new_labels, loc="upper left")
+    # Transparent background
+    ax.legend(new_handles, new_labels, loc="upper left", framealpha=0.0)
 
     # Add vertical lines for cache sizes
     for size, name in caches():
@@ -155,14 +164,15 @@ def plot(
     # Save
     # fig.savefig(f"plots/{experiment_name}.png", bbox_inches="tight", dpi=600)
     # print(f"Saved {experiment_name}.png")
-    fig.savefig(f"plots/{experiment_name}.svg", bbox_inches="tight")
-    print(f"Saved {experiment_name}.svg")
+    fig.savefig(f"plots/{experiment_name}{human}.svg", bbox_inches="tight")
+    print(f"Saved {experiment_name}{human}.svg")
 
     # pio.write_html(fig, f"plots/{experiment_name}.html", auto_open=True)
     # Path(f"plots/{experiment_name}.html").write_text(mpld3.fig_to_html(fig))
     # plotly_fig = tls.mpl_to_plotly(fig)
     # plotly.offline.plot(plotly_fig, filename="plotly version of an mpl figure")
 
+    fig.show()
     return fig
 
 
@@ -238,10 +248,18 @@ def read_file(filename):
     data["name"] = (data.scheme + " " + data.params.astype(str)).str.strip()
     data["display_size"] = data["sz"].apply(display_size)
 
-    data["overhead"] = data.index_size / data.sz
+    data["overhead"] = data.index_size / data.sz - 1
+    data["capped_overhead"] = [min(o, 1) for o in data.overhead]
+
+    data.latency = data.latency.apply(lambda x: x if x > 0 else 10000)
 
     def style(scheme):
-        return "Interleaved" if "interleave" in scheme else ""
+        if "Partitioned" in scheme:
+            return (
+                "Partitioned+interleaved" if "interleave" in scheme else "Partitioned"
+            )
+        else:
+            return "Interleaved" if "interleave" in scheme else ""
 
     data["Style"] = [style(scheme) for scheme in data.scheme]
 
@@ -279,7 +297,7 @@ def select(select, all_names, end=False):
 
 # Read all files in the 'results' directory and iterate over them.
 def plot_blog():
-    all_data = read_file(f"results/results-release.json")
+    all_data = read_file(f"results/results{human}-release.json")
     data = all_data[all_data.threads == 1]
     all_names = data.name.unique().tolist()
     keep = []
@@ -307,45 +325,44 @@ def plot_blog():
         names,
         keep,
         latency=True,
-    ).show()
+        spread=True,
+    )
     keep += [names[0], names[-1]]
 
     names = keep + sel("search<find_linear>")
-    plot("2-find-linear", "S-tree", data, names, keep).show()
+    plot("2-find-linear", "S-tree", data, names, keep)
     prune(sel("NoHuge"))
 
     names = keep + sel("search<find")
     plot(
         "3-find", "Optimizing the BTreeNode find function", data, names, keep, ymax=240
-    ).show()
+    )
     keep.append(names[-1])
     prune(names)
 
     names = keep + sel("batch<")
-    plot("4-batching", "Batch size", data, names, keep, ymax=120).show()
+    plot("4-batching", "Batch size", data, names, keep, ymax=120)
     keep += sel("batch<128>")
     prune(names)
 
     names = keep + sel(["batch_prefetch"])
-    plot("5-prefetch", "Prefetching", data, names, keep, ymax=60).show()
+    plot("5-prefetch", "Prefetching", data, names, keep, ymax=60)
     keep.append(names[-1])
     prune(names)
 
     names = keep + sel(["batch_prefetch<128", "splat", "ptr", "final"])
-    plot("6-improvements", "Improvements", data, names, keep, ymax=30).show()
+    plot("6-improvements", "Improvements", data, names, keep, ymax=30)
     keep.append(names[-1])
     prune(names)
 
     names = keep + sel("skip_prefetch")
-    plot(
-        "7-skip-prefetch", "Skip prefetch", data, names, keep, new_best=False, ymax=30
-    ).show()
+    plot("7-skip-prefetch", "Skip prefetch", data, names, keep, new_best=False, ymax=30)
     prune(names)
 
     names = keep + sel(
         ["interleave_last<64, 2>", "interleave_last<64, 3>", "interleave_all"]
     )
-    plot("8-interleave", "Interleave", data, names, keep, ymax=30).show()
+    plot("8-interleave", "Interleave", data, names, keep, ymax=30)
     keep.append(names[-1])
     prune(names)
 
@@ -363,7 +380,7 @@ def plot_blog():
         ymax=30,
         size=False,
         highlight=2,
-    ).show()
+    )
     keep += names[-2:]
     prune(names)
 
@@ -378,7 +395,7 @@ def plot_blog():
         ymax=30,
         size=False,
         highlight=2,
-    ).show()
+    )
     prune(names)
 
     names = keep + select("<B=15>::batch_interleave", sel("LeftMax", end=True))
@@ -390,11 +407,12 @@ def plot_blog():
         keep,
         # new_best=False,
         ymax=30,
-    ).show()
+        size=True,
+    )
     keep.append(names[-1])
     prune(names)
 
-    plot("11-summary", "Summary", data, keep, [], new_best=False, ymax=30).show()
+    plot("11-summary", "Summary", data, keep, [], new_best=False, ymax=30)
 
     names = keep + sel("Simple>::search<>")
     new_best = names[-2]
@@ -406,13 +424,13 @@ def plot_blog():
         keep,
         new_best=new_best,
         ymax=30,
-        # size=True,
-    ).show()
+        size=True,
+    )
     prune(names)
     keep.append(new_best)
 
     names = keep + sel("Compact>::search<>")
-    new_best = False
+    new_best = names[-2]
     plot(
         "21-compact",
         "Per-tree compact layout",
@@ -422,9 +440,11 @@ def plot_blog():
         new_best=new_best,
         ymax=30,
         highlight=2,
-        # size=True,
-    ).show()
+        size=True,
+    )
     prune(names)
+    keep.pop()
+    keep.append(new_best)
 
     names = keep + sel("L1>::search<>")
     new_best = names[-2]
@@ -437,8 +457,8 @@ def plot_blog():
         new_best=new_best,
         ymax=30,
         highlight=2,
-        # size=True,
-    ).show()
+        size=True,
+    )
     keep.pop()
     keep.append(new_best)
     prune(names)
@@ -454,8 +474,8 @@ def plot_blog():
         new_best=new_best,
         ymax=30,
         highlight=2,
-        # size=True,
-    ).show()
+        size=True,
+    )
     keep.pop()
     keep.append(new_best)
     prune(names)
@@ -471,8 +491,8 @@ def plot_blog():
         new_best=new_best,
         ymax=30,
         highlight=2,
-        # size=True,
-    ).show()
+        size=True,
+    )
     prune(names)
 
     keep.pop()
@@ -489,19 +509,19 @@ def plot_blog():
         new_best=new_best,
         ymax=30,
         highlight=2,
-        # size=True,
-    ).show()
+        size=True,
+    )
     keep.append(new_best)
     prune(names)
 
     # TODO: Human data plot and size comparison.
 
-    plot("27-summary", "Summary", data, keep, [], ymax=30).show()
+    plot("27-summary", "Summary", data, keep, [], ymax=30)
 
     summary_table(data[data.name.isin(keep)])
 
     data = all_data[all_data.threads == 6]
-    plot("28-threads", "6 threads", data, keep, [], ymax=30).show()
+    plot("28-threads", "6 threads", data, keep, [], ymax=30)
 
 
 def filter_large(data, x=2.5):
@@ -520,13 +540,15 @@ def plot_all():
     print(all_names)
     print("Plotting...")
     names = select("<false>", all_names)
-    plot("99-all", "ALL", data, names, [], ymax=30, size=False).show()
+    plot("99-all", "ALL", data, names, [], ymax=30, size=False)
     names = select("<true>", all_names)
-    plot("99-all", "ALL", data, names, [], ymax=30, size=False).show()
+    plot("99-all", "ALL", data, names, [], ymax=30, size=False)
     return
 
 
 # plt.style.use("dark_background")
 # plt.close("all")
+plot_blog()
+human = "-human"
 plot_blog()
 # plot_all()
