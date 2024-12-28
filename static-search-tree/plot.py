@@ -172,7 +172,7 @@ def plot(
     # plotly_fig = tls.mpl_to_plotly(fig)
     # plotly.offline.plot(plotly_fig, filename="plotly version of an mpl figure")
 
-    fig.show()
+    # fig.show()
     return fig
 
 
@@ -266,7 +266,7 @@ def read_file(filename):
     global palette
 
     names = sorted(data.name.unique())
-    colors = sns.color_palette(n_colors=10)
+    colors = sns.color_palette(n_colors=11)
     colors += colors
     colors += colors
     colors += colors
@@ -409,7 +409,9 @@ def plot_blog():
         ymax=30,
         size=True,
     )
+    last = keep.pop()
     keep.append(names[-1])
+    keep.append(last)
     prune(names)
 
     plot("11-summary", "Summary", data, keep, [], new_best=False, ymax=30)
