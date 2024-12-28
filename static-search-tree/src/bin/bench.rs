@@ -78,13 +78,15 @@ fn main() {
             } else {
                 1_000_000
             })
-            .next_multiple_of(256);
+            .next_multiple_of(256 * 3);
         let qs = &gen_queries(queries);
 
         for &size in &sizes {
             let len = size / std::mem::size_of::<u32>();
             let vals = &mut vals[..len];
             vals.radix_sort_unstable();
+
+            let bs = (4..=20).step_by(4).collect_vec();
 
             // SECTION 1.3: Binary search & Eytzinger
             run_exps(
@@ -152,11 +154,11 @@ fn main() {
                     &batched(STree16::batch_skip_prefetch::<128, 2>),
                     &batched(STree16::batch_skip_prefetch::<128, 3>),
                     // SECTION 3.4: interleaving
-                    &full(STree16::batch_interleave_half::<64>),
-                    &full(STree16::batch_interleave_last::<64, 1>),
+                    // &full(STree16::batch_interleave_half::<64>),
+                    // &full(STree16::batch_interleave_last::<64, 1>),
                     &full(STree16::batch_interleave_last::<64, 2>),
                     &full(STree16::batch_interleave_last::<64, 3>),
-                    &full(STree16::batch_interleave_last::<64, 4>),
+                    // &full(STree16::batch_interleave_last::<64, 4>),
                     &full(STree16::batch_interleave_all_128),
                 ],
                 "",
@@ -209,7 +211,7 @@ fn main() {
 
             // SECTION 4.3: B=15
 
-            let index = STree15::new_params(vals, true, true, false);
+            let index = STree15::new_params(vals, true, false, false);
             run_exps(
                 &mut results,
                 size,
@@ -223,25 +225,9 @@ fn main() {
                 "LeftMax",
             );
 
-            let index = STree15::new_params(vals, true, true, true);
-            run_exps(
-                &mut results,
-                size,
-                &index,
-                qs,
-                run,
-                &[
-                    &batched(STree15::batch_final::<128>),
-                    &full(STree15::batch_interleave_all_128),
-                    &batched(STree15::batch_final_full::<128>),
-                ],
-                "LeftMax+Full",
-            );
-
             // SECTION 5: Prefix partitioning
 
             // SECTION 5.1: Full layout over all subtrees
-            let bs = (4..=20).step_by(4).collect_vec();
             for &b in &bs {
                 try_run_exps(
                     &mut results,
@@ -282,10 +268,7 @@ fn main() {
                     &index,
                     qs,
                     run,
-                    &[
-                        &batched(PartitionedSTree16L::search::<128, false>),
-                        &batched(PartitionedSTree16L::search::<128, true>),
-                    ],
+                    &[&batched(PartitionedSTree16L::search::<128, false>)],
                     &format!("{b}"),
                 );
             }
@@ -298,10 +281,7 @@ fn main() {
                     &PartitionedSTree16O::try_new(vals, b),
                     qs,
                     run,
-                    &[
-                        &batched(PartitionedSTree16O::search::<128, false>),
-                        &batched(PartitionedSTree16O::search::<128, true>),
-                    ],
+                    &[&batched(PartitionedSTree16O::search::<128, false>)],
                     &format!("{b}"),
                 );
             }
@@ -314,11 +294,20 @@ fn main() {
                     &PartitionedSTree16M::try_new(vals, b),
                     qs,
                     run,
-                    &[
-                        &batched(PartitionedSTree16M::search::<128, true>),
-                        // SECTION 5.6: Prefix lookup + interleaving
-                        &full(PartitionedSTree16M::search_interleave_128),
-                    ],
+                    &[&batched(PartitionedSTree16M::search::<128, true>)],
+                    &format!("{b}"),
+                );
+            }
+
+            // SECTION 5.6: Prefix lookup + interleaving
+            for &b in &bs {
+                try_run_exps(
+                    &mut results,
+                    size,
+                    &PartitionedSTree16M::try_new(vals, b),
+                    qs,
+                    run,
+                    &[&full(PartitionedSTree16M::search_interleave_128)],
                     &format!("{b}"),
                 );
             }
