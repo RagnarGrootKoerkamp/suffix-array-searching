@@ -1,4 +1,4 @@
-use crate::{prefetch_index, SearchIndex};
+use crate::{prefetch_index, vec_on_hugepages, SearchIndex};
 
 pub struct Eytzinger {
     vals: Vec<u32>,
@@ -8,12 +8,20 @@ impl Eytzinger {
     fn get(&self, index: usize) -> u32 {
         unsafe { *self.vals.get_unchecked(index) }
     }
-}
 
-impl SearchIndex for Eytzinger {
-    fn new(vals: &[u32]) -> Self {
+    pub fn new_no_hugepages(vals: &[u32]) -> Self {
+        Self::new_impl(vals, false)
+    }
+
+    fn new_impl(vals: &[u32], hugepages: bool) -> Self {
+        // +1 for one-based indexing
+        let len = vals.len() + 1;
         let mut e = Eytzinger {
-            vals: vec![0; vals.len() + 1], // +1 for one-based indexing
+            vals: if hugepages {
+                vec_on_hugepages(len).unwrap()
+            } else {
+                vec![0; len]
+            },
         };
         e.vals[0] = u32::MAX;
 
@@ -30,6 +38,12 @@ impl SearchIndex for Eytzinger {
 
         recurse(&mut e, &vals, &mut 0, 1);
         e
+    }
+}
+
+impl SearchIndex for Eytzinger {
+    fn new(vals: &[u32]) -> Self {
+        Self::new_impl(vals, true)
     }
 
     fn layers(&self) -> usize {

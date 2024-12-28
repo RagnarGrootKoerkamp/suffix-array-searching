@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::{prefetch_index, SearchIndex};
+use crate::{prefetch_index, vec_on_hugepages, SearchIndex};
 
 pub struct SortedVec {
     pub(super) vals: Vec<u32>,
@@ -15,9 +15,9 @@ impl SortedVec {
 impl SearchIndex for SortedVec {
     fn new(vals: &[u32]) -> Self {
         assert!(vals.is_sorted());
-        SortedVec {
-            vals: vals.to_vec(),
-        }
+        let mut vec = vec_on_hugepages(vals.len()).unwrap();
+        vec.copy_from_slice(vals);
+        SortedVec { vals: vec }
     }
 
     fn layers(&self) -> usize {

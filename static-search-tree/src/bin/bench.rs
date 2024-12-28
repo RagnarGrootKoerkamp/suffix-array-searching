@@ -100,6 +100,16 @@ fn main() {
             run_exps(
                 &mut results,
                 size,
+                &Eytzinger::new_no_hugepages(vals),
+                qs,
+                run,
+                &[&Eytzinger::search_prefetch::<4>],
+                " No hugepages",
+            );
+
+            run_exps(
+                &mut results,
+                size,
                 &Eytzinger::new(vals),
                 qs,
                 run,
