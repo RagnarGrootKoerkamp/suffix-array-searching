@@ -8,8 +8,7 @@ from matplotlib.ticker import LogLocator
 from matplotlib.colors import to_rgba
 import re
 
-import mpld3
-
+# import mpld3
 # import plotly.io as pio
 # import plotly
 # import plotly.tools as tls
@@ -43,14 +42,15 @@ def plot(
     skip=0,
     ymax=None,
     latency=False,
-    style=None,
+    style="Style",
     size=False,
+    highlight=1,
 ):
     print("plotting", experiment_name, "\n", names)
     # Create a figure
     fig, ax = plt.subplots(figsize=(11, 6))
     ax.set_title(title)
-    ax.set_xlabel("Array Size (bytes)")
+    ax.set_xlabel("Input size (bytes)")
     if latency:
         ax.set_ylabel("Latency (ns)")
     else:
@@ -62,12 +62,16 @@ def plot(
 
     data = data[data["name"].isin(names)]
 
-    new_best = None if new_best is False else new_best or names[-1]
+    new_best = (
+        [] if new_best is False else new_best or (names[-highlight:] if names else [])
+    )
 
     def type(name):
         if keep and name == keep[-1]:
             return "best"
-        if name == new_best:
+        if keep and highlight == 2 and name == keep[-2]:
+            return "best"
+        if name in new_best:
             return "new_best"
         if name in keep:
             return "old"
@@ -85,7 +89,7 @@ def plot(
             "name"
             # "Color" if len(data.batchsize.unique()) == 1 else "display_name"
         ].tolist(),
-        style=style,  # if data.Style.unique().tolist() != [""] else None,
+        style=style if data.Style.unique().tolist() != [""] else None,
         # dashes=dashes,
         data=data,
         legend="auto",
@@ -101,7 +105,8 @@ def plot(
         size_ax = ax.twinx()
         sns.lineplot(
             x="sz",
-            y="index_size",
+            # y="index_size",
+            y="overhead",
             hue=data["name"].tolist(),
             # style=style,
             linestyle="dotted",
@@ -111,9 +116,10 @@ def plot(
             ax=size_ax,
         )
 
-        size_ax.set_yscale("log", base=2)
+        # size_ax.set_yscale("log", base=2)
+        # size_ax.set_ylim(2**0, 2**30)
+        size_ax.set_ylim(1, 3)
         size_ax.grid(True, alpha=0.4, ls="dotted", lw=1)
-        size_ax.set_ylim(2**0, 2**30)
         size_ax.set_ylabel("Datastructure size")
 
     ax.set_xscale("log", base=2)
@@ -169,7 +175,7 @@ def summary_table(data):
         data,
         index="name",
         columns="display_size",
-        values=["latency", "cycles"],
+        values=["latency", "cycles", "index_size"],
         sort=False,
     )
     print(
@@ -216,9 +222,9 @@ def clean_name(name):
     name = name.replace("search_with_find<find_", "search<find_")
     name = name.replace("splat<128>", "splat")
     name = name.replace("ptr<128>", "ptr")
-    name = name.replace("ptr2<128>", "ptr2")
-    name = name.replace("ptr3<128>", "ptr3")
-    name = name.replace("ptr3_full<128>", "ptr3_full")
+    name = name.replace("byte_ptr<128>", "byte_ptr")
+    name = name.replace("final<128>", "final")
+    name = name.replace("final_full<128>", "final_full")
     name = name.replace("skip_prefetch<128, ", "skip_prefetch<SKIP=")
     return name
 
@@ -234,15 +240,8 @@ def read_file(filename):
 
     data["overhead"] = data.index_size / data.sz
 
-    r = re.compile("<(\\d+)>+$")
-
     def style(scheme):
-        m = None
-        m = re.search(r, scheme)
-        if m is None:
-            return ""
-        var = m.group(1)
-        return var
+        return "Interleaved" if "interleave" in scheme else ""
 
     data["Style"] = [style(scheme) for scheme in data.scheme]
 
@@ -250,27 +249,38 @@ def read_file(filename):
 
     names = sorted(data.name.unique())
     colors = sns.color_palette(n_colors=10)
-    colors = colors + colors + colors + colors + colors + colors
+    colors += colors
+    colors += colors
+    colors += colors
+    colors += colors
+    colors += colors
+    colors += colors
     palette = dict(zip(names, colors))
 
     return data
 
 
-def select(select, all_names):
+def select(select, all_names, end=False):
     if not isinstance(select, list):
         select = [select]
     selected = []
     for n in all_names:
         for s in select:
-            if s in n:
-                selected.append(n)
-                break
+            if end:
+                if n.endswith(s):
+                    selected.append(n)
+                    break
+            else:
+                if s in n:
+                    selected.append(n)
+                    break
     return selected
 
 
 # Read all files in the 'results' directory and iterate over them.
-def plot_binary_search():
-    data = read_file(f"results/results-release.json")
+def plot_blog():
+    all_data = read_file(f"results/results-release.json")
+    data = all_data[all_data.threads == 1]
     all_names = data.name.unique().tolist()
     keep = []
 
@@ -282,11 +292,11 @@ def plot_binary_search():
             if n in all_names and n not in keep:
                 all_names.remove(n)
 
-    def sel(name):
+    def sel(name, end=False):
         nonlocal all_names
-        return select(name, all_names)
+        return select(name, all_names, end)
 
-    spare_names = sel(["Rev", "Fwd"])
+    spare_names = sel(["LeftMax", "Partitioned"])
     prune(spare_names)
 
     names = sel(["binary_search", "Eytzinger"])
@@ -298,10 +308,10 @@ def plot_binary_search():
         keep,
         latency=True,
     ).show()
-    keep += names
+    keep += [names[0], names[-1]]
 
     names = keep + sel("search<find_linear>")
-    plot("2-hugepages", "Stree and hugepages", data, names, keep).show()
+    plot("2-find-linear", "S-tree", data, names, keep).show()
     prune(sel("NoHuge"))
 
     names = keep + sel("search<find")
@@ -321,44 +331,72 @@ def plot_binary_search():
     keep.append(names[-1])
     prune(names)
 
-    names = keep + sel(["batch_prefetch<128", "splat", "ptr"])
+    names = keep + sel(["batch_prefetch<128", "splat", "ptr", "final"])
     plot("6-improvements", "Improvements", data, names, keep, ymax=30).show()
     keep.append(names[-1])
     prune(names)
 
     names = keep + sel("skip_prefetch")
-    plot("7-skip-prefetch", "Skip prefetch", data, names, keep, ymax=30).show()
+    plot(
+        "7-skip-prefetch", "Skip prefetch", data, names, keep, new_best=False, ymax=30
+    ).show()
     prune(names)
 
-    names = keep + sel("interleave")
+    names = keep + sel(
+        ["interleave_last<64, 2>", "interleave_last<64, 3>", "interleave_all"]
+    )
     plot("8-interleave", "Interleave", data, names, keep, ymax=30).show()
+    keep.append(names[-1])
     prune(names)
 
     # Add construction parameter variants
     all_names += spare_names
 
-    names = keep + select("STree<>", sel("Rev"))
-    new_best = sel("Rev+Fwd")[0]
+    names = keep + select("<>", sel("LeftMax", end=True))
+
+    plot(
+        "9-left-max-tree",
+        "Left-max-tree",
+        data,
+        names,
+        keep,
+        ymax=30,
+        size=False,
+        highlight=2,
+    ).show()
+    keep += names[-2:]
+    prune(names)
+
+    names = keep + select("<>", sel(["Reverse", "Full"], end=True))
     plot(
         "9-params",
         "Memory layout",
         data,
         names,
         keep,
-        new_best=new_best,
+        new_best=False,
         ymax=30,
-        size=True,
+        size=False,
+        highlight=2,
     ).show()
-    keep.append(new_best)
     prune(names)
 
-    names = keep + sel("<B=15")
-    plot("10-base15", "Base 15", data, names, keep, new_best=False, ymax=30).show()
+    names = keep + select("<B=15>::batch_interleave", sel("LeftMax", end=True))
+    plot(
+        "10-base15",
+        "Base 15",
+        data,
+        names,
+        keep,
+        # new_best=False,
+        ymax=30,
+    ).show()
+    keep.append(names[-1])
     prune(names)
 
-    plot("11-summary", "Summary", data, keep, [], ymax=30).show()
+    plot("11-summary", "Summary", data, keep, [], new_best=False, ymax=30).show()
 
-    names = keep + sel("PartitionedSTree<>")
+    names = keep + sel("Simple>::search<>")
     new_best = names[-2]
     plot(
         "20-prefix",
@@ -368,13 +406,13 @@ def plot_binary_search():
         keep,
         new_best=new_best,
         ymax=30,
-        size=True,
+        # size=True,
     ).show()
     prune(names)
     keep.append(new_best)
 
-    names = keep + sel("PartitionedSTree<Compact>")
-    new_best = False  # names[-2]
+    names = keep + sel("Compact>::search<>")
+    new_best = False
     plot(
         "21-compact",
         "Per-tree compact layout",
@@ -383,12 +421,12 @@ def plot_binary_search():
         keep,
         new_best=new_best,
         ymax=30,
-        size=True,
+        highlight=2,
+        # size=True,
     ).show()
     prune(names)
-    # keep.append(new_best)
 
-    names = keep + select("search<>", sel("PartitionedSTree<L1>"))
+    names = keep + sel("L1>::search<>")
     new_best = names[-2]
     plot(
         "22-l1",
@@ -398,25 +436,77 @@ def plot_binary_search():
         keep,
         new_best=new_best,
         ymax=30,
-        size=True,
+        highlight=2,
+        # size=True,
+    ).show()
+    keep.pop()
+    keep.append(new_best)
+    prune(names)
+
+    names = keep + sel("Overlapping>::search<>")
+    new_best = names[-2]
+    plot(
+        "23-overlap",
+        "Overlapping parts",
+        data,
+        names,
+        keep,
+        new_best=new_best,
+        ymax=30,
+        highlight=2,
+        # size=True,
+    ).show()
+    keep.pop()
+    keep.append(new_best)
+    prune(names)
+
+    names = keep + sel("Map>::search<Prefetch>")
+    new_best = names[-2]
+    plot(
+        "24-map",
+        "Prefix-map",
+        data,
+        names,
+        keep,
+        new_best=new_best,
+        ymax=30,
+        highlight=2,
+        # size=True,
     ).show()
     prune(names)
-    keep.pop()
+
     keep.pop()
     keep.append(new_best)
 
-    # Drop the pruning variants; they're not interesting.
-    prune(sel("<Prefetch>"))
+    names = keep + sel("Map>::search_interleave")
+    new_best = names[-2]
+    plot(
+        "25-map-interleave",
+        "Prefix-map with interleaving",
+        data,
+        names,
+        keep,
+        new_best=new_best,
+        ymax=30,
+        highlight=2,
+        # size=True,
+    ).show()
+    keep.append(new_best)
+    prune(names)
 
-    plot("23-summary", "Summary", data, keep, [], ymax=30).show()
+    # TODO: Human data plot and size comparison.
 
-    # plot("99", "Remainder", data, all_names, [], ymax=30).show()
-    # summary_table(data)
+    plot("27-summary", "Summary", data, keep, [], ymax=30).show()
+
+    summary_table(data[data.name.isin(keep)])
+
+    data = all_data[all_data.threads == 6]
+    plot("28-threads", "6 threads", data, keep, [], ymax=30).show()
 
 
 def filter_large(data, x=2.5):
     data["latency"] = data.apply(
-        lambda row: (row.latency if row.overhead < x else 0), axis=1
+        lambda row: (row.latency if row.overhead < x else 2**40), axis=1
     )
     data = data[data.sz > 2**12]
     return data
@@ -424,19 +514,19 @@ def filter_large(data, x=2.5):
 
 def plot_all():
     data = read_file(f"results/results.json")
-    data = filter_large(data, 1.3)
-    names = data.name.unique().tolist()
+    data = data[data.threads == 6]
+    # data = filter_large(data, 1.25)
+    all_names = data.name.unique().tolist()
+    print(all_names)
     print("Plotting...")
-    keep = select("ptr3", names)
-    names2 = keep + select("PartitionedSTree<>", names)
-    # plot("parts", "Parts", data, names2, ymax=30).show()
-    names2 = keep + select("PartitionedSTree<Compact>", names)
-    # plot("compact", "Compact parts", data, names2, ymax=30).show()
-    names2 = keep + select("PartitionedSTree<L1>", names)
-    plot("parts-l1", "Parts L1", data, names2, keep, ymax=30).show()
+    names = select("<false>", all_names)
+    plot("99-all", "ALL", data, names, [], ymax=30, size=False).show()
+    names = select("<true>", all_names)
+    plot("99-all", "ALL", data, names, [], ymax=30, size=False).show()
+    return
 
 
 # plt.style.use("dark_background")
 # plt.close("all")
-plot_binary_search()
+plot_blog()
 # plot_all()
