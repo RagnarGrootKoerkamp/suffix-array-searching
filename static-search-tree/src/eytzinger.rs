@@ -1,5 +1,9 @@
 use crate::{prefetch_index, vec_on_hugepages, SearchIndex};
 
+fn search_result_to_index(idx: usize) -> usize {
+    idx >> (idx.trailing_ones() + 1)
+}
+
 pub struct Eytzinger {
     vals: Vec<u32>,
 }
@@ -61,8 +65,7 @@ impl Eytzinger {
         while idx < self.vals.len() {
             idx = 2 * idx + (q > self.get(idx)) as usize;
         }
-        let zeros = idx.trailing_ones() + 1;
-        let idx = idx >> zeros;
+        idx = search_result_to_index(idx);
         self.get(idx)
     }
 
@@ -76,9 +79,22 @@ impl Eytzinger {
         while idx < self.vals.len() {
             idx = 2 * idx + (q > self.get(idx)) as usize;
         }
-        let zeros = idx.trailing_ones() + 1;
-        let idx = idx >> zeros;
+        idx = search_result_to_index(idx);
         self.get(idx)
+    }
+
+    pub fn batch_impl<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
+        let mut k = [1; P]; // current indices
+        while k.iter().any(|&x| x < self.vals.len()) {
+            for i in 0..P {
+                if k[i] < self.vals.len() {
+                    let jump_to = (self.get(k[i]) < qb[i]) as usize;
+                    k[i] = 2 * k[i] + jump_to;
+                }
+            }
+        }
+
+        k.map(|x| self.get(search_result_to_index(x)))
     }
 }
 
