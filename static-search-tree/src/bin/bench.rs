@@ -144,192 +144,212 @@ fn main() {
             run_exps(
                 &mut results,
                 size,
-                &STree16::new(vals),
+                &Eytzinger::new(vals),
                 qs,
                 run,
-                &[
-                    // SECTION 2: Optimizing find
-                    &STree16::search_with_find(BTreeNode::find_linear) as _,
-                    &STree16::search_with_find(BTreeNode::find_linear_count) as _,
-                    &STree16::search_with_find(BTreeNode::find_ctz) as _,
-                    &STree16::search_with_find(BTreeNode::find_ctz_signed) as _,
-                    &STree16::search_with_find(BTreeNode::find_popcnt_portable) as _,
-                    &STree16::search_with_find(BTreeNode::find_popcnt) as _,
-                    // SECTION 3.1: Batching
-                    &batched(STree16::batch::<1>),
-                    &batched(STree16::batch::<2>),
-                    &batched(STree16::batch::<4>),
-                    &batched(STree16::batch::<8>),
-                    &batched(STree16::batch::<16>),
-                    &batched(STree16::batch::<32>),
-                    &batched(STree16::batch::<64>),
-                    &batched(STree16::batch::<128>),
-                    // SECTION 3.2: prefetch
-                    &batched(STree16::batch_prefetch::<128>),
-                    // SECTION 3.3: pointer arithmetic
-                    &batched(STree16::batch_splat::<128>),
-                    &batched(STree16::batch_ptr::<128>),
-                    &batched(STree16::batch_byte_ptr::<128>),
-                    &batched(STree16::batch_final::<128>),
-                    // SECTION 3.4: skip prefetch
-                    &batched(STree16::batch_skip_prefetch::<128, 1>),
-                    &batched(STree16::batch_skip_prefetch::<128, 2>),
-                    &batched(STree16::batch_skip_prefetch::<128, 3>),
-                    // SECTION 3.4: interleaving
-                    &full(STree16::batch_interleave_last::<64, 2>),
-                    &full(STree16::batch_interleave_last::<64, 3>),
-                    &full(STree16::batch_interleave_all_128),
-                ],
-                "",
+                &[&batched(Eytzinger::batch_impl::<16>)],
+                "batched_eytzinger",
             );
 
-            // SECTION 4: layout
-
-            // SECTION 4.1: left-max tree
-            let exps = [
-                &batched(STree16::batch_final::<128>) as &dyn SearchScheme<_>,
-                &full(STree16::batch_interleave_all_128),
-            ];
             run_exps(
                 &mut results,
                 size,
-                &STree16::new_params(vals, true, false, false),
+                &SortedVec::new(vals),
                 qs,
                 run,
-                &exps,
-                "LeftMax",
-            );
+                &[&batched(SortedVec::batch_impl_binary_search_std::<16>)],
+                "batched_binsearch",
+            )
 
-            // SECTION 4.2: Memory layouts
+            //     run_exps(
+            //         &mut results,
+            //         size,
+            //         &STree16::new(vals),
+            //         qs,
+            //         run,
+            //         &[
+            //             // SECTION 2: Optimizing find
+            //             &STree16::search_with_find(BTreeNode::find_linear) as _,
+            //             &STree16::search_with_find(BTreeNode::find_linear_count) as _,
+            //             &STree16::search_with_find(BTreeNode::find_ctz) as _,
+            //             &STree16::search_with_find(BTreeNode::find_ctz_signed) as _,
+            //             &STree16::search_with_find(BTreeNode::find_popcnt_portable) as _,
+            //             &STree16::search_with_find(BTreeNode::find_popcnt) as _,
+            //             // SECTION 3.1: Batching
+            //             &batched(STree16::batch::<1>),
+            //             &batched(STree16::batch::<2>),
+            //             &batched(STree16::batch::<4>),
+            //             &batched(STree16::batch::<8>),
+            //             &batched(STree16::batch::<16>),
+            //             &batched(STree16::batch::<32>),
+            //             &batched(STree16::batch::<64>),
+            //             &batched(STree16::batch::<128>),
+            //             // SECTION 3.2: prefetch
+            //             &batched(STree16::batch_prefetch::<128>),
+            //             // SECTION 3.3: pointer arithmetic
+            //             &batched(STree16::batch_splat::<128>),
+            //             &batched(STree16::batch_ptr::<128>),
+            //             &batched(STree16::batch_byte_ptr::<128>),
+            //             &batched(STree16::batch_final::<128>),
+            //             // SECTION 3.4: skip prefetch
+            //             &batched(STree16::batch_skip_prefetch::<128, 1>),
+            //             &batched(STree16::batch_skip_prefetch::<128, 2>),
+            //             &batched(STree16::batch_skip_prefetch::<128, 3>),
+            //             // SECTION 3.4: interleaving
+            //             &full(STree16::batch_interleave_last::<64, 2>),
+            //             &full(STree16::batch_interleave_last::<64, 3>),
+            //             &full(STree16::batch_interleave_all_128),
+            //         ],
+            //         "",
+            //     );
 
-            // reverse
-            run_exps(
-                &mut results,
-                size,
-                &STree16::new_params(vals, true, true, false),
-                qs,
-                run,
-                &exps,
-                "LeftMax+Reverse",
-            );
+            //     // SECTION 4: layout
 
-            // full
-            run_exps(
-                &mut results,
-                size,
-                &STree16::new_params(vals, true, false, true),
-                qs,
-                run,
-                &[
-                    &batched(STree16::batch_final::<128>),
-                    &full(STree16::batch_interleave_all_128),
-                    &batched(STree16::batch_final_full::<128>),
-                ],
-                "LeftMax+Full",
-            );
+            //     // SECTION 4.1: left-max tree
+            //     let exps = [
+            //         &batched(STree16::batch_final::<128>) as &dyn SearchScheme<_>,
+            //         &full(STree16::batch_interleave_all_128),
+            //     ];
+            //     run_exps(
+            //         &mut results,
+            //         size,
+            //         &STree16::new_params(vals, true, false, false),
+            //         qs,
+            //         run,
+            //         &exps,
+            //         "LeftMax",
+            //     );
 
-            // SECTION 4.3: B=15
+            //     // SECTION 4.2: Memory layouts
 
-            let index = STree15::new_params(vals, true, false, false);
-            run_exps(
-                &mut results,
-                size,
-                &index,
-                qs,
-                run,
-                &[
-                    &batched(STree15::batch_final::<128>),
-                    &full(STree15::batch_interleave_all_128),
-                ],
-                "LeftMax",
-            );
+            //     // reverse
+            //     run_exps(
+            //         &mut results,
+            //         size,
+            //         &STree16::new_params(vals, true, true, false),
+            //         qs,
+            //         run,
+            //         &exps,
+            //         "LeftMax+Reverse",
+            //     );
 
-            // SECTION 5: Prefix partitioning
+            //     // full
+            //     run_exps(
+            //         &mut results,
+            //         size,
+            //         &STree16::new_params(vals, true, false, true),
+            //         qs,
+            //         run,
+            //         &[
+            //             &batched(STree16::batch_final::<128>),
+            //             &full(STree16::batch_interleave_all_128),
+            //             &batched(STree16::batch_final_full::<128>),
+            //         ],
+            //         "LeftMax+Full",
+            //     );
 
-            // SECTION 5.1: Full layout over all subtrees
-            for &b in &bs {
-                try_run_exps(
-                    &mut results,
-                    size,
-                    &PartitionedSTree16::try_new(vals, b),
-                    qs,
-                    run,
-                    &[
-                        &batched(PartitionedSTree16::search::<128, false>),
-                        &batched(PartitionedSTree16::search::<128, true>),
-                    ],
-                    &format!("{b}"),
-                );
-            }
+            //     // SECTION 4.3: B=15
 
-            // SECTION 5.2: Packed subtrees
-            for &b in &bs {
-                try_run_exps(
-                    &mut results,
-                    size,
-                    &PartitionedSTree16C::try_new(vals, b),
-                    qs,
-                    run,
-                    &[
-                        &batched(PartitionedSTree16C::search::<128, false>),
-                        &batched(PartitionedSTree16C::search::<128, true>),
-                    ],
-                    &format!("{b}"),
-                );
-            }
+            //     let index = STree15::new_params(vals, true, false, false);
+            //     run_exps(
+            //         &mut results,
+            //         size,
+            //         &index,
+            //         qs,
+            //         run,
+            //         &[
+            //             &batched(STree15::batch_final::<128>),
+            //             &full(STree15::batch_interleave_all_128),
+            //         ],
+            //         "LeftMax",
+            //     );
 
-            // SECTION 5.3: Reduced level-1 branching factor
-            for &b in &bs {
-                let index = PartitionedSTree16L::try_new(vals, b);
-                try_run_exps(
-                    &mut results,
-                    size,
-                    &index,
-                    qs,
-                    run,
-                    &[&batched(PartitionedSTree16L::search::<128, false>)],
-                    &format!("{b}"),
-                );
-            }
+            //     // SECTION 5: Prefix partitioning
 
-            // SECTION 5.4: Overlapping subtrees
-            for &b in &bs {
-                try_run_exps(
-                    &mut results,
-                    size,
-                    &PartitionedSTree16O::try_new(vals, b),
-                    qs,
-                    run,
-                    &[&batched(PartitionedSTree16O::search::<128, false>)],
-                    &format!("{b}"),
-                );
-            }
+            //     // SECTION 5.1: Full layout over all subtrees
+            //     for &b in &bs {
+            //         try_run_exps(
+            //             &mut results,
+            //             size,
+            //             &PartitionedSTree16::try_new(vals, b),
+            //             qs,
+            //             run,
+            //             &[
+            //                 &batched(PartitionedSTree16::search::<128, false>),
+            //                 &batched(PartitionedSTree16::search::<128, true>),
+            //             ],
+            //             &format!("{b}"),
+            //         );
+            //     }
 
-            // SECTION 5.5: Prefix map
-            for &b in &bs {
-                try_run_exps(
-                    &mut results,
-                    size,
-                    &PartitionedSTree16M::try_new(vals, b),
-                    qs,
-                    run,
-                    &[&batched(PartitionedSTree16M::search::<128, true>)],
-                    &format!("{b}"),
-                );
-            }
+            //     // SECTION 5.2: Packed subtrees
+            //     for &b in &bs {
+            //         try_run_exps(
+            //             &mut results,
+            //             size,
+            //             &PartitionedSTree16C::try_new(vals, b),
+            //             qs,
+            //             run,
+            //             &[
+            //                 &batched(PartitionedSTree16C::search::<128, false>),
+            //                 &batched(PartitionedSTree16C::search::<128, true>),
+            //             ],
+            //             &format!("{b}"),
+            //         );
+            //     }
 
-            // SECTION 5.6: Prefix lookup + interleaving
-            for &b in &bs {
-                try_run_exps(
-                    &mut results,
-                    size,
-                    &PartitionedSTree16M::try_new(vals, b),
-                    qs,
-                    run,
-                    &[&full(PartitionedSTree16M::search_interleave_128)],
-                    &format!("{b}"),
-                );
-            }
+            //     // SECTION 5.3: Reduced level-1 branching factor
+            //     for &b in &bs {
+            //         let index = PartitionedSTree16L::try_new(vals, b);
+            //         try_run_exps(
+            //             &mut results,
+            //             size,
+            //             &index,
+            //             qs,
+            //             run,
+            //             &[&batched(PartitionedSTree16L::search::<128, false>)],
+            //             &format!("{b}"),
+            //         );
+            //     }
+
+            //     // SECTION 5.4: Overlapping subtrees
+            //     for &b in &bs {
+            //         try_run_exps(
+            //             &mut results,
+            //             size,
+            //             &PartitionedSTree16O::try_new(vals, b),
+            //             qs,
+            //             run,
+            //             &[&batched(PartitionedSTree16O::search::<128, false>)],
+            //             &format!("{b}"),
+            //         );
+            //     }
+
+            //     // SECTION 5.5: Prefix map
+            //     for &b in &bs {
+            //         try_run_exps(
+            //             &mut results,
+            //             size,
+            //             &PartitionedSTree16M::try_new(vals, b),
+            //             qs,
+            //             run,
+            //             &[&batched(PartitionedSTree16M::search::<128, true>)],
+            //             &format!("{b}"),
+            //         );
+            //     }
+
+            //     // SECTION 5.6: Prefix lookup + interleaving
+            //     for &b in &bs {
+            //         try_run_exps(
+            //             &mut results,
+            //             size,
+            //             &PartitionedSTree16M::try_new(vals, b),
+            //             qs,
+            //             run,
+            //             &[&full(PartitionedSTree16M::search_interleave_128)],
+            //             &format!("{b}"),
+            //         );
+            //     }
         }
 
         save_results(

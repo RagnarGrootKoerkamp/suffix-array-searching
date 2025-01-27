@@ -76,4 +76,20 @@ impl SortedVec {
         }
         self.get(base)
     }
+
+    /// might make sense to make it branchless, but we do not know yet how,
+    /// as the non-batched branchless implementation still compiles to branchy
+    pub fn batch_impl_binary_search_std<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
+        let mut bases = [0; P];
+        let mut len = self.vals.len();
+        while len > 1 {
+            let half = len / 2;
+            for i in 0..P {
+                bases[i] += (self.get(bases[i] + half - 1) < qb[i]) as usize * half;
+            }
+            len = len - half;
+        }
+
+        bases.map(|x| self.get(x))
+    }
 }
