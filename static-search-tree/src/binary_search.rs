@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use cmov::Cmov;
 
 use crate::{prefetch_index, vec_on_hugepages, SearchIndex};
 
@@ -53,28 +54,35 @@ impl SortedVec {
 
     /// branchless search (but does not work branchless yet)
     pub fn binary_search_branchless(&self, q: u32) -> u32 {
-        let mut base = 0;
-        let mut len = self.vals.len();
+        let mut base: u64 = 0;
+        let mut len: u64 = self.vals.len() as u64;
         while len > 1 {
             let half = len / 2;
-            base += (self.get(base + half - 1) < q) as usize * half;
+            base.cmovnz(
+                &(base + half),
+                (self.get((base + half - 1) as usize) < q) as u8,
+            );
             len = len - half;
         }
-        self.get(base)
+        self.get(base as usize)
     }
 
     /// branchless search with prefetching (but does not work branchless yet)
     pub fn binary_search_branchless_prefetch(&self, q: u32) -> u32 {
-        let mut base = 0;
-        let mut len = self.vals.len();
+        let mut base: u64 = 0;
+        let mut len: u64 = self.vals.len() as u64;
         while len > 1 {
             let half = len / 2;
-            prefetch_index(&self.vals, base + half + len / 2 - 1);
-            prefetch_index(&self.vals, base + len / 2 - 1);
-            base += (self.get(base + half - 1) < q) as usize * half;
+            prefetch_index(&self.vals, (base + half + len / 2 - 1) as usize);
+            prefetch_index(&self.vals, (base + len / 2 - 1) as usize);
+
+            base.cmovnz(
+                &(base + half),
+                (self.get((base + half - 1) as usize) < q) as u8,
+            );
             len = len - half;
         }
-        self.get(base)
+        self.get(base as usize)
     }
 
     /// might make sense to make it branchless, but we do not know yet how,
