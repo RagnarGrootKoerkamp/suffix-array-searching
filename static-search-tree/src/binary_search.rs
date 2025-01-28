@@ -52,7 +52,7 @@ impl SortedVec {
         self.vals[idx]
     }
 
-    /// branchless search (but does not work branchless yet)
+    /// branchless search
     pub fn binary_search_branchless(&self, q: u32) -> u32 {
         let mut base: u64 = 0;
         let mut len: u64 = self.vals.len() as u64;
@@ -67,7 +67,7 @@ impl SortedVec {
         self.get(base as usize)
     }
 
-    /// branchless search with prefetching (but does not work branchless yet)
+    /// branchless search with prefetching
     pub fn binary_search_branchless_prefetch(&self, q: u32) -> u32 {
         let mut base: u64 = 0;
         let mut len: u64 = self.vals.len() as u64;
