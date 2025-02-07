@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use cmov::Cmov;
+use std::intrinsics::select_unpredictable;
 
 use crate::{prefetch_index, vec_on_hugepages, SearchIndex};
 
@@ -52,8 +53,8 @@ impl SortedVec {
         self.vals[idx]
     }
 
-    /// branchless search
-    pub fn binary_search_branchless(&self, q: u32) -> u32 {
+    /// branchless search using the cmov crate
+    pub fn binary_search_branchless_cmov(&self, q: u32) -> u32 {
         let mut base: u64 = 0;
         let mut len: u64 = self.vals.len() as u64;
         while len > 1 {
@@ -62,6 +63,19 @@ impl SortedVec {
                 &(base + half),
                 (self.get((base + half - 1) as usize) < q) as u8,
             );
+            len = len - half;
+        }
+        self.get(base as usize)
+    }
+
+    /// branchless search
+    pub fn binary_search_branchless(&self, q: u32) -> u32 {
+        let mut base: u64 = 0;
+        let mut len: u64 = self.vals.len() as u64;
+        while len > 1 {
+            let half = len / 2;
+            let cmp = self.get((base + half - 1) as usize) < q;
+            base = select_unpredictable(cmp, base + half, base);
             len = len - half;
         }
         self.get(base as usize)
@@ -73,31 +87,41 @@ impl SortedVec {
         let mut len: u64 = self.vals.len() as u64;
         while len > 1 {
             let half = len / 2;
-            prefetch_index(&self.vals, (base + half + len / 2 - 1) as usize);
-            prefetch_index(&self.vals, (base + len / 2 - 1) as usize);
-
-            base.cmovnz(
-                &(base + half),
-                (self.get((base + half - 1) as usize) < q) as u8,
-            );
+            prefetch_index(&self.vals, (base + half / 2 - 1) as usize);
+            prefetch_index(&self.vals, (base + half + half / 2 - 1) as usize);
+            let cmp = self.get((base + half - 1) as usize) < q;
+            base = select_unpredictable(cmp, base + half, base);
             len = len - half;
         }
         self.get(base as usize)
     }
 
-    /// might make sense to make it branchless, but we do not know yet how,
-    /// as the non-batched branchless implementation still compiles to branchy
-    pub fn batch_impl_binary_search_std<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
-        let mut bases = [0; P];
-        let mut len = self.vals.len();
+    // pub fn batch_impl_binary_search<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
+    //     let mut bases = [0; P];
+    //     let mut len = self.vals.len();
+    //     while len > 1 {
+    //         let half = len / 2;
+    //         for i in 0..P {
+    //             bases[i] += (self.get(bases[i] + half - 1) < qb[i]) as usize * half;
+    //         }
+    //         len = len - half;
+    //     }
+
+    //     bases.map(|x| self.get(x))
+    // }
+
+    pub fn batch_impl_binary_search_branchless<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
+        let mut bases = [0u64; P];
+        let mut len = self.vals.len() as u64;
         while len > 1 {
             let half = len / 2;
             for i in 0..P {
-                bases[i] += (self.get(bases[i] + half - 1) < qb[i]) as usize * half;
+                let cmp = self.get((bases[i] + half - 1) as usize) < qb[i];
+                bases[i] = select_unpredictable(cmp, bases[i] + half, bases[i]);
             }
             len = len - half;
         }
 
-        bases.map(|x| self.get(x))
+        bases.map(|x| self.get(x as usize))
     }
 }

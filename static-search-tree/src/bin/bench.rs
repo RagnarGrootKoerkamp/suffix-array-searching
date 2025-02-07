@@ -127,6 +127,16 @@ fn main() {
                 &SortedVec::new(vals),
                 qs,
                 run,
+                &[&SortedVec::binary_search],
+                "",
+            );
+
+            run_exps(
+                &mut results,
+                size,
+                &SortedVec::new(vals),
+                qs,
+                run,
                 &[&SortedVec::binary_search_branchless],
                 "",
             );
@@ -144,48 +154,76 @@ fn main() {
             run_exps(
                 &mut results,
                 size,
-                &Eytzinger::new_no_hugepages(vals),
-                qs,
-                run,
-                &[&Eytzinger::search_prefetch::<4>],
-                " No hugepages",
-            );
-
-            run_exps(
-                &mut results,
-                size,
-                &Eytzinger::new(vals),
-                qs,
-                run,
-                &[&Eytzinger::search_prefetch::<4>],
-                "",
-            );
-
-            run_exps(
-                &mut results,
-                size,
                 &SortedVec::new(vals),
                 qs,
                 run,
-                &[
-                    &batched(SortedVec::batch_impl_binary_search_std::<2>),
-                    &batched(SortedVec::batch_impl_binary_search_std::<4>),
-                    &batched(SortedVec::batch_impl_binary_search_std::<8>),
-                    &batched(SortedVec::batch_impl_binary_search_std::<16>),
-                    &batched(SortedVec::batch_impl_binary_search_std::<32>),
-                ],
-                "batched_binsearch",
-            );
+                &[&batched(
+                    SortedVec::batch_impl_binary_search_branchless::<16>,
+                )],
+                "",
+            )
 
-            run_exps(
-                &mut results,
-                size,
-                &Eytzinger::new(vals),
-                qs,
-                run,
-                &[&batched(Eytzinger::batch_impl::<16>)],
-                "batched_eytzinger",
-            );
+            // run_exps(
+            //     &mut results,
+            //     size,
+            //     &Eytzinger::new_no_hugepages(vals),
+            //     qs,
+            //     run,
+            //     &[&Eytzinger::search_prefetch::<4>],
+            //     " No hugepages",
+            // );
+
+            // run_exps(
+            //     &mut results,
+            //     size,
+            //     &Eytzinger::new(vals),
+            //     qs,
+            //     run,
+            //     &[&Eytzinger::search_prefetch::<4>],
+            //     "",
+            // );
+
+            // run_exps(
+            //     &mut results,
+            //     size,
+            //     &SortedVec::new(vals),
+            //     qs,
+            //     run,
+            //     &[
+            //         &batched(SortedVec::batch_impl_binary_search_std::<2>),
+            //         &batched(SortedVec::batch_impl_binary_search_std::<4>),
+            //         &batched(SortedVec::batch_impl_binary_search_std::<8>),
+            //         &batched(SortedVec::batch_impl_binary_search_std::<16>),
+            //         &batched(SortedVec::batch_impl_binary_search_std::<32>),
+            //     ],
+            //     "batched_binsearch",
+            // );
+
+            // run_exps(
+            //     &mut results,
+            //     size,
+            //     &SortedVec::new(vals),
+            //     qs,
+            //     run,
+            //     &[
+            //         &batched(SortedVec::batch_impl_binary_search_branchless::<2>),
+            //         &batched(SortedVec::batch_impl_binary_search_branchless::<4>),
+            //         &batched(SortedVec::batch_impl_binary_search_branchless::<8>),
+            //         &batched(SortedVec::batch_impl_binary_search_branchless::<16>),
+            //         &batched(SortedVec::batch_impl_binary_search_branchless::<32>),
+            //     ],
+            //     "batched_binsearch",
+            // );
+
+            // run_exps(
+            //     &mut results,
+            //     size,
+            //     &Eytzinger::new(vals),
+            //     qs,
+            //     run,
+            //     &[&batched(Eytzinger::batch_impl::<16>)],
+            //     "batched_eytzinger",
+            // );
 
             //     run_exps(
             //         &mut results,
