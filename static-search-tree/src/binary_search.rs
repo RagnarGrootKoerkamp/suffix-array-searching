@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use cmov::Cmov;
 use std::intrinsics::select_unpredictable;
+use std::simd::Simd;
 
 use crate::{prefetch_index, vec_on_hugepages, SearchIndex};
 
@@ -87,8 +88,8 @@ impl SortedVec {
         let mut len: u64 = self.vals.len() as u64;
         while len > 1 {
             let half = len / 2;
-            prefetch_index(&self.vals, (base + half / 2 - 1) as usize);
-            prefetch_index(&self.vals, (base + half + half / 2 - 1) as usize);
+            prefetch_index(&self.vals, (base + half / 2) as usize);
+            prefetch_index(&self.vals, (base + half + half / 2) as usize);
             let cmp = self.get((base + half - 1) as usize) < q;
             base = select_unpredictable(cmp, base + half, base);
             len = len - half;
@@ -118,6 +119,25 @@ impl SortedVec {
             for i in 0..P {
                 let cmp = self.get((bases[i] + half - 1) as usize) < qb[i];
                 bases[i] = select_unpredictable(cmp, bases[i] + half, bases[i]);
+            }
+            len = len - half;
+        }
+
+        bases.map(|x| self.get(x as usize))
+    }
+
+    pub fn batch_impl_binary_search_branchless_prefetch<const P: usize>(
+        &self,
+        qb: &[u32; P],
+    ) -> [u32; P] {
+        let mut bases = [0u64; P];
+        let mut len = self.vals.len() as u64;
+        while len > 1 {
+            let half = len / 2;
+            for i in 0..P {
+                let cmp = self.get((bases[i] + half - 1) as usize) < qb[i];
+                bases[i] = select_unpredictable(cmp, bases[i] + half, bases[i]);
+                prefetch_index(&self.vals, (bases[i] + half / 2) as usize);
             }
             len = len - half;
         }

@@ -35,6 +35,7 @@ fn get_search_schemes() -> SearchSchemes {
         &SortedVec::binary_search_std,
         &SortedVec::binary_search_branchless,
         &SortedVec::binary_search_branchless_prefetch,
+        &SortedVec::binary_search_branchless_cmov,
         &SortedVec::interpolation_search,
     ];
     let eyt = vec![

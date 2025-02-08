@@ -161,7 +161,19 @@ fn main() {
                     SortedVec::batch_impl_binary_search_branchless::<16>,
                 )],
                 "",
-            )
+            );
+
+            run_exps(
+                &mut results,
+                size,
+                &SortedVec::new(vals),
+                qs,
+                run,
+                &[&batched(
+                    SortedVec::batch_impl_binary_search_branchless_prefetch::<16>,
+                )],
+                "",
+            );
 
             // run_exps(
             //     &mut results,
@@ -199,21 +211,23 @@ fn main() {
             //     "batched_binsearch",
             // );
 
-            // run_exps(
-            //     &mut results,
-            //     size,
-            //     &SortedVec::new(vals),
-            //     qs,
-            //     run,
-            //     &[
-            //         &batched(SortedVec::batch_impl_binary_search_branchless::<2>),
-            //         &batched(SortedVec::batch_impl_binary_search_branchless::<4>),
-            //         &batched(SortedVec::batch_impl_binary_search_branchless::<8>),
-            //         &batched(SortedVec::batch_impl_binary_search_branchless::<16>),
-            //         &batched(SortedVec::batch_impl_binary_search_branchless::<32>),
-            //     ],
-            //     "batched_binsearch",
-            // );
+            run_exps(
+                &mut results,
+                size,
+                &SortedVec::new(vals),
+                qs,
+                run,
+                &[
+                    &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<2>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<4>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<8>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<16>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<32>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<64>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<128>),
+                ],
+                "batched_binsearch",
+            );
 
             // run_exps(
             //     &mut results,

@@ -14,6 +14,7 @@ import argparse
 # import plotly
 # import plotly.tools as tls
 
+store_dir = "plots"
 palette = None
 dashes = {"": ""}
 human = ""
@@ -39,7 +40,7 @@ def plot(
     data,
     names,
     # Previous results are dimmed,
-    # but the most resent one is bolded.
+    # but the most recent one is bolded.
     keep,
     new_best=None,
     skip=0,
@@ -113,8 +114,7 @@ def plot(
             # style=style,
             # linestyle="dotted",
             style=style if data.Style.unique().tolist() != [""] else None,
-            size="type",
-            sizes={"old": 0.5, "new": 1, "best": 2, "new_best": 1.5},
+            size="type", sizes={"old": 0.5, "new": 1, "best": 2, "new_best": 1.5},
             data=data,
             legend=None,
             palette=palette,
@@ -164,7 +164,7 @@ def plot(
         ax.text(data.sz.max(), 0, "RAM", color="red", va="bottom", ha="right")
 
     # Save
-    fig.savefig(f"plots/{experiment_name}.png", bbox_inches="tight", dpi=600)
+    fig.savefig(f"{store_dir}/{experiment_name}.png", bbox_inches="tight", dpi=600)
     print(f"Saved {experiment_name}.png")
     # fig.savefig(f"plots/{experiment_name}{human}.svg", bbox_inches="tight")
     # print(f"Saved {experiment_name}{human}.svg")
@@ -527,71 +527,92 @@ def plot_blog():
     data = all_data[all_data.threads == 6]
     plot("28-threads", "6 threads", data, keep, [], ymax=30)
 
-def plot_binsearch_blog(args):
+def update_names(names, new_name):
+    new_keep = names.copy()
+    names.append(new_name)
+    print(new_keep)
+    return names, new_keep
+
+def plot_binsearch_blog():
     all_data = read_file(f"results/results{human}{release}.json")
     data = all_data[all_data.threads == 1]
     all_names = data.name.unique().tolist()
     print(all_names)
 
-    names = ["SortedVec::binary_search_std", "SortedVec::binary_search"]
+    names = ["SortedVec::binary_search", "SortedVec::binary_search_std"]
     new_best = names[0]
     keep = []
     plot(
         "binsearch-std-vs-binsearch",
-        "Basic binary search",
+        "Naive binary search",
         data,
         names,
         keep,
         new_best=new_best,
         ymax=2000,
         highlight=1,
-        size=True,
     )
 
-    names = ["SortedVec::binary_search_std", "SortedVec::binary_search_branchless"]
-    new_best = names[0]
-    keep = []
+    names, keep = update_names(names, "SortedVec::binary_search_branchless")
     plot(
         "binsearch-std-vs-branchless",
-        "Basic binary search",
+        "Branchless binary search",
         data,
         names,
         keep,
-        new_best=new_best,
         ymax=2000,
         highlight=1,
-        size=True,
     )
 
-    names = ["SortedVec::binary_search_std", "SortedVec::binary_search_branchless_prefetch"]
-    new_best = names[1]
-    keep = []
+    names, keep = update_names(names, "SortedVec::binary_search_branchless_prefetch")
     plot(
         "binsearch-std-vs-branchless-prefetch",
-        "Basic binary search",
+        "Branchless binary search with prefetch",
         data,
         names,
         keep,
-        new_best=new_best,
         ymax=2000,
         highlight=1,
-        size=True,
     )
 
-    names = ["SortedVec::binary_search_std", "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless<16>>"]
-    new_best = names[1]
-    keep = []
+    names, keep = update_names(names, "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless<16>>")
+    new_best = names[4]
     plot(
-        "binsearch-std-vs-branchless-prefetch",
-        "Basic binary search",
+        "binsearch-std-vs-batched",
+        "Branchless binary search with batching",
         data,
         names,
         keep,
         new_best=new_best,
         ymax=2000,
         highlight=1,
-        size=True,
     )
+
+    names = ["Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless<16>>", "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<16>>"]
+    keep = []
+    plot(
+        "binsearch-batched-vs-batched-prefetch",
+        "Batched binsearch vs batched prefetched binsearch",
+        data,
+        names,
+        keep,
+        ymax=2000,
+        highlight=1,
+    )
+
+    names = ['Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless<2>> batched_binsearch', 'Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless<4>> batched_binsearch', 'Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless<8>> batched_binsearch', 'Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless<16>> batched_binsearch', 'Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>> batched_binsearch', 'Batched<64, SortedVec, SortedVec::batch_impl_binary_search_branchless<64>> batched_binsearch', 'Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless<128>> batched_binsearch']
+    keep = []
+    plot(
+        "binsearch-branchless-batched-comparison",
+        "Different batch sizes for branchless batched search",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=2000,
+        highlight=1,
+    )
+
     # names = names + ["SortedVec::binary_search_branchless", "SortedVec::binary_search_branchless_prefetch"]
 
     # plot(
@@ -691,12 +712,14 @@ def plot_all():
 parser = argparse.ArgumentParser()
 parser.add_argument("--release", action="store_true")
 parser.add_argument("--human", action="store_true")
+parser.add_argument("--store_dir", default="", type=str, help="Directory to store the plots")
 args = parser.parse_args()
 if args.release:
     release = "-release"
 
 if args.human:
     human = "-human"
+store_dir = args.store_dir
 
-plot_binsearch_blog(args)
+plot_binsearch_blog()
 # plot_all()

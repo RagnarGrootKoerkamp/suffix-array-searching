@@ -3,7 +3,8 @@
     iter_array_chunks,
     portable_simd,
     array_windows,
-    type_changing_struct_update
+    type_changing_struct_update,
+    core_intrinsics
 )]
 
 pub mod binary_search;
