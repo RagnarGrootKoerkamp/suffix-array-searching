@@ -195,6 +195,24 @@ fn main() {
                 "batched_binsearch",
             );
 
+            run_exps(
+                &mut results,
+                size,
+                &SortedVec::new(vals),
+                qs,
+                run,
+                &[
+                    &batched(SortedVec::batch_impl_binary_search_branchless::<2>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless::<4>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless::<8>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless::<16>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless::<32>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless::<64>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless::<128>),
+                ],
+                "batched_binsearch",
+            );
+
             // Eytzinger section
             run_exps(
                 &mut results,

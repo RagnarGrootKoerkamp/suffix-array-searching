@@ -19,6 +19,7 @@ palette = None
 dashes = {"": ""}
 human = ""
 release=""
+input_file_prefix = "results/results"
 
 
 def caches():
@@ -299,7 +300,7 @@ def select(select, all_names, end=False):
 
 # Read all files in the 'results' directory and iterate over them.
 def plot_blog():
-    all_data = read_file(f"results/results{human}{release}.json")
+    all_data = read_file(f"{input_file_prefix}-non-pow2{human}{release}.json")
     data = all_data[all_data.threads == 1]
     all_names = data.name.unique().tolist()
     keep = []
@@ -534,7 +535,7 @@ def update_names(names, new_name):
     return names, new_keep
 
 def plot_binsearch_blog():
-    all_data = read_file(f"results/results{human}{release}.json")
+    all_data = read_file(f"{input_file_prefix}-non-pow2{human}{release}.json")
     data = all_data[all_data.threads == 1]
     all_names = data.name.unique().tolist()
     print(all_names)
@@ -549,18 +550,19 @@ def plot_binsearch_blog():
         names,
         keep,
         new_best=new_best,
-        ymax=2000,
+        ymax=1500,
         highlight=1,
     )
 
-    names, keep = update_names(names, "SortedVec::binary_search_branchless")
+    names, _ = update_names(names, "SortedVec::binary_search_branchless")
+
     plot(
         "binsearch-std-vs-branchless",
         "Branchless binary search",
         data,
         names,
         keep,
-        ymax=2000,
+        ymax=1500,
         highlight=1,
     )
 
@@ -571,7 +573,7 @@ def plot_binsearch_blog():
         data,
         names,
         keep,
-        ymax=2000,
+        ymax=1500,
         highlight=1,
     )
 
@@ -584,7 +586,7 @@ def plot_binsearch_blog():
         names,
         keep,
         new_best=new_best,
-        ymax=2000,
+        ymax=1200,
         highlight=1,
     )
 
@@ -596,11 +598,19 @@ def plot_binsearch_blog():
         data,
         names,
         keep,
-        ymax=2000,
+        ymax=200,
         highlight=1,
     )
 
-    names = ['Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless<2>> batched_binsearch', 'Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless<4>> batched_binsearch', 'Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless<8>> batched_binsearch', 'Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless<16>> batched_binsearch', 'Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>> batched_binsearch', 'Batched<64, SortedVec, SortedVec::batch_impl_binary_search_branchless<64>> batched_binsearch', 'Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless<128>> batched_binsearch']
+    names = [
+        'Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<2>> batched_binsearch',
+        'Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<4>> batched_binsearch',
+        'Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<8>> batched_binsearch',
+        'Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<16>> batched_binsearch',
+        'Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>> batched_binsearch',
+        'Batched<64, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<64>> batched_binsearch',
+        'Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<128>> batched_binsearch'
+    ]
     keep = []
     plot(
         "binsearch-branchless-batched-comparison",
@@ -609,81 +619,89 @@ def plot_binsearch_blog():
         names,
         keep,
         new_best=False,
-        ymax=2000,
+        ymax=1000,
         highlight=1,
     )
 
-    # names = names + ["SortedVec::binary_search_branchless", "SortedVec::binary_search_branchless_prefetch"]
+    names = [
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>> batched_binsearch",
+        "Eytzinger::search",
+    ]
+    keep = []
+    plot(
+        "eytzinger-vs-binsearch-batched",
+        "Eytzinger layout compared to batched binsearch",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=500,
+        highlight=1,
+    )
 
-    # plot(
-    #     "binsearch-02",
-    #     "Binary search: branchless and branchless with prefetch",
-    #     data,
-    #     names,
-    #     keep,
-    #     new_best=new_best,
-    #     ymax=1500,
-    #     highlight=3,
-    #     size=True,
-    # )
+    names = [
+        'Eytzinger::search', 'Eytzinger::search_prefetch<2>', 'Eytzinger::search_prefetch<3>', 'Eytzinger::search_prefetch<4>',
+    ]
+    keep = []
+    plot(
+         "eytzinger-prefetching",
+         "Eytzinger layout with prefetching",
+         data,
+         names,
+         keep,
+         new_best=False,
+         ymax=1000,
+         highlight=1,
+    )
 
-    # names = names + ["Batched<16, SortedVec, SortedVec::batch_impl_binary_search_std<16>> batched_binsearch"]
-    # new_best = names[-1]
+    names = [
+        'Batched<2, Eytzinger, Eytzinger::batch_impl<2>>',
+        'Batched<4, Eytzinger, Eytzinger::batch_impl<4>>',
+        'Batched<8, Eytzinger, Eytzinger::batch_impl<8>>',
+        'Batched<16, Eytzinger, Eytzinger::batch_impl<16>>',
+        'Batched<32, Eytzinger, Eytzinger::batch_impl<32>>',
+        'Batched<64, Eytzinger, Eytzinger::batch_impl<64>>',
+        'Batched<128, Eytzinger, Eytzinger::batch_impl<128>>'
+    ]
+    keep = []
+    plot(
+         "eytzinger-batched-comparison",
+         "Eytzinger layout with batching",
+         data,
+         names,
+         keep,
+         new_best=False,
+         ymax=500,
+         highlight=1,
+    )
 
-    # plot(
-    #     "binsearch-03",
-    #     "Binsearch, plus batching with batch size 16",
-    #     data,
-    #     names,
-    #     keep,
-    #     new_best=new_best,
-    #     ymax=1000,
-    #     highlight=1,
-    #     size=True,
-    # )
+    names = ['Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<2>> batched_binsearch', 'Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<4>> batched_binsearch', 'Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<8>> batched_binsearch', 'Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<16>> batched_binsearch', 'Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>> batched_binsearch', 'Batched<64, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<64>> batched_binsearch', 'Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<128>> batched_binsearch']
+    keep = []
+    plot(
+        "binsearch-branchless-batched-prefetched",
+        "Different batch sizes for branchless batched search",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=1000,
+        highlight=1
+    )
 
-    # names = ['Batched<2, SortedVec, SortedVec::batch_impl_binary_search_std<2>> batched_binsearch', 'Batched<4, SortedVec, SortedVec::batch_impl_binary_search_std<4>> batched_binsearch', 'Batched<8, SortedVec, SortedVec::batch_impl_binary_search_std<8>> batched_binsearch', 'Batched<16, SortedVec, SortedVec::batch_impl_binary_search_std<16>> batched_binsearch', 'Batched<32, SortedVec, SortedVec::batch_impl_binary_search_std<32>> batched_binsearch']
-    # plot(
-    #     "binsearch-04",
-    #     "Batched binary search, varying batch size",
-    #     data,
-    #     names,
-    #     keep,
-    #     new_best=names[-1],
-    #     ymax=2000,
-    #     highlight=2,
-    #     size=True,
-    # )
+    names = ['Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless<2>> batched_binsearch', 'Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless<4>> batched_binsearch', 'Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless<8>> batched_binsearch', 'Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless<16>> batched_binsearch', 'Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>> batched_binsearch', 'Batched<64, SortedVec, SortedVec::batch_impl_binary_search_branchless<64>> batched_binsearch', 'Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless<128>> batched_binsearch']
+    keep = []
+    plot(
+        "binsearch-branchless-batched",
+        "Different batch sizes for branchless batched search",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=1000,
+        highlight=1
+    )
 
-    # names = ["Eytzinger::search_prefetch<4>  No hugepages"]
-    # new_best = names[-1]
 
-    # plot(
-    #     "eytzinger-01",
-    #     "Eytzinger, with no hugepages",
-    #     data,
-    #     names,
-    #     keep,
-    #     new_best=new_best,
-    #     ymax=1000,
-    #     highlight=1,
-    #     size=True,
-    # )
-
-    # names += ["Batched<16, Eytzinger, Eytzinger::batch_impl<16>> batched_eytzinger"]
-    # new_best = names[-1]
-
-    # plot(
-    #     "eytzinger-02",
-    #     "Eytzinger, comparison to batching",
-    #     data,
-    #     names,
-    #     keep,
-    #     new_best=new_best,
-    #     ymax=1000,
-    #     highlight=1,
-    #     size=True,
-    # )
 
 def filter_large(data, x=2.5):
     data["latency"] = data.apply(
@@ -713,6 +731,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--release", action="store_true")
 parser.add_argument("--human", action="store_true")
 parser.add_argument("--store_dir", default="", type=str, help="Directory to store the plots")
+parser.add_argument("--input_file_prefix", default="results/results", type=str, help="Input file to read the data from")
+
 args = parser.parse_args()
 if args.release:
     release = "-release"
@@ -720,6 +740,8 @@ if args.release:
 if args.human:
     human = "-human"
 store_dir = args.store_dir
+input_file_prefix = args.input_file_prefix
+
 
 plot_binsearch_blog()
 # plot_all()
