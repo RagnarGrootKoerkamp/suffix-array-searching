@@ -1,4 +1,6 @@
 use crate::{prefetch_index, vec_on_hugepages, SearchIndex};
+use cmov::Cmov;
+use std::intrinsics::select_unpredictable;
 
 fn search_result_to_index(idx: usize) -> usize {
     idx >> (idx.trailing_ones() + 1)
@@ -6,11 +8,26 @@ fn search_result_to_index(idx: usize) -> usize {
 
 pub struct Eytzinger {
     vals: Vec<u32>,
+    num_iters: usize,
 }
 
 impl Eytzinger {
     fn get(&self, index: usize) -> u32 {
         unsafe { *self.vals.get_unchecked(index) }
+    }
+
+    fn get_next_index_branchless(&self, idx: usize, q: u32) -> usize {
+        let mut idx_u64 = 2 * idx as u64;
+        let candidate = (2 * idx + 1) as u64;
+        // the OR here is a hack; it is done to achieve the same result algorithmica does.
+        // We have to do this because we're using unsigned integers and they are using signed, so they use -1 as their "value not found"
+        // retval. Therefore, they can do their last check against -1 at position 0 in the vector, which always results in the comparison
+        // being true.
+
+        let in_bounds = idx < self.vals.len();
+        let idx = if in_bounds { idx } else { 0 };
+        idx_u64.cmovnz(&candidate, (q > self.get(idx) || !in_bounds) as u8);
+        idx_u64 as usize
     }
 
     pub fn new_no_hugepages(vals: &[u32]) -> Self {
@@ -26,6 +43,7 @@ impl Eytzinger {
             } else {
                 vec![0; len]
             },
+            num_iters: len.ilog2() as usize,
         };
         e.vals[0] = u32::MAX;
 
@@ -69,6 +87,20 @@ impl Eytzinger {
         self.get(idx)
     }
 
+    pub fn search_branchless(&self, q: u32) -> u32 {
+        let mut idx = 1;
+        // do a constant number of iterations
+        for _ in 0..self.num_iters {
+            let jump_to = (q > self.get(idx)) as usize;
+            idx = 2 * idx + jump_to;
+        }
+
+        // let cmp_idx = if idx < self.vals.len() { idx } else { 0 };
+        idx = self.get_next_index_branchless(idx, q);
+        idx = search_result_to_index(idx);
+        self.get(idx)
+    }
+
     /// L: number of levels ahead to prefetch.
     pub fn search_prefetch<const L: usize>(&self, q: u32) -> u32 {
         let mut idx = 1;
@@ -79,6 +111,33 @@ impl Eytzinger {
         while idx < self.vals.len() {
             idx = 2 * idx + (q > self.get(idx)) as usize;
         }
+        idx = search_result_to_index(idx);
+        self.get(idx)
+    }
+
+    pub fn search_branchless_prefetch<const L: usize>(&self, q: u32) -> u32 {
+        let mut idx = 1;
+        let prefetch_until = self.num_iters as isize - L as isize;
+        for _ in 0..prefetch_until {
+            let jump_to = (q > self.get(idx)) as usize;
+            idx = 2 * idx + jump_to;
+            // the extra prefetch is apparently very slow here; why?
+            prefetch_index(&self.vals, (1 << L) * idx);
+        }
+
+        for _ in prefetch_until..(self.num_iters as isize) {
+            let jump_to = (q > self.get(idx)) as usize;
+            idx = 2 * idx + jump_to;
+        }
+
+        // last iteration as per algorithmica branchless. I do not understand this quite yet
+        let cmp_val = if idx < self.vals.len() {
+            self.get(idx)
+        } else {
+            0u32
+        };
+
+        idx = 2 * idx + (q > cmp_val) as usize;
         idx = search_result_to_index(idx);
         self.get(idx)
     }
