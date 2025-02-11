@@ -602,83 +602,10 @@ def plot_binsearch_blog():
         highlight=1,
     )
 
-    names = [
-        'Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<2>> batched_binsearch',
-        'Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<4>> batched_binsearch',
-        'Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<8>> batched_binsearch',
-        'Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<16>> batched_binsearch',
-        'Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>> batched_binsearch',
-        'Batched<64, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<64>> batched_binsearch',
-        'Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<128>> batched_binsearch'
-    ]
-    keep = []
-    plot(
-        "binsearch-branchless-batched-comparison",
-        "Different batch sizes for branchless batched search",
-        data,
-        names,
-        keep,
-        new_best=False,
-        ymax=1000,
-        highlight=1,
-    )
-
-    names = [
-        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>> batched_binsearch",
-        "Eytzinger::search",
-    ]
-    keep = []
-    plot(
-        "eytzinger-vs-binsearch-batched",
-        "Eytzinger layout compared to batched binsearch",
-        data,
-        names,
-        keep,
-        new_best=False,
-        ymax=500,
-        highlight=1,
-    )
-
-    names = [
-        'Eytzinger::search', 'Eytzinger::search_prefetch<2>', 'Eytzinger::search_prefetch<3>', 'Eytzinger::search_prefetch<4>',
-    ]
-    keep = []
-    plot(
-         "eytzinger-prefetching",
-         "Eytzinger layout with prefetching",
-         data,
-         names,
-         keep,
-         new_best=False,
-         ymax=1000,
-         highlight=1,
-    )
-
-    names = [
-        'Batched<2, Eytzinger, Eytzinger::batch_impl<2>>',
-        'Batched<4, Eytzinger, Eytzinger::batch_impl<4>>',
-        'Batched<8, Eytzinger, Eytzinger::batch_impl<8>>',
-        'Batched<16, Eytzinger, Eytzinger::batch_impl<16>>',
-        'Batched<32, Eytzinger, Eytzinger::batch_impl<32>>',
-        'Batched<64, Eytzinger, Eytzinger::batch_impl<64>>',
-        'Batched<128, Eytzinger, Eytzinger::batch_impl<128>>'
-    ]
-    keep = []
-    plot(
-         "eytzinger-batched-comparison",
-         "Eytzinger layout with batching",
-         data,
-         names,
-         keep,
-         new_best=False,
-         ymax=500,
-         highlight=1,
-    )
-
     names = ['Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<2>> batched_binsearch', 'Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<4>> batched_binsearch', 'Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<8>> batched_binsearch', 'Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<16>> batched_binsearch', 'Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>> batched_binsearch', 'Batched<64, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<64>> batched_binsearch', 'Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<128>> batched_binsearch']
     keep = []
     plot(
-        "binsearch-branchless-batched-prefetched",
+        "binsearch-branchless-prefetched-batched",
         "Different batch sizes for branchless batched search",
         data,
         names,
@@ -700,6 +627,92 @@ def plot_binsearch_blog():
         ymax=1000,
         highlight=1
     )
+
+    names = [
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>> batched_binsearch",
+        "Eytzinger::search",
+    ]
+    keep = []
+    plot(
+        "eytzinger-vs-binsearch-batched",
+        "Eytzinger layout compared to batched binsearch",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=500,
+        highlight=1,
+    )
+
+    names = [
+        'Eytzinger::search', 'Eytzinger::search_branchless', 'Eytzinger::search_prefetch<2>', 'Eytzinger::search_prefetch<3>', 'Eytzinger::search_prefetch<4>',
+        'Eytzinger::search_branchless_prefetch<2>', 'Eytzinger::search_branchless_prefetch<3>', 'Eytzinger::search_branchless_prefetch<4>',
+    ]
+    keep = []
+    plot(
+         "eytzinger-prefetching",
+         "Eytzinger layout with prefetching",
+         data,
+         names,
+         keep,
+         new_best=False,
+         ymax=1000,
+         highlight=1,
+    )
+
+    names = [
+        'Eytzinger::search', 'Eytzinger::search_branchless', 'Eytzinger::search_branchless_prefetch<4>',
+        "Eytzinger::search_prefetch<4>",
+    ]
+    keep = []
+    plot(
+         "eytzinger-branchless-prefetching",
+         "Eytzinger layout with prefetching",
+         data,
+         names,
+         keep,
+         new_best=False,
+         ymax=500,
+         highlight=1,
+    )
+
+    names = [
+        'Batched<8, Eytzinger, Eytzinger::batch_impl<8>>',
+        'Batched<16, Eytzinger, Eytzinger::batch_impl<16>>',
+        'Batched<32, Eytzinger, Eytzinger::batch_impl<32>>',
+        'Batched<64, Eytzinger, Eytzinger::batch_impl<64>>',
+        'Eytzinger::search_branchless_prefetch<4>'
+    ]
+    keep = []
+    plot(
+         "eytzinger-batched-comparison",
+         "Eytzinger layout with batching",
+         data,
+         names,
+         keep,
+         new_best=False,
+         ymax=500,
+         highlight=1,
+    )
+
+    names = [
+            'Batched<32, Eytzinger, Eytzinger::batch_impl<32>>',
+            'Batched<2, Eytzinger, Eytzinger::batch_impl_prefetched<2, 4>>', 'Batched<4, Eytzinger, Eytzinger::batch_impl_prefetched<4, 4>>', 'Batched<8, Eytzinger, Eytzinger::batch_impl_prefetched<8, 4>>', 'Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>', 'Batched<32, Eytzinger, Eytzinger::batch_impl_prefetched<32, 4>>', 'Batched<64, Eytzinger, Eytzinger::batch_impl_prefetched<64, 4>>', 'Batched<128, Eytzinger, Eytzinger::batch_impl_prefetched<128, 4>>',
+            'Eytzinger::search_branchless_prefetch<4>'
+    ]
+    keep = []
+    plot(
+            "eytzinger-batched-prefetched-comparison",
+            "Eytzinger layout with batching",
+            data,
+            names,
+            keep,
+            new_best=False,
+            ymax=500,
+            highlight=1,
+    )
+
+
 
 
 
