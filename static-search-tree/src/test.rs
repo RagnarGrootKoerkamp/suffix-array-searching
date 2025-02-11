@@ -40,9 +40,13 @@ fn get_search_schemes() -> SearchSchemes {
     ];
     let eyt = vec![
         &Eytzinger::search as &dyn SearchScheme<_>,
+        &Eytzinger::search_branchless,
         &Eytzinger::search_prefetch::<2>,
         &Eytzinger::search_prefetch::<3>,
         &Eytzinger::search_prefetch::<4>,
+        &Eytzinger::search_branchless_prefetch::<2>,
+        &Eytzinger::search_branchless_prefetch::<3>,
+        &Eytzinger::search_branchless_prefetch::<4>,
     ];
     let bt = vec![
         &BTree::search as &dyn SearchScheme<_>,

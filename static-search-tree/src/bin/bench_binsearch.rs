@@ -112,68 +112,20 @@ fn main() {
 
             let bs = (4..=20).step_by(4).collect_vec();
 
-            // SECTION 1.3: Binary search & Eytzinger
+            // BINARY SEARCH
+            // Naive binsearch, Standard binary search, branchless, branchless w/prefetching
             run_exps(
                 &mut results,
                 size,
                 &SortedVec::new(vals),
                 qs,
                 run,
-                &[&SortedVec::binary_search_std],
-                "",
-            );
-
-            run_exps(
-                &mut results,
-                size,
-                &SortedVec::new(vals),
-                qs,
-                run,
-                &[&SortedVec::binary_search],
-                "",
-            );
-
-            run_exps(
-                &mut results,
-                size,
-                &SortedVec::new(vals),
-                qs,
-                run,
-                &[&SortedVec::binary_search_branchless],
-                "",
-            );
-
-            run_exps(
-                &mut results,
-                size,
-                &SortedVec::new(vals),
-                qs,
-                run,
-                &[&SortedVec::binary_search_branchless_prefetch],
-                "",
-            );
-
-            run_exps(
-                &mut results,
-                size,
-                &SortedVec::new(vals),
-                qs,
-                run,
-                &[&batched(
-                    SortedVec::batch_impl_binary_search_branchless::<16>,
-                )],
-                "",
-            );
-
-            run_exps(
-                &mut results,
-                size,
-                &SortedVec::new(vals),
-                qs,
-                run,
-                &[&batched(
-                    SortedVec::batch_impl_binary_search_branchless_prefetch::<16>,
-                )],
+                &[
+                    &SortedVec::binary_search_std,
+                    &SortedVec::binary_search,
+                    &SortedVec::binary_search_branchless,
+                    &SortedVec::binary_search_branchless_prefetch,
+                ],
                 "",
             );
 
@@ -192,7 +144,7 @@ fn main() {
                     &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<64>),
                     &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<128>),
                 ],
-                "batched_binsearch",
+                "",
             );
 
             run_exps(
@@ -210,10 +162,11 @@ fn main() {
                     &batched(SortedVec::batch_impl_binary_search_branchless::<64>),
                     &batched(SortedVec::batch_impl_binary_search_branchless::<128>),
                 ],
-                "batched_binsearch",
+                "",
             );
 
             // Eytzinger section
+            // non-batched eytzinger
             run_exps(
                 &mut results,
                 size,
@@ -222,13 +175,18 @@ fn main() {
                 run,
                 &[
                     &Eytzinger::search,
+                    &Eytzinger::search_branchless,
                     &Eytzinger::search_prefetch::<2>,
                     &Eytzinger::search_prefetch::<3>,
                     &Eytzinger::search_prefetch::<4>,
+                    &Eytzinger::search_branchless_prefetch::<2>,
+                    &Eytzinger::search_branchless_prefetch::<3>,
+                    &Eytzinger::search_branchless_prefetch::<4>,
                 ],
                 "",
             );
 
+            // batched eytzinger without prefetching or branchless searching
             run_exps(
                 &mut results,
                 size,
@@ -243,6 +201,26 @@ fn main() {
                     &batched(Eytzinger::batch_impl::<32>),
                     &batched(Eytzinger::batch_impl::<64>),
                     &batched(Eytzinger::batch_impl::<128>),
+                ],
+                "",
+            );
+
+            // batched eytzinger with prefetching
+            // TODO: select best prefetch factor
+            run_exps(
+                &mut results,
+                size,
+                &Eytzinger::new(vals),
+                qs,
+                run,
+                &[
+                    &batched(Eytzinger::batch_impl_prefetched::<2, 4>),
+                    &batched(Eytzinger::batch_impl_prefetched::<4, 4>),
+                    &batched(Eytzinger::batch_impl_prefetched::<8, 4>),
+                    &batched(Eytzinger::batch_impl_prefetched::<16, 4>),
+                    &batched(Eytzinger::batch_impl_prefetched::<32, 4>),
+                    &batched(Eytzinger::batch_impl_prefetched::<64, 4>),
+                    &batched(Eytzinger::batch_impl_prefetched::<128, 4>),
                 ],
                 "",
             )

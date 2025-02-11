@@ -130,30 +130,53 @@ impl Eytzinger {
             idx = 2 * idx + jump_to;
         }
 
-        // last iteration as per algorithmica branchless. I do not understand this quite yet
-        let cmp_val = if idx < self.vals.len() {
-            self.get(idx)
-        } else {
-            0u32
-        };
-
-        idx = 2 * idx + (q > cmp_val) as usize;
+        idx = self.get_next_index_branchless(idx, q);
         idx = search_result_to_index(idx);
         self.get(idx)
     }
 
     pub fn batch_impl<const P: usize>(&self, qb: &[u32; P]) -> [u32; P] {
         let mut k = [1; P]; // current indices
-        while k.iter().any(|&x| x < self.vals.len()) {
+
+        for _ in 0..self.num_iters {
             for i in 0..P {
-                if k[i] < self.vals.len() {
-                    let jump_to = (self.get(k[i]) < qb[i]) as usize;
-                    k[i] = 2 * k[i] + jump_to;
-                }
+                let jump_to = (self.get(k[i]) < qb[i]) as usize;
+                k[i] = 2 * k[i] + jump_to;
+            }
+        }
+        for i in 0..P {
+            k[i] = self.get_next_index_branchless(k[i], qb[i]);
+            k[i] = search_result_to_index(k[i]);
+        }
+
+        k.map(|x| self.get(x))
+    }
+
+    pub fn batch_impl_prefetched<const P: usize, const L: usize>(&self, qb: &[u32; P]) -> [u32; P] {
+        let mut k = [1; P]; // current indices
+        let prefetch_until = self.num_iters as isize - L as isize;
+
+        for _ in 0..prefetch_until {
+            for i in 0..P {
+                let jump_to = (self.get(k[i]) < qb[i]) as usize;
+                k[i] = 2 * k[i] + jump_to;
+                prefetch_index(&self.vals, (1 << L) * k[i]);
             }
         }
 
-        k.map(|x| self.get(search_result_to_index(x)))
+        for _ in prefetch_until..(self.num_iters as isize) {
+            for i in 0..P {
+                let jump_to = (self.get(k[i]) < qb[i]) as usize;
+                k[i] = 2 * k[i] + jump_to;
+            }
+        }
+
+        for i in 0..P {
+            k[i] = self.get_next_index_branchless(k[i], qb[i]);
+            k[i] = search_result_to_index(k[i]);
+        }
+        // println!("{:?}", k);
+        k.map(|x| self.get(x))
     }
 }
 
