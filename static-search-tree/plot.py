@@ -749,6 +749,25 @@ def plot_binsearch_blog():
         highlight=1,
     )
 
+def plot_interp_search_test():
+    all_data = read_file(f"{input_file_prefix}-non-pow2{human}{release}.json")
+    data = all_data[all_data.threads == 1]
+    all_names = data.name.unique().tolist()
+    print(all_names)
+
+    names = ["SortedVec::binary_search_std", "<impl SortedVec>::interpolation_search", "Batched<16, SortedVec, <impl SortedVec>::interp_search_batched_simd<16>>", "Batched<16, SortedVec, <impl SortedVec>::interp_search_batched<16>>"]
+    keep = []
+    plot(
+        "interp-search-vs-binsearch",
+        "Naive interpolation search",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=1500,
+        highlight=1,
+    )
+
 
 def filter_large(data, x=2.5):
     data["latency"] = data.apply(
@@ -771,7 +790,6 @@ def plot_all():
     plot("99-all", "ALL", data, names, [], ymax=30, size=False)
     return
 
-
 # plt.style.use("dark_background")
 # plt.close("all")
 parser = argparse.ArgumentParser()
@@ -780,6 +798,7 @@ parser.add_argument("--human", action="store_true")
 parser.add_argument("--store_dir", default="", type=str, help="Directory to store the plots")
 parser.add_argument("--input_file_prefix", default="results/results", type=str, help="Input file to read the data from")
 parser.add_argument("--out_format", default="png", type=str, help="Output format of the plots")
+parser.add_argument("--interp_search_test", action="store_true")
 
 args = parser.parse_args()
 if args.release:
@@ -791,6 +810,8 @@ store_dir = args.store_dir
 input_file_prefix = args.input_file_prefix
 out_format = args.out_format
 
-
-plot_binsearch_blog()
+if args.interp_search_test:
+    plot_interp_search_test()
+else:
+    plot_binsearch_blog()
 # plot_all()
