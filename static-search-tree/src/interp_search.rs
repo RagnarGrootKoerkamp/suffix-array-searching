@@ -51,6 +51,7 @@ impl SortedVec {
     }
 
     pub fn interp_search_batched_simd<const P: usize>(&self, qs: &[u32; P]) -> [u32; P] {
+        const LANE_COUNT: usize = 4;
         let mut ls: [isize; P] = [0isize; P];
         let mut rs: [isize; P] = [(self.vals.len() - 1).try_into().unwrap(); P];
         let mut l_vals: [isize; P] = ls.map(|i| self.get(i as usize).try_into().unwrap());
@@ -64,44 +65,61 @@ impl SortedVec {
         let mut retvals = [0u32; P];
         // an accumulator value going from 0 to P
         let mut done = 0;
-        assert!(P % 8 == 0);
-        let ones = isizex8::splat(1);
-        let twos = isizex8::splat(2);
+        assert!(P % LANE_COUNT == 0);
+        let ones = Simd::<isize, LANE_COUNT>::splat(1);
+        let twos = Simd::<isize, LANE_COUNT>::splat(2);
+        // println!("Iteration! {:?} {:?}", ls, rs);
+        done = 0;
+        // this is subject to change, maybe we want completely size-agnostic simd
+        let simd_iters = P / LANE_COUNT;
+
         while done < P {
-            // println!("Iteration! {:?} {:?}", ls, rs);
             done = 0;
-            // this is subject to change, maybe we want completely size-agnostic simd
-            let simd_iters = P / 8;
             for i in 0..simd_iters {
-                let q_vec = isizex8::from_slice(&qs[i * 8..(i + 1) * 8]);
-                let l_vec = isizex8::from_slice(&ls[i * 8..(i + 1) * 8]);
-                let r_vec = isizex8::from_slice(&rs[i * 8..(i + 1) * 8]);
+                let q_vec = Simd::<isize, LANE_COUNT>::from_slice(
+                    &qs[i * LANE_COUNT..(i + 1) * LANE_COUNT],
+                );
+                let l_vec = Simd::<isize, LANE_COUNT>::from_slice(
+                    &ls[i * LANE_COUNT..(i + 1) * LANE_COUNT],
+                );
+                let r_vec = Simd::<isize, LANE_COUNT>::from_slice(
+                    &rs[i * LANE_COUNT..(i + 1) * LANE_COUNT],
+                );
 
-                let l_vals_vec = isizex8::from_slice(&l_vals[i * 8..(i + 1) * 8]);
-                let r_vals_vec = isizex8::from_slice(&r_vals[i * 8..(i + 1) * 8]);
-
+                let l_vals_vec = Simd::<isize, LANE_COUNT>::from_slice(
+                    &l_vals[i * LANE_COUNT..(i + 1) * LANE_COUNT],
+                );
+                let r_vals_vec = Simd::<isize, LANE_COUNT>::from_slice(
+                    &r_vals[i * LANE_COUNT..(i + 1) * LANE_COUNT],
+                );
+                // TODO: do something about the division here
                 let mut m = l_vec
                     + (r_vec - l_vec) * (q_vec - l_vals_vec + ones)
                         / (r_vals_vec - l_vals_vec + twos);
-                let low = l_vec + (r_vec - l_vec) / isizex8::splat(16);
-                let high = l_vec + isizex8::splat(15) * (r_vec - l_vec) / isizex8::splat(16);
+                let low = l_vec + (r_vec - l_vec) / Simd::<isize, LANE_COUNT>::splat(16);
+                let high = l_vec
+                    + Simd::<isize, LANE_COUNT>::splat(15) * (r_vec - l_vec)
+                        / Simd::<isize, LANE_COUNT>::splat(16);
                 // equivalent to clamp
                 m = m.simd_min(high);
                 m = m.simd_max(low);
                 let m_arr = m.as_array();
-                let mut m_val = [0isize; 8];
-                for j in 0..8 {
-                    if ls[i * 8 + j] < rs[i * 8 + j] {
+                let mut m_val = [0isize; LANE_COUNT];
+                for j in 0..LANE_COUNT {
+                    if ls[i * LANE_COUNT + j] < rs[i * LANE_COUNT + j] {
+                        // so this takes time if it is done for every one of the LANE_COUNT elements
+                        // essentially random accesses in memory - could this be done better with sorting of queries?
                         m_val[j] = self.get(m_arr[j] as usize).try_into().unwrap();
-                        if m_val[j] < qs[i * 8 + j] {
-                            ls[i * 8 + j] = m_arr[j] + 1;
-                            l_vals[i * 8 + j] = m_val[j];
+                        if m_val[j] < qs[i * LANE_COUNT + j] {
+                            ls[i * LANE_COUNT + j] = m_arr[j] + 1;
+                            l_vals[i * LANE_COUNT + j] = m_val[j];
                         } else {
-                            rs[i * 8 + j] = m_arr[j];
-                            r_vals[i * 8 + j] = m_val[j];
+                            rs[i * LANE_COUNT + j] = m_arr[j];
+                            r_vals[i * LANE_COUNT + j] = m_val[j];
                         }
                     } else {
-                        retvals[i * 8 + j] = self.get(ls[i * 8 + j] as usize);
+                        // this is likely cached and fast
+                        retvals[i * LANE_COUNT + j] = self.get(ls[i * LANE_COUNT + j] as usize);
                         done += 1;
                     }
                 }
