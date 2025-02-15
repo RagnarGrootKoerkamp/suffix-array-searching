@@ -18,7 +18,7 @@ store_dir = "plots"
 palette = None
 dashes = {"": ""}
 human = ""
-release=""
+release = ""
 out_format = "png"
 input_file_prefix = "results/results"
 
@@ -116,7 +116,8 @@ def plot(
             # style=style,
             # linestyle="dotted",
             style=style if data.Style.unique().tolist() != [""] else None,
-            size="type", sizes={"old": 0.5, "new": 1, "best": 2, "new_best": 1.5},
+            size="type",
+            sizes={"old": 0.5, "new": 1, "best": 2, "new_best": 1.5},
             data=data,
             legend=None,
             palette=palette,
@@ -169,7 +170,9 @@ def plot(
     if out_format == "svg":
         fig.savefig(f"{store_dir}/{experiment_name}.{out_format}", bbox_inches="tight")
     else:
-        fig.savefig(f"{store_dir}/{experiment_name}.{out_format}", bbox_inches="tight", dpi=300)
+        fig.savefig(
+            f"{store_dir}/{experiment_name}.{out_format}", bbox_inches="tight", dpi=300
+        )
     print(f"Saved {experiment_name}.{out_format}")
     # fig.savefig(f"plots/{experiment_name}{human}.svg", bbox_inches="tight")
     # print(f"Saved {experiment_name}{human}.svg")
@@ -532,11 +535,13 @@ def plot_blog():
     data = all_data[all_data.threads == 6]
     plot("28-threads", "6 threads", data, keep, [], ymax=30)
 
+
 def update_names(names, new_name):
     new_keep = names.copy()
     names.append(new_name)
     print(new_keep)
     return names, new_keep
+
 
 def plot_binsearch_blog():
     all_data = read_file(f"{input_file_prefix}-non-pow2{human}{release}.json")
@@ -581,7 +586,10 @@ def plot_binsearch_blog():
         highlight=1,
     )
 
-    names, keep = update_names(names, "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless<16>>")
+    names, keep = update_names(
+        names,
+        "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless<16>>",
+    )
     new_best = names[4]
     plot(
         "binsearch-std-vs-batched",
@@ -594,7 +602,11 @@ def plot_binsearch_blog():
         highlight=1,
     )
 
-    names = ["Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless<16>>", "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<16>>"]
+    names = [
+        "SortedVec::binary_search_branchless_prefetch",
+        "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless<16>>",
+        "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<16>>",
+    ]
     keep = []
     plot(
         "binsearch-batched-vs-batched-prefetch",
@@ -606,7 +618,16 @@ def plot_binsearch_blog():
         highlight=1,
     )
 
-    names = ['Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<2>>', 'Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<4>>', 'Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<8>>', 'Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<16>>', 'Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>>', 'Batched<64, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<64>>', 'Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<128>>']
+    names = [
+        "SortedVec::binary_search_branchless_prefetch",
+        "Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<2>>",
+        "Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<4>>",
+        "Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<8>>",
+        "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<16>>",
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>>",
+        "Batched<64, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<64>>",
+        "Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<128>>",
+    ]
     keep = []
     plot(
         "binsearch-branchless-prefetched-batched",
@@ -616,10 +637,19 @@ def plot_binsearch_blog():
         keep,
         new_best=False,
         ymax=1000,
-        highlight=1
+        highlight=1,
     )
 
-    names = ['Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless<2>>', 'Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless<4>>', 'Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless<8>>', 'Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless<16>>', 'Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>', 'Batched<64, SortedVec, SortedVec::batch_impl_binary_search_branchless<64>>', 'Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless<128>>']
+    names = [
+        "SortedVec::binary_search_branchless_prefetch"
+        "Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless<2>>",
+        "Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless<4>>",
+        "Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless<8>>",
+        "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless<16>>",
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
+        "Batched<64, SortedVec, SortedVec::batch_impl_binary_search_branchless<64>>",
+        "Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless<128>>",
+    ]
     keep = []
     plot(
         "binsearch-branchless-batched",
@@ -629,9 +659,8 @@ def plot_binsearch_blog():
         keep,
         new_best=False,
         ymax=1000,
-        highlight=1
+        highlight=1,
     )
-
 
     names = [
         "SortedVec::binary_search_std",
@@ -651,74 +680,85 @@ def plot_binsearch_blog():
     )
 
     names = [
-        'Eytzinger::search', 'Eytzinger::search_prefetch<2>', 'Eytzinger::search_prefetch<3>', 'Eytzinger::search_prefetch<4>',
-    ]
-    keep = []
-    plot(
-         "eytzinger-prefetching",
-         "Eytzinger layout with prefetching",
-         data,
-         names,
-         keep,
-         new_best=False,
-         ymax=1000,
-         highlight=1,
-    )
-
-    names = [
-        'Eytzinger::search_branchless', 'Eytzinger::search_branchless_prefetch<4>',
+        "Eytzinger::search",
+        "Eytzinger::search_prefetch<2>",
+        "Eytzinger::search_prefetch<3>",
         "Eytzinger::search_prefetch<4>",
     ]
     keep = []
     plot(
-         "eytzinger-branchless-prefetching",
-         "Eytzinger layout with prefetching",
-         data,
-         names,
-         keep,
-         new_best=False,
-         ymax=500,
-         highlight=1,
+        "eytzinger-prefetching",
+        "Eytzinger layout with prefetching",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=1000,
+        highlight=1,
     )
 
     names = [
-        'Batched<8, Eytzinger, Eytzinger::batch_impl<8>>',
-        'Batched<16, Eytzinger, Eytzinger::batch_impl<16>>',
-        'Batched<32, Eytzinger, Eytzinger::batch_impl<32>>',
-        'Batched<64, Eytzinger, Eytzinger::batch_impl<64>>',
-        'Batched<128, Eytzinger, Eytzinger::batch_impl<128>>',
-        'Eytzinger::search_branchless_prefetch<4>'
+        "Eytzinger::search_branchless",
+        "Eytzinger::search_branchless_prefetch<4>",
+        "Eytzinger::search_prefetch<4>",
     ]
     keep = []
     plot(
-         "eytzinger-batched-comparison",
-         "Eytzinger layout with batching",
-         data,
-         names,
-         keep,
-         new_best=False,
-         ymax=500,
-         highlight=1,
+        "eytzinger-branchless-prefetching",
+        "Eytzinger layout with prefetching",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=500,
+        highlight=1,
     )
 
     names = [
-        'Batched<2, Eytzinger, Eytzinger::batch_impl_prefetched<2, 4>>', 'Batched<4, Eytzinger, Eytzinger::batch_impl_prefetched<4, 4>>', 'Batched<8, Eytzinger, Eytzinger::batch_impl_prefetched<8, 4>>', 'Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>', 'Batched<32, Eytzinger, Eytzinger::batch_impl_prefetched<32, 4>>', 'Batched<64, Eytzinger, Eytzinger::batch_impl_prefetched<64, 4>>', 'Batched<128, Eytzinger, Eytzinger::batch_impl_prefetched<128, 4>>',
+        "Batched<8, Eytzinger, Eytzinger::batch_impl<8>>",
+        "Batched<16, Eytzinger, Eytzinger::batch_impl<16>>",
+        "Batched<32, Eytzinger, Eytzinger::batch_impl<32>>",
+        "Batched<64, Eytzinger, Eytzinger::batch_impl<64>>",
+        "Batched<128, Eytzinger, Eytzinger::batch_impl<128>>",
+        "Eytzinger::search_branchless_prefetch<4>",
     ]
     keep = []
     plot(
-            "eytzinger-batched-prefetched-comparison",
-            "Eytzinger layout with batching",
-            data,
-            names,
-            keep,
-            new_best=False,
-            ymax=500,
-            highlight=1,
+        "eytzinger-batched-comparison",
+        "Eytzinger layout with batching",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=500,
+        highlight=1,
     )
 
     names = [
-        'Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>',
-        'Batched<16, Eytzinger, Eytzinger::batch_impl<16>>',
+        "Batched<2, Eytzinger, Eytzinger::batch_impl_prefetched<2, 4>>",
+        "Batched<4, Eytzinger, Eytzinger::batch_impl_prefetched<4, 4>>",
+        "Batched<8, Eytzinger, Eytzinger::batch_impl_prefetched<8, 4>>",
+        "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
+        "Batched<32, Eytzinger, Eytzinger::batch_impl_prefetched<32, 4>>",
+        "Batched<64, Eytzinger, Eytzinger::batch_impl_prefetched<64, 4>>",
+        "Batched<128, Eytzinger, Eytzinger::batch_impl_prefetched<128, 4>>",
+    ]
+    keep = []
+    plot(
+        "eytzinger-batched-prefetched-comparison",
+        "Eytzinger layout with batching",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=500,
+        highlight=1,
+    )
+
+    names = [
+        "Eytzinger::search_branchless_prefetch<4>",
+        "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
+        "Batched<16, Eytzinger, Eytzinger::batch_impl<16>>",
     ]
     keep = []
     plot(
@@ -728,7 +768,7 @@ def plot_binsearch_blog():
         names,
         keep,
         new_best=False,
-        ymax=200,
+        ymax=600,
         highlight=1,
     )
 
@@ -748,6 +788,65 @@ def plot_binsearch_blog():
         ymax=200,
         highlight=1,
     )
+
+    # Interpolation search
+    names = ["SortedVec::binary_search_std", "<impl SortedVec>::interpolation_search"]
+    keep = []
+    plot(
+        "interp-vs-binsearch",
+        "Interpolation search",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=1500,
+        highlight=1,
+    )
+
+    # Interpolation search - batching
+    names = [
+        "SortedVec::binary_search_std",
+        "<impl SortedVec>::interpolation_search",
+        "Batched<2, SortedVec, <impl SortedVec>::interp_search_batched<2>>",
+        "Batched<4, SortedVec, <impl SortedVec>::interp_search_batched<4>>",
+        "Batched<8, SortedVec, <impl SortedVec>::interp_search_batched<8>>",
+        "Batched<16, SortedVec, <impl SortedVec>::interp_search_batched<16>>",
+        "Batched<32, SortedVec, <impl SortedVec>::interp_search_batched<32>>",
+    ]
+    keep = []
+    plot(
+        "interp-vs-binsearch-batched",
+        "Interpolation search with batching",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=1500,
+        highlight=1,
+    )
+
+    # Interpolation search - batching - SIMD
+    # all the names same as in the previous plot but with "simd" in the end
+    names = [
+        "SortedVec::binary_search_std",
+        "<impl SortedVec>::interpolation_search",
+        "Batched<4, SortedVec, <impl SortedVec>::interp_search_batched_simd<4>>",
+        "Batched<8, SortedVec, <impl SortedVec>::interp_search_batched_simd<8>>",
+        "Batched<16, SortedVec, <impl SortedVec>::interp_search_batched_simd<16>>",
+        "Batched<32, SortedVec, <impl SortedVec>::interp_search_batched_simd<32>>",
+    ]
+    keep = []
+    plot(
+        "interp-vs-binsearch-batched-simd",
+        "Interpolation search with batching and SIMD",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=1500,
+        highlight=1,
+    )
+
 
 def plot_interp_search_test():
     all_data = read_file(f"{input_file_prefix}-non-pow2{human}{release}.json")
@@ -791,14 +890,24 @@ def plot_all():
     plot("99-all", "ALL", data, names, [], ymax=30, size=False)
     return
 
+
 # plt.style.use("dark_background")
 # plt.close("all")
 parser = argparse.ArgumentParser()
 parser.add_argument("--release", action="store_true")
 parser.add_argument("--human", action="store_true")
-parser.add_argument("--store_dir", default="", type=str, help="Directory to store the plots")
-parser.add_argument("--input_file_prefix", default="results/results", type=str, help="Input file to read the data from")
-parser.add_argument("--out_format", default="png", type=str, help="Output format of the plots")
+parser.add_argument(
+    "--store_dir", default="", type=str, help="Directory to store the plots"
+)
+parser.add_argument(
+    "--input_file_prefix",
+    default="results/results",
+    type=str,
+    help="Input file to read the data from",
+)
+parser.add_argument(
+    "--out_format", default="png", type=str, help="Output format of the plots"
+)
 parser.add_argument("--interp_search_test", action="store_true")
 
 args = parser.parse_args()
