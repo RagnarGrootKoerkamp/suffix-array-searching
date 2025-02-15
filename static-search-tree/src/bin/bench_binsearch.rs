@@ -122,114 +122,108 @@ fn main() {
                 run,
                 &[
                     &SortedVec::binary_search_std,
-                    &SortedVec::interpolation_search,
-                    // &batched(SortedVec::interp_search_batched::<4>),
-                    &batched(SortedVec::interp_search_batched::<8>),
-                    // &batched(SortedVec::interp_search_batched::<16>),
-                    // &batched(SortedVec::interp_search_batched::<32>),
-                    // &batched(SortedVec::interp_search_batched::<64>),
-                    &batched(SortedVec::interp_search_batched_simd::<8>),
-                    &batched(SortedVec::interp_search_batched_simd::<16>),
-                    &batched(SortedVec::interp_search_batched_simd::<32>),
+                    &SortedVec::binary_search,
+                    &SortedVec::binary_search_branchless,
+                    &SortedVec::binary_search_branchless_prefetch,
+                ],
+                "",
+            );
+
+            run_exps(
+                &mut results,
+                size,
+                &SortedVec::new(vals),
+                qs,
+                run,
+                &[
+                    &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<2>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<4>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<8>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<16>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<32>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<64>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<128>),
+                ],
+                "",
+            );
+
+            run_exps(
+                &mut results,
+                size,
+                &SortedVec::new(vals),
+                qs,
+                run,
+                &[
+                    &batched(SortedVec::batch_impl_binary_search_branchless::<2>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless::<4>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless::<8>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless::<16>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless::<32>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless::<64>),
+                    &batched(SortedVec::batch_impl_binary_search_branchless::<128>),
+                ],
+                "",
+            );
+
+            // Eytzinger section
+            // non-batched eytzinger
+            run_exps(
+                &mut results,
+                size,
+                &Eytzinger::new(vals),
+                qs,
+                run,
+                &[
+                    &Eytzinger::search,
+                    &Eytzinger::search_branchless,
+                    &Eytzinger::search_prefetch::<2>,
+                    &Eytzinger::search_prefetch::<3>,
+                    &Eytzinger::search_prefetch::<4>,
+                    &Eytzinger::search_branchless_prefetch::<2>,
+                    &Eytzinger::search_branchless_prefetch::<3>,
+                    &Eytzinger::search_branchless_prefetch::<4>,
+                ],
+                "",
+            );
+
+            // batched eytzinger without prefetching or branchless searching
+            run_exps(
+                &mut results,
+                size,
+                &Eytzinger::new(vals),
+                qs,
+                run,
+                &[
+                    &batched(Eytzinger::batch_impl::<2>),
+                    &batched(Eytzinger::batch_impl::<4>),
+                    &batched(Eytzinger::batch_impl::<8>),
+                    &batched(Eytzinger::batch_impl::<16>),
+                    &batched(Eytzinger::batch_impl::<32>),
+                    &batched(Eytzinger::batch_impl::<64>),
+                    &batched(Eytzinger::batch_impl::<128>),
+                ],
+                "",
+            );
+
+            // batched eytzinger with prefetching
+            // TODO: select best prefetch factor
+            run_exps(
+                &mut results,
+                size,
+                &Eytzinger::new(vals),
+                qs,
+                run,
+                &[
+                    &batched(Eytzinger::batch_impl_prefetched::<2, 4>),
+                    &batched(Eytzinger::batch_impl_prefetched::<4, 4>),
+                    &batched(Eytzinger::batch_impl_prefetched::<8, 4>),
+                    &batched(Eytzinger::batch_impl_prefetched::<16, 4>),
+                    &batched(Eytzinger::batch_impl_prefetched::<32, 4>),
+                    &batched(Eytzinger::batch_impl_prefetched::<64, 4>),
+                    &batched(Eytzinger::batch_impl_prefetched::<128, 4>),
                 ],
                 "",
             )
-
-            //     run_exps(
-            //         &mut results,
-            //         size,
-            //         &SortedVec::new(vals),
-            //         qs,
-            //         run,
-            //         &[
-            //             &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<2>),
-            //             &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<4>),
-            //             &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<8>),
-            //             &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<16>),
-            //             &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<32>),
-            //             &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<64>),
-            //             &batched(SortedVec::batch_impl_binary_search_branchless_prefetch::<128>),
-            //         ],
-            //         "",
-            //     );
-
-            //     run_exps(
-            //         &mut results,
-            //         size,
-            //         &SortedVec::new(vals),
-            //         qs,
-            //         run,
-            //         &[
-            //             &batched(SortedVec::batch_impl_binary_search_branchless::<2>),
-            //             &batched(SortedVec::batch_impl_binary_search_branchless::<4>),
-            //             &batched(SortedVec::batch_impl_binary_search_branchless::<8>),
-            //             &batched(SortedVec::batch_impl_binary_search_branchless::<16>),
-            //             &batched(SortedVec::batch_impl_binary_search_branchless::<32>),
-            //             &batched(SortedVec::batch_impl_binary_search_branchless::<64>),
-            //             &batched(SortedVec::batch_impl_binary_search_branchless::<128>),
-            //         ],
-            //         "",
-            //     );
-
-            //     // Eytzinger section
-            //     // non-batched eytzinger
-            //     run_exps(
-            //         &mut results,
-            //         size,
-            //         &Eytzinger::new(vals),
-            //         qs,
-            //         run,
-            //         &[
-            //             &Eytzinger::search,
-            //             &Eytzinger::search_branchless,
-            //             &Eytzinger::search_prefetch::<2>,
-            //             &Eytzinger::search_prefetch::<3>,
-            //             &Eytzinger::search_prefetch::<4>,
-            //             &Eytzinger::search_branchless_prefetch::<2>,
-            //             &Eytzinger::search_branchless_prefetch::<3>,
-            //             &Eytzinger::search_branchless_prefetch::<4>,
-            //         ],
-            //         "",
-            //     );
-
-            //     // batched eytzinger without prefetching or branchless searching
-            //     run_exps(
-            //         &mut results,
-            //         size,
-            //         &Eytzinger::new(vals),
-            //         qs,
-            //         run,
-            //         &[
-            //             &batched(Eytzinger::batch_impl::<2>),
-            //             &batched(Eytzinger::batch_impl::<4>),
-            //             &batched(Eytzinger::batch_impl::<8>),
-            //             &batched(Eytzinger::batch_impl::<16>),
-            //             &batched(Eytzinger::batch_impl::<32>),
-            //             &batched(Eytzinger::batch_impl::<64>),
-            //             &batched(Eytzinger::batch_impl::<128>),
-            //         ],
-            //         "",
-            //     );
-
-            //     // batched eytzinger with prefetching
-            //     // TODO: select best prefetch factor
-            //     run_exps(
-            //         &mut results,
-            //         size,
-            //         &Eytzinger::new(vals),
-            //         qs,
-            //         run,
-            //         &[
-            //             &batched(Eytzinger::batch_impl_prefetched::<2, 4>),
-            //             &batched(Eytzinger::batch_impl_prefetched::<4, 4>),
-            //             &batched(Eytzinger::batch_impl_prefetched::<8, 4>),
-            //             &batched(Eytzinger::batch_impl_prefetched::<16, 4>),
-            //             &batched(Eytzinger::batch_impl_prefetched::<32, 4>),
-            //             &batched(Eytzinger::batch_impl_prefetched::<64, 4>),
-            //             &batched(Eytzinger::batch_impl_prefetched::<128, 4>),
-            //         ],
-            //         "",
-            //     )
         }
 
         let mut candidate_filename = String::from("results");
