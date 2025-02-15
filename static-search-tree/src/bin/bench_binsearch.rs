@@ -123,8 +123,14 @@ fn main() {
                 &[
                     &SortedVec::binary_search_std,
                     &SortedVec::interpolation_search,
-                    &batched(SortedVec::interp_search_batched::<16>),
+                    // &batched(SortedVec::interp_search_batched::<4>),
+                    &batched(SortedVec::interp_search_batched::<8>),
+                    // &batched(SortedVec::interp_search_batched::<16>),
+                    // &batched(SortedVec::interp_search_batched::<32>),
+                    // &batched(SortedVec::interp_search_batched::<64>),
+                    &batched(SortedVec::interp_search_batched_simd::<8>),
                     &batched(SortedVec::interp_search_batched_simd::<16>),
+                    &batched(SortedVec::interp_search_batched_simd::<32>),
                 ],
                 "",
             )
@@ -254,8 +260,13 @@ pub fn sizes() -> Vec<usize> {
         let mut current: f32 = f32::powf(2.0, from as f32);
         let to = f32::powf(2.0, to as f32);
         while current < to {
-            v.push(current as usize);
-            current = current * 1.17;
+            if dense {
+                v.push(current as usize);
+                current = current * 1.17;
+            } else {
+                v.push(current as usize);
+                current = current * 1.61;
+            }
         }
     } else {
         for b in from..to {

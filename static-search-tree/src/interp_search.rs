@@ -1,7 +1,69 @@
 use itertools::Itertools;
 
 use crate::binary_search::SortedVec;
-use std::simd::{cmp::SimdOrd, isizex8, LaneCount, Simd};
+use std::simd::num::SimdUint;
+use std::simd::prelude::SimdFloat;
+use std::simd::prelude::SimdInt;
+use std::simd::SimdCast;
+use std::simd::{cmp::SimdOrd, LaneCount, Simd, SupportedLaneCount};
+
+#[inline(always)]
+fn elementwise_division<const N: usize>(num: Simd<u32, N>, den: Simd<u32, N>) -> Simd<u32, N>
+where
+    LaneCount<N>: SupportedLaneCount,
+{
+    let mut result: [u32; N] = [0; N];
+    let num_ary = num.as_array();
+    let den_ary = den.as_array();
+    for i in 0..N {
+        result[i] = num_ary[i] / den_ary[i];
+    }
+    Simd::<u32, N>::from_array(result)
+}
+
+#[inline(always)]
+fn fp_based_division<const N: usize>(num: Simd<u32, N>, den: Simd<u32, N>) -> Simd<u32, N>
+where
+    LaneCount<N>: SupportedLaneCount,
+{
+    let num_ary: Simd<f64, N> = num.cast::<f64>();
+    let den_ary: Simd<f64, N> = num.cast::<f64>();
+    let res = num_ary / den_ary;
+    res.cast::<u32>()
+}
+#[inline(always)]
+fn interpolate<const N: usize>(
+    ls: &[u32],
+    rs: &[u32],
+    l_vals: &[u32],
+    r_vals: &[u32],
+    qs: &[u32],
+    i: usize,
+) -> [u32; N]
+where
+    LaneCount<N>: SupportedLaneCount,
+{
+    let l_vec = Simd::<u32, N>::from_slice(&ls[i * N..(i + 1) * N]);
+    let r_vec = Simd::<u32, N>::from_slice(&rs[i * N..(i + 1) * N]);
+    let q_vec = Simd::<u32, N>::from_slice(&qs[i * N..(i + 1) * N]);
+    let l_vals_vec = Simd::<u32, N>::from_slice(&l_vals[i * N..(i + 1) * N]);
+    let r_vals_vec = Simd::<u32, N>::from_slice(&r_vals[i * N..(i + 1) * N]);
+    let ones = Simd::<u32, N>::splat(1);
+    let twos = Simd::<u32, N>::splat(2);
+    // print l_vec, r_vec, q_vec, r_vals_vec, l_vals_vec
+    // FIXME: this will overflow
+    // HOT: division
+
+    let mut m = l_vec
+        + (r_vec - l_vec)
+            * fp_based_division(q_vec - l_vals_vec + ones, r_vals_vec - l_vals_vec + twos);
+    let low = l_vec + (r_vec - l_vec) / Simd::<u32, N>::splat(16);
+    let high = l_vec + Simd::<u32, N>::splat(15) * (r_vec - l_vec) / Simd::<u32, N>::splat(16);
+    // equivalent to clamp
+    m = m.simd_min(high);
+    m = m.simd_max(low);
+    m.to_array()
+}
 
 impl SortedVec {
     /// Return the value of the first value >= query.
@@ -52,64 +114,55 @@ impl SortedVec {
 
     pub fn interp_search_batched_simd<const P: usize>(&self, qs: &[u32; P]) -> [u32; P] {
         const LANE_COUNT: usize = 4;
-        let mut ls: [isize; P] = [0isize; P];
-        let mut rs: [isize; P] = [(self.vals.len() - 1).try_into().unwrap(); P];
-        let mut l_vals: [isize; P] = ls.map(|i| self.get(i as usize).try_into().unwrap());
-        let mut r_vals: [isize; P] = rs.map(|i| self.get(i as usize).try_into().unwrap());
-        let qs: [isize; P] = qs
-            .iter()
-            .map(|&x| x as isize)
-            .collect_vec()
-            .try_into()
-            .unwrap();
+        let mut ls: [u32; P] = [0u32; P];
+        let mut rs: [u32; P] = [(self.vals.len() - 1).try_into().unwrap(); P];
+        let mut l_vals: [u32; P] = ls.map(|i| self.get(i as usize).try_into().unwrap());
+        let mut r_vals: [u32; P] = rs.map(|i| self.get(i as usize).try_into().unwrap());
+        let qs: [u32; P] = qs.map(|x| if x <= self.get(0) { self.get(0) } else { x });
         let mut retvals = [0u32; P];
         // an accumulator value going from 0 to P
         let mut done = 0;
         assert!(P % LANE_COUNT == 0);
-        let ones = Simd::<isize, LANE_COUNT>::splat(1);
-        let twos = Simd::<isize, LANE_COUNT>::splat(2);
-        // println!("Iteration! {:?} {:?}", ls, rs);
-        done = 0;
+        let mut done_positions = [false; P];
         // this is subject to change, maybe we want completely size-agnostic simd
         let simd_iters = P / LANE_COUNT;
+        let ones = Simd::<u32, LANE_COUNT>::splat(1);
+        let twos = Simd::<u32, LANE_COUNT>::splat(2);
 
         while done < P {
-            done = 0;
             for i in 0..simd_iters {
-                let q_vec = Simd::<isize, LANE_COUNT>::from_slice(
-                    &qs[i * LANE_COUNT..(i + 1) * LANE_COUNT],
-                );
-                let l_vec = Simd::<isize, LANE_COUNT>::from_slice(
-                    &ls[i * LANE_COUNT..(i + 1) * LANE_COUNT],
-                );
-                let r_vec = Simd::<isize, LANE_COUNT>::from_slice(
-                    &rs[i * LANE_COUNT..(i + 1) * LANE_COUNT],
-                );
-
-                let l_vals_vec = Simd::<isize, LANE_COUNT>::from_slice(
+                let l_vec =
+                    Simd::<u32, LANE_COUNT>::from_slice(&ls[i * LANE_COUNT..(i + 1) * LANE_COUNT]);
+                let r_vec =
+                    Simd::<u32, LANE_COUNT>::from_slice(&rs[i * LANE_COUNT..(i + 1) * LANE_COUNT]);
+                let q_vec =
+                    Simd::<u32, LANE_COUNT>::from_slice(&qs[i * LANE_COUNT..(i + 1) * LANE_COUNT]);
+                let l_vals_vec = Simd::<u32, LANE_COUNT>::from_slice(
                     &l_vals[i * LANE_COUNT..(i + 1) * LANE_COUNT],
                 );
-                let r_vals_vec = Simd::<isize, LANE_COUNT>::from_slice(
+                let r_vals_vec = Simd::<u32, LANE_COUNT>::from_slice(
                     &r_vals[i * LANE_COUNT..(i + 1) * LANE_COUNT],
                 );
-                // TODO: do something about the division here
+                // FIXME: this may overflow
+                // HOT: division
                 let mut m = l_vec
                     + (r_vec - l_vec) * (q_vec - l_vals_vec + ones)
                         / (r_vals_vec - l_vals_vec + twos);
-                let low = l_vec + (r_vec - l_vec) / Simd::<isize, LANE_COUNT>::splat(16);
+                let low = l_vec + (r_vec - l_vec) / Simd::<u32, LANE_COUNT>::splat(16);
                 let high = l_vec
-                    + Simd::<isize, LANE_COUNT>::splat(15) * (r_vec - l_vec)
-                        / Simd::<isize, LANE_COUNT>::splat(16);
+                    + Simd::<u32, LANE_COUNT>::splat(15) * (r_vec - l_vec)
+                        / Simd::<u32, LANE_COUNT>::splat(16);
                 // equivalent to clamp
                 m = m.simd_min(high);
                 m = m.simd_max(low);
-                let m_arr = m.as_array();
-                let mut m_val = [0isize; LANE_COUNT];
+                let m_arr = m.to_array();
+                let mut m_val = [0u32; LANE_COUNT];
                 for j in 0..LANE_COUNT {
                     if ls[i * LANE_COUNT + j] < rs[i * LANE_COUNT + j] {
                         // so this takes time if it is done for every one of the LANE_COUNT elements
                         // essentially random accesses in memory - could this be done better with sorting of queries?
-                        m_val[j] = self.get(m_arr[j] as usize).try_into().unwrap();
+                        m_val[j] = self.get(m_arr[j] as usize);
+                        // FIXME: this is a data hazard
                         if m_val[j] < qs[i * LANE_COUNT + j] {
                             ls[i * LANE_COUNT + j] = m_arr[j] + 1;
                             l_vals[i * LANE_COUNT + j] = m_val[j];
@@ -117,9 +170,9 @@ impl SortedVec {
                             rs[i * LANE_COUNT + j] = m_arr[j];
                             r_vals[i * LANE_COUNT + j] = m_val[j];
                         }
-                    } else {
-                        // this is likely cached and fast
+                    } else if !done_positions[i * LANE_COUNT + j] {
                         retvals[i * LANE_COUNT + j] = self.get(ls[i * LANE_COUNT + j] as usize);
+                        done_positions[i * LANE_COUNT + j] = true;
                         done += 1;
                     }
                 }
@@ -135,23 +188,22 @@ impl SortedVec {
         let mut l_vals: [usize; P] = ls.map(|i| self.get(i).try_into().unwrap());
         let mut r_vals: [usize; P] = rs.map(|i| self.get(i).try_into().unwrap());
         let mut retvals = [0u32; P];
-        // TODO: do this smarter
         let mut done = [false; P];
-        // do we need this edge case?
+        let mut done_count = 0;
 
-        // inkit to avoid negative values
+        // trick to avoid negative values
         for i in 0..P {
             let q_val: usize = qs[i].try_into().unwrap();
             if q_val <= l_vals[i] {
                 retvals[i] = self.get(ls[i]);
+                done_count += 1;
                 done[i] = true;
             }
         }
 
         // this loop should not be difficult to make a fixed number of iterations, or just not have to check
         // the condition every time
-        while !done.iter().all(|&x| x) {
-            // println!("Iteration! {:?} {:?}", ls, rs);
+        while done_count < P {
             for i in 0..P {
                 // this might be a hard-to-predict branch
                 if done[i] {
@@ -166,6 +218,7 @@ impl SortedVec {
 
                 if l >= r {
                     retvals[i] = self.get(l);
+                    done_count += 1;
                     done[i] = true;
                     continue;
                 }

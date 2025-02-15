@@ -755,8 +755,9 @@ def plot_interp_search_test():
     all_names = data.name.unique().tolist()
     print(all_names)
 
-    names = ["SortedVec::binary_search_std", "<impl SortedVec>::interpolation_search", "Batched<16, SortedVec, <impl SortedVec>::interp_search_batched_simd<16>>", "Batched<16, SortedVec, <impl SortedVec>::interp_search_batched<16>>"]
+    names = all_names
     keep = []
+
     plot(
         "interp-search-vs-binsearch",
         "Naive interpolation search",
