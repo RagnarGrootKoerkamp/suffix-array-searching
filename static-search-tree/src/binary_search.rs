@@ -88,8 +88,8 @@ impl SortedVec {
         let mut len: u64 = self.vals.len() as u64;
         while len > 1 {
             let half = len / 2;
-            prefetch_index(&self.vals, (base + half / 2) as usize);
-            prefetch_index(&self.vals, (base + half + half / 2) as usize);
+            prefetch_index(&self.vals, (base + half / 2 - 1) as usize);
+            prefetch_index(&self.vals, (base + half + half / 2 - 1) as usize);
             let cmp = self.get((base + half - 1) as usize) < q;
             base = select_unpredictable(cmp, base + half, base);
             len = len - half;
@@ -134,12 +134,13 @@ impl SortedVec {
         let mut len = self.vals.len() as u64;
         while len > 1 {
             let half = len / 2;
+            len = len - half;
             for i in 0..P {
                 let cmp = self.get((bases[i] + half - 1) as usize) < qb[i];
                 bases[i] = select_unpredictable(cmp, bases[i] + half, bases[i]);
-                prefetch_index(&self.vals, (bases[i] + half / 2) as usize);
+                prefetch_index(&self.vals, (bases[i] + half / 2 - 1) as usize);
+                prefetch_index(&self.vals, (bases[i] + half + half / 2 - 1) as usize);
             }
-            len = len - half;
         }
 
         bases.map(|x| self.get(x as usize))
