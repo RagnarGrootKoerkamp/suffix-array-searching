@@ -52,11 +52,10 @@ static ARGS: LazyLock<Args> = LazyLock::new(|| Args::parse());
 fn main() {
     let mut results = vec![];
 
-    let runs = ARGS.runs.unwrap_or(if ARGS.release { 3 } else { 1 });
+    let runs = ARGS.runs.unwrap_or(if ARGS.release { 5 } else { 1 });
     let sizes = sizes();
     for run in 0..runs {
         // Setup
-
         let mut vals = if !ARGS.human {
             gen_vals(*sizes.last().unwrap(), false)
         } else {
@@ -326,6 +325,7 @@ fn run_exps<I: SearchIndex>(
         results.push(Result::new(name, size, index, qs, exp, run, 6));
     }
 }
+
 fn try_run_exps<I: SearchIndex>(
     results: &mut Vec<Result>,
     size: usize,
