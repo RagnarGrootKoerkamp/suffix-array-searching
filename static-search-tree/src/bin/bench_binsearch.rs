@@ -223,6 +223,27 @@ fn main() {
                     &batched(Eytzinger::batch_impl_prefetched::<128, 4>),
                 ],
                 "",
+            );
+
+            run_exps(
+                &mut results,
+                size,
+                &SortedVec::new(vals),
+                qs,
+                run,
+                &[
+                    &SortedVec::interpolation_search,
+                    &batched(SortedVec::interp_search_batched::<2>),
+                    &batched(SortedVec::interp_search_batched::<4>),
+                    &batched(SortedVec::interp_search_batched::<8>),
+                    &batched(SortedVec::interp_search_batched::<16>),
+                    &batched(SortedVec::interp_search_batched::<32>),
+                    &batched(SortedVec::interp_search_batched_simd::<4>),
+                    &batched(SortedVec::interp_search_batched_simd::<8>),
+                    &batched(SortedVec::interp_search_batched_simd::<16>),
+                    &batched(SortedVec::interp_search_batched_simd::<32>),
+                ],
+                "",
             )
         }
 

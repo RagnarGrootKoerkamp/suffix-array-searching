@@ -544,6 +544,7 @@ def update_names(names, new_name):
 
 
 def plot_binsearch_blog():
+    # by default, read non-pow2 data
     all_data = read_file(f"{input_file_prefix}-non-pow2{human}{release}.json")
     data = all_data[all_data.threads == 1]
     all_names = data.name.unique().tolist()
@@ -641,7 +642,7 @@ def plot_binsearch_blog():
     )
 
     names = [
-        "SortedVec::binary_search_branchless_prefetch"
+        "SortedVec::binary_search_branchless_prefetch",
         "Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless<2>>",
         "Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless<4>>",
         "Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless<8>>",
@@ -846,6 +847,34 @@ def plot_binsearch_blog():
         ymax=1500,
         highlight=1,
     )
+
+    # power-of-two data for a plot illustrating the pathological case of binary search
+    all_data = read_file(f"{input_file_prefix}{human}{release}.json")
+    data = all_data[all_data.threads == 1]
+    all_names = data.name.unique().tolist()
+    print("kek", all_names)
+    names = [
+        # "SortedVec::binary_search_branchless_prefetch",
+        "Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<2>>",
+        "Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<4>>",
+        "Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<8>>",
+        "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<16>>",
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>>",
+        "Batched<64, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<64>>",
+        "Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<128>>",
+    ]
+
+    plot(
+        "binsearch-branchless-batched-comparison-pow2",
+        "Different batch sizes for branchless batched search",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=2000,
+        highlight=1,
+    )
+
 
 
 def plot_interp_search_test():
