@@ -322,7 +322,7 @@ fn run_exps<I: SearchIndex>(
 ) {
     for &exp in exps {
         results.push(Result::new(name, size, index, qs, exp, run, 1));
-        results.push(Result::new(name, size, index, qs, exp, run, 6));
+        results.push(Result::new(name, size, index, qs, exp, run, 8));
     }
 }
 
