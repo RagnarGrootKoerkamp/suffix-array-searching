@@ -954,7 +954,8 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, Map> {
                 for l in (0..L - 1).take(1) {
                     // i>=0, but i is unsigned so we check from the other end.
                     if i < L * P {
-                        let jump_to = unsafe { *offsets[l].byte_add(k[i]) }.find_splat64(q_simd[i]);
+                        let jump_to = unsafe { offsets[l].byte_add(k[i]).read_unaligned() }
+                            .find_splat64(q_simd[i]);
                         k[i] = k[i] * 16 + jump_to;
                         prefetch_ptr(unsafe { offsets[l + 1].byte_add(k[i]) });
                     }
@@ -972,7 +973,8 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, Map> {
 
                 if i < L * P {
                     ans[j] = {
-                        let idx = unsafe { *ol.byte_add(k[i]) }.find_splat(q_simd[i]);
+                        let idx =
+                            unsafe { ol.byte_add(k[i]).read_unaligned() }.find_splat(q_simd[i]);
                         unsafe { (ol.byte_add(k[i]) as *const u32).add(idx).read() }
                     };
                     // Find prefix position of new query.
@@ -996,7 +998,8 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, Map> {
             loop {
                 // first layer has branching factor 16
                 for l in (0..L - 1).take(1) {
-                    let jump_to = unsafe { *offsets[l].byte_add(k[i]) }.find_splat64(q_simd[i]);
+                    let jump_to = unsafe { offsets[l].byte_add(k[i]).read_unaligned() }
+                        .find_splat64(q_simd[i]);
                     k[i] = k[i] * 16 + jump_to;
                     prefetch_ptr(unsafe { offsets[l + 1].byte_add(k[i]) });
                     i += 1;
@@ -1010,7 +1013,7 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, Map> {
                 }
 
                 ans[j] = {
-                    let idx = unsafe { *ol.byte_add(k[i]) }.find_splat(q_simd[i]);
+                    let idx = unsafe { ol.byte_add(k[i]).read_unaligned() }.find_splat(q_simd[i]);
                     unsafe { (ol.byte_add(k[i]) as *const u32).add(idx).read() }
                 };
                 // Find prefix position of new query.
@@ -1035,7 +1038,8 @@ impl<const B: usize, const N: usize> PartitionedSTree<B, N, Map> {
                 // first layer has branching factor 16
                 for l in (0..L - 1).take(1) {
                     if i < L * P {
-                        let jump_to = unsafe { *offsets[l].byte_add(k[i]) }.find_splat64(q_simd[i]);
+                        let jump_to = unsafe { offsets[l].byte_add(k[i]).read_unaligned() }
+                            .find_splat64(q_simd[i]);
                         k[i] = k[i] * 16 + jump_to;
                         prefetch_ptr(unsafe { offsets[l + 1].byte_add(k[i]) });
                     }
