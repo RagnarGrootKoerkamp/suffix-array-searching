@@ -276,7 +276,7 @@ def read_file(filename):
     global palette
 
     names = sorted(data.name.unique())
-    colors = sns.color_palette(n_colors=11)
+    colors = sns.color_palette(n_colors=15)
     colors += colors
     colors += colors
     colors += colors
@@ -284,6 +284,9 @@ def read_file(filename):
     colors += colors
     colors += colors
     palette = dict(zip(names, colors))
+
+    print(len(names))
+    print("Eytzinger:")
 
     return data
 
@@ -543,47 +546,55 @@ def update_names(names, new_name):
     return names, new_keep
 
 
-def plot_binsearch_blog():
+def plot_binsearch_blog(multithreaded=False):
     # by default, read non-pow2 data
-    all_data = read_file(f"{input_file_prefix}-non-pow2{human}{release}.json")
-    data = all_data[all_data.threads == 1]
+    all_data = read_file(f"{input_file_prefix}-non-pow2{release}.json")
+    if not multithreaded:
+        data = all_data[all_data.threads == 1]
+    else:
+        data = all_data[all_data.threads == 8]
+
+    multithreaded_suffix = "" if not multithreaded else "-multithreaded"
+
     all_names = data.name.unique().tolist()
     print(all_names)
+    def size(size):
+        return 100 if multithreaded else size
 
     names = ["SortedVec::binary_search", "SortedVec::binary_search_std"]
     new_best = names[0]
     keep = []
     plot(
-        "binsearch-std-vs-binsearch",
+        f"binsearch-std-vs-binsearch{multithreaded_suffix}",
         "Naive binary search",
         data,
         names,
         keep,
         new_best=new_best,
-        ymax=1500,
+        ymax=size(1500),
         highlight=1,
     )
 
     names, _ = update_names(names, "SortedVec::binary_search_branchless")
 
     plot(
-        "binsearch-std-vs-branchless",
+        f"binsearch-std-vs-branchless{multithreaded_suffix}",
         "Branchless binary search",
         data,
         names,
         keep,
-        ymax=1500,
+        ymax=size(1500),
         highlight=1,
     )
 
     names, keep = update_names(names, "SortedVec::binary_search_branchless_prefetch")
     plot(
-        "binsearch-std-vs-branchless-prefetch",
+        f"binsearch-std-vs-branchless-prefetch{multithreaded_suffix}",
         "Branchless binary search with prefetch",
         data,
         names,
         keep,
-        ymax=1500,
+        ymax=size(1500),
         highlight=1,
     )
 
@@ -593,13 +604,13 @@ def plot_binsearch_blog():
     )
     new_best = names[4]
     plot(
-        "binsearch-std-vs-batched",
+        f"binsearch-std-vs-batched{multithreaded_suffix}",
         "Branchless binary search with batching",
         data,
         names,
         keep,
         new_best=new_best,
-        ymax=1200,
+        ymax=size(1200),
         highlight=1,
     )
 
@@ -610,12 +621,12 @@ def plot_binsearch_blog():
     ]
     keep = []
     plot(
-        "binsearch-batched-vs-batched-prefetch",
+        f"binsearch-batched-vs-batched-prefetch{multithreaded_suffix}",
         "Batched binsearch vs batched prefetched binsearch",
         data,
         names,
         keep,
-        ymax=200,
+        ymax=size(200),
         highlight=1,
     )
 
@@ -631,13 +642,13 @@ def plot_binsearch_blog():
     ]
     keep = []
     plot(
-        "binsearch-branchless-prefetched-batched",
+        f"binsearch-branchless-prefetched-batched{multithreaded_suffix}",
         "Different batch sizes for branchless batched search",
         data,
         names,
         keep,
         new_best=False,
-        ymax=1000,
+        ymax=size(1000),
         highlight=1,
     )
 
@@ -653,30 +664,29 @@ def plot_binsearch_blog():
     ]
     keep = []
     plot(
-        "binsearch-branchless-batched",
+        f"binsearch-branchless-batched{multithreaded_suffix}",
         "Different batch sizes for branchless batched search",
         data,
         names,
         keep,
         new_best=False,
-        ymax=1000,
+        ymax=size(1000),
         highlight=1,
     )
 
     names = [
-        "SortedVec::binary_search_std",
         "SortedVec::binary_search_branchless_prefetch",
         "Eytzinger::search",
     ]
     keep = []
     plot(
-        "eytzinger-vs-binsearches",
+        f"eytzinger-vs-binsearches{multithreaded_suffix}",
         "Eytzinger search compared to binary search",
         data,
         names,
         keep,
         new_best=False,
-        ymax=500,
+        ymax=size(500),
         highlight=1,
     )
 
@@ -688,13 +698,13 @@ def plot_binsearch_blog():
     ]
     keep = []
     plot(
-        "eytzinger-prefetching",
+        f"eytzinger-prefetching{multithreaded_suffix}",
         "Eytzinger layout with prefetching",
         data,
         names,
         keep,
         new_best=False,
-        ymax=1000,
+        ymax=size(1000),
         highlight=1,
     )
 
@@ -705,13 +715,13 @@ def plot_binsearch_blog():
     ]
     keep = []
     plot(
-        "eytzinger-branchless-prefetching",
+        f"eytzinger-branchless-prefetching{multithreaded_suffix}",
         "Eytzinger layout with prefetching",
         data,
         names,
         keep,
         new_best=False,
-        ymax=500,
+        ymax=size(500),
         highlight=1,
     )
 
@@ -725,13 +735,13 @@ def plot_binsearch_blog():
     ]
     keep = []
     plot(
-        "eytzinger-batched-comparison",
+        f"eytzinger-batched-comparison{multithreaded_suffix}",
         "Eytzinger layout with batching",
         data,
         names,
         keep,
         new_best=False,
-        ymax=500,
+        ymax=size(500),
         highlight=1,
     )
 
@@ -746,13 +756,13 @@ def plot_binsearch_blog():
     ]
     keep = []
     plot(
-        "eytzinger-batched-prefetched-comparison",
+        f"eytzinger-batched-prefetched-comparison{multithreaded_suffix}",
         "Eytzinger layout with batching",
         data,
         names,
         keep,
         new_best=False,
-        ymax=500,
+        ymax=size(500),
         highlight=1,
     )
 
@@ -763,30 +773,47 @@ def plot_binsearch_blog():
     ]
     keep = []
     plot(
-        "eytzinger-best-batching-comparison",
+        f"eytzinger-best-batching-comparison{multithreaded_suffix}",
         "Comparison of batched Eytzinger - best prefetching & non-prefetching",
         data,
         names,
         keep,
         new_best=False,
-        ymax=600,
+        ymax=size(600),
         highlight=1,
     )
 
     # Binsearch and Eytzinger conclusion
     names = [
-        "Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<128>>",
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>>",
         "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
     ]
     keep = []
     plot(
-        "binsearch-eytzinger-conclusion",
+        f"binsearch-eytzinger-conclusion{multithreaded_suffix}",
         "Binary search and Eytzinger layout - best parameters",
         data,
         names,
         keep,
         new_best=False,
-        ymax=200,
+        ymax=size(200),
+        highlight=1,
+    )
+
+    # Binsearch and Eytzinger conclusion
+    names = [
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
+        "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
+    ]
+    keep = []
+    plot(
+        f"binsearch-eytzinger-conclusion{multithreaded_suffix}",
+        "Binary search and Eytzinger layout - best parameters",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=size(200),
         highlight=1,
     )
 
@@ -794,20 +821,20 @@ def plot_binsearch_blog():
     names = ["SortedVec::binary_search_std", "<impl SortedVec>::interpolation_search"]
     keep = []
     plot(
-        "interp-vs-binsearch",
+        f"interp-vs-binsearch{multithreaded_suffix}",
         "Interpolation search",
         data,
         names,
         keep,
         new_best=False,
-        ymax=1500,
+        ymax=size(1500),
         highlight=1,
     )
 
     # Interpolation search - batching
     names = [
-        "SortedVec::binary_search_std",
         "<impl SortedVec>::interpolation_search",
+        "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
         "Batched<2, SortedVec, <impl SortedVec>::interp_search_batched<2>>",
         "Batched<4, SortedVec, <impl SortedVec>::interp_search_batched<4>>",
         "Batched<8, SortedVec, <impl SortedVec>::interp_search_batched<8>>",
@@ -816,43 +843,21 @@ def plot_binsearch_blog():
     ]
     keep = []
     plot(
-        "interp-vs-binsearch-batched",
+        f"interp-vs-binsearch-batched{multithreaded_suffix}",
         "Interpolation search with batching",
         data,
         names,
         keep,
         new_best=False,
-        ymax=1500,
-        highlight=1,
-    )
-
-    # Interpolation search - batching - SIMD
-    # all the names same as in the previous plot but with "simd" in the end
-    names = [
-        "SortedVec::binary_search_std",
-        "<impl SortedVec>::interpolation_search",
-        "Batched<4, SortedVec, <impl SortedVec>::interp_search_batched_simd<4>>",
-        "Batched<8, SortedVec, <impl SortedVec>::interp_search_batched_simd<8>>",
-        "Batched<16, SortedVec, <impl SortedVec>::interp_search_batched_simd<16>>",
-        "Batched<32, SortedVec, <impl SortedVec>::interp_search_batched_simd<32>>",
-    ]
-    keep = []
-    plot(
-        "interp-vs-binsearch-batched-simd",
-        "Interpolation search with batching and SIMD",
-        data,
-        names,
-        keep,
-        new_best=False,
-        ymax=1500,
+        ymax=size(1500),
         highlight=1,
     )
 
     # power-of-two data for a plot illustrating the pathological case of binary search
-    all_data = read_file(f"{input_file_prefix}{human}{release}.json")
+    all_data = read_file(f"{input_file_prefix}{release}.json")
     data = all_data[all_data.threads == 1]
     all_names = data.name.unique().tolist()
-    print("kek", all_names)
+    print(all_names)
     names = [
         # "SortedVec::binary_search_branchless_prefetch",
         "Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<2>>",
@@ -875,6 +880,153 @@ def plot_binsearch_blog():
         highlight=1,
     )
 
+    # parallel searching
+
+    all_data = read_file(f"{input_file_prefix}-non-pow2{release}.json")
+    data = all_data[all_data.threads == 8]
+    # prefetched vs non-prefetched binsearch
+    names = [
+        "SortedVec::binary_search_branchless_prefetch",
+        "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless<16>>",
+        "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<16>>",
+    ]
+    keep = []
+    plot(
+        "binsearch-batched-vs-batched-prefetch-multithreaded",
+        "Batched binsearch vs batched prefetched binsearch",
+        data,
+        names,
+        keep,
+        ymax=100,
+        highlight=1,
+    )
+    # batch sizes for binsearch
+    names = [
+        "SortedVec::binary_search_branchless_prefetch",
+        "Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless<2>>",
+        "Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless<4>>",
+        "Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless<8>>",
+        "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless<16>>",
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
+        "Batched<64, SortedVec, SortedVec::batch_impl_binary_search_branchless<64>>",
+        "Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless<128>>",
+    ]
+    keep = []
+    plot(
+        "binsearch-branchless-prefetched-batched-multithreaded",
+        "Different batch sizes for branchless batched search",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=100,
+        highlight=1,
+    )
+    # prefetched vs non-prefetched eytzinger
+    names = [
+        "Eytzinger::search_branchless_prefetch<4>",
+        "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
+        "Batched<16, Eytzinger, Eytzinger::batch_impl<16>>",
+    ]
+    keep = []
+    plot(
+        f"eytzinger-best-batching-comparison-multithreaded",
+        "Comparison of batched Eytzinger - best prefetching & non-prefetching",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=60,
+        highlight=1,
+    )
+    # eytzinger comparison
+    names = [
+        "Batched<2, Eytzinger, Eytzinger::batch_impl_prefetched<2, 4>>",
+        "Batched<4, Eytzinger, Eytzinger::batch_impl_prefetched<4, 4>>",
+        "Batched<8, Eytzinger, Eytzinger::batch_impl_prefetched<8, 4>>",
+        "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
+        "Batched<32, Eytzinger, Eytzinger::batch_impl_prefetched<32, 4>>",
+        "Batched<64, Eytzinger, Eytzinger::batch_impl_prefetched<64, 4>>",
+        "Batched<128, Eytzinger, Eytzinger::batch_impl_prefetched<128, 4>>",
+    ]
+    keep = []
+    plot(
+        f"eytzinger-batched-prefetched-comparison-multithreaded",
+        "Eytzinger layout with batching",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=40,
+        highlight=1,
+    )
+    # eytzinger vs binsearch
+    names = [
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
+        "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
+    ]
+    keep = []
+    plot(
+        f"binsearch-eytzinger-conclusion-multithreaded",
+        "Binary search and Eytzinger layout - best parameters",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=40,
+        highlight=1,
+    )
+
+    all_data = read_file(f"{input_file_prefix}-non-pow2-human-release.json")
+    # 8 physical threads on my machine
+    data = all_data[all_data.threads == 1]
+    all_names = data.name.unique().tolist()
+    # Interpolation search - batching on human data
+    names = [
+        "<impl SortedVec>::interpolation_search",
+        "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
+        "Batched<2, SortedVec, <impl SortedVec>::interp_search_batched<2>>",
+        "Batched<4, SortedVec, <impl SortedVec>::interp_search_batched<4>>",
+        "Batched<8, SortedVec, <impl SortedVec>::interp_search_batched<8>>",
+        "Batched<16, SortedVec, <impl SortedVec>::interp_search_batched<16>>",
+        "Batched<32, SortedVec, <impl SortedVec>::interp_search_batched<32>>",
+    ]
+    keep = []
+    plot(
+        f"interp-vs-binsearch-batched-human-final",
+        "Interpolation search with batching",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=1500,
+        highlight=1,
+    )
+
+    # 8 physical threads on my machine
+    data = all_data[all_data.threads == 8]
+    all_names = data.name.unique().tolist()
+    # Interpolation search - batching on human data
+    names = [
+        "<impl SortedVec>::interpolation_search",
+        "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
+        "Batched<2, SortedVec, <impl SortedVec>::interp_search_batched<2>>",
+        "Batched<4, SortedVec, <impl SortedVec>::interp_search_batched<4>>",
+        "Batched<8, SortedVec, <impl SortedVec>::interp_search_batched<8>>",
+        "Batched<16, SortedVec, <impl SortedVec>::interp_search_batched<16>>",
+        "Batched<32, SortedVec, <impl SortedVec>::interp_search_batched<32>>",
+    ]
+    keep = []
+    plot(
+        "interp-vs-binsearch-batched-human-final-multithreaded",
+        "Interpolation search with batching",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=200,
+        highlight=1,
+    )
 
 
 def plot_interp_search_test():
@@ -953,4 +1105,5 @@ if args.interp_search_test:
     plot_interp_search_test()
 else:
     plot_binsearch_blog()
+    plot_binsearch_blog(multithreaded=True)
 # plot_all()

@@ -1,5 +1,6 @@
 use clap::Parser;
 use itertools::Itertools;
+use rand::Rng;
 use rdst::RadixSort;
 use static_search_tree::{
     batched,
@@ -76,7 +77,8 @@ fn main() {
             vals
         };
 
-        let queries = ARGS.queries.unwrap_or(1_000_000).next_multiple_of(256 * 3);
+        // TODO: add number of cores as a constant
+        let queries = ARGS.queries.unwrap_or(1_000_000).next_multiple_of(128 * 8);
         let qs = if ARGS.positive {
             &gen_positive_queries(queries, &vals)
         } else {
@@ -84,9 +86,20 @@ fn main() {
         };
         let range_queries = qs.iter().flat_map(|&q| [q, q + 1]).collect_vec();
 
+        let mut rng = rand::thread_rng();
         for &size in &sizes {
             let len = size / std::mem::size_of::<u32>();
-            let vals = &mut vals[..len];
+            let start = rng.gen_range(0..(vals.len() - len - 1));
+            let mut used_vals = vec![i32::MAX as u32; len];
+
+            let vals = if !ARGS.human {
+                &mut vals[..]
+            } else {
+                used_vals[0..len - 1].clone_from_slice(&vals[start..start + len - 1]);
+                &mut used_vals
+            };
+
+            println!("{}", vals.len());
             vals.radix_sort_unstable();
 
             if ARGS.range {
@@ -243,7 +256,20 @@ fn main() {
                     &batched(SortedVec::interp_search_batched_simd::<32>),
                 ],
                 "",
-            )
+            );
+
+            // SECTION 5.6: Prefix lookup + interleaving
+            for &b in &bs {
+                try_run_exps(
+                    &mut results,
+                    size,
+                    &PartitionedSTree16M::try_new(vals, b),
+                    qs,
+                    run,
+                    &[&full(PartitionedSTree16M::search_interleave_128)],
+                    &format!("{b}"),
+                );
+            }
         }
 
         let mut candidate_filename = String::from("results");
@@ -284,8 +310,7 @@ pub fn sizes() -> Vec<usize> {
         }
     } else {
         for b in from..to {
-            let base = if ARGS.non_pow2 { 1 << b - 1 } else { 1 << b };
-
+            let base = 1 << b;
             v.push(base);
             if dense {
                 v.push(base * 5 / 4);
@@ -382,7 +407,6 @@ impl Result {
         run: usize,
         threads: usize,
     ) -> Result {
-        // println!("n = {size:>8} {} / {} RUNNING", scheme.name(), name);
         let chunk_size = qs.len().div_ceil(threads);
 
         let start = Instant::now();
