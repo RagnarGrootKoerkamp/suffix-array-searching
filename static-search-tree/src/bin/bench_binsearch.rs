@@ -93,13 +93,12 @@ fn main() {
             let mut used_vals = vec![i32::MAX as u32; len];
 
             let vals = if !ARGS.human {
-                &mut vals[..]
+                &mut vals[0..len]
             } else {
                 used_vals[0..len - 1].clone_from_slice(&vals[start..start + len - 1]);
                 &mut used_vals
             };
 
-            println!("{}", vals.len());
             vals.radix_sort_unstable();
 
             if ARGS.range {
@@ -237,6 +236,19 @@ fn main() {
                 "",
             );
 
+            // // SECTION 5.6: Prefix lookup + interleaving
+            for &b in &bs {
+                try_run_exps(
+                    &mut results,
+                    size,
+                    &PartitionedSTree16M::try_new(vals, b),
+                    qs,
+                    run,
+                    &[&full(PartitionedSTree16M::search_interleave_128)],
+                    &format!("{b}"),
+                );
+            }
+
             run_exps(
                 &mut results,
                 size,
@@ -256,20 +268,7 @@ fn main() {
                     &batched(SortedVec::interp_search_batched_simd::<32>),
                 ],
                 "",
-            );
-
-            // SECTION 5.6: Prefix lookup + interleaving
-            for &b in &bs {
-                try_run_exps(
-                    &mut results,
-                    size,
-                    &PartitionedSTree16M::try_new(vals, b),
-                    qs,
-                    run,
-                    &[&full(PartitionedSTree16M::search_interleave_128)],
-                    &format!("{b}"),
-                );
-            }
+            )
         }
 
         let mut candidate_filename = String::from("results");
