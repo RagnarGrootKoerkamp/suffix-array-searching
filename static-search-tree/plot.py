@@ -8,6 +8,7 @@ from matplotlib.ticker import LogLocator
 from matplotlib.colors import to_rgba
 import re
 import argparse
+import sys
 
 # import mpld3
 # import plotly.io as pio
@@ -52,6 +53,9 @@ def plot(
     size=False,
     highlight=1,
     spread=False,
+    # either false or an array specifying how many threads each name has
+    # to allow for plots with mixed threading
+    threads=[],
 ):
     print("plotting", experiment_name, "\n", names)
     # Create a figure
@@ -67,8 +71,18 @@ def plot(
     # for s in data.Style.unique():
     # assert s in dashes
 
-    data = data[data["name"].isin(names)]
+    def threads_names_map(thr, name):
+        return f"T{thr}: {name}"
 
+    data = data.copy()
+    if not threads:
+        data = data[data["name"].isin(names)]
+    else:
+        zipped_all = zip(data["threads"], data["name"])
+        zipped_selected = zip(threads, names)
+        data["name"] = list(map(lambda thr_name: threads_names_map(thr_name[0], thr_name[1]), zipped_all))
+        names = list(map(lambda thr_name: threads_names_map(thr_name[0], thr_name[1]), zipped_selected))
+        data = data[data["name"].isin(names)]
     new_best = (
         [] if new_best is False else new_best or (names[-highlight:] if names else [])
     )
@@ -87,24 +101,42 @@ def plot(
     data["type"] = data.name.apply(type)
 
     alpha_map = {"old": 0.3, "new": 1, "best": 1, "new_best": 1}
-    my_palette = {name: to_rgba(palette[name], alpha_map[type(name)]) for name in names}
 
-    sns.lineplot(
-        x="sz",
-        y="latency",
-        hue=data[
-            "name"
-            # "Color" if len(data.batchsize.unique()) == 1 else "display_name"
-        ].tolist(),
-        style=style if data.Style.unique().tolist() != [""] else None,
-        data=data,
-        legend="auto",
-        size="type",
-        sizes={"old": 0.5, "new": 1, "best": 2, "new_best": 1.5},
-        palette=my_palette,
-        errorbar=("pi", 50) if spread else None,
-        estimator="median",
-    )
+    if not threads:
+        my_palette = {name: to_rgba(palette[name], alpha_map[type(name)]) for name in names}
+        sns.lineplot(
+            x="sz",
+            y="latency",
+            hue=data[
+                "name"
+                # "Color" if len(data.batchsize.unique()) == 1 else "display_name"
+            ].tolist(),
+            style=style if data.Style.unique().tolist() != [""] else None,
+            data=data,
+            legend="auto",
+            size="type",
+            sizes={"old": 0.5, "new": 1, "best": 2, "new_best": 1.5},
+            palette=my_palette,
+            errorbar=("pi", 50) if spread else None,
+            estimator="median",
+        )
+    else:
+        sns.lineplot(
+            x="sz",
+            y="latency",
+            hue=data[
+                "name"
+                # "Color" if len(data.batchsize.unique()) == 1 else "display_name"
+            ].tolist(),
+            style=style if data.Style.unique().tolist() != [""] else None,
+            data=data,
+            legend="auto",
+            size="type",
+            sizes={"old": 0.5, "new": 1, "best": 2, "new_best": 1.5},
+            # palette=my_palette,
+            errorbar=("pi", 50) if spread else None,
+            estimator="median",
+        )
 
     # Plot index size with a separate y-scale.
     if size:
@@ -549,6 +581,7 @@ def update_names(names, new_name):
 def plot_binsearch_blog(multithreaded=False):
     # by default, read non-pow2 data
     all_data = read_file(f"{input_file_prefix}-non-pow2{release}.json")
+    print(all_data)
     if not multithreaded:
         data = all_data[all_data.threads == 1]
     else:
@@ -557,7 +590,6 @@ def plot_binsearch_blog(multithreaded=False):
     multithreaded_suffix = "" if not multithreaded else "-multithreaded"
 
     all_names = data.name.unique().tolist()
-    print(all_names)
     def size(size):
         return 100 if multithreaded else size
 
@@ -857,7 +889,6 @@ def plot_binsearch_blog(multithreaded=False):
     all_data = read_file(f"{input_file_prefix}{release}.json")
     data = all_data[all_data.threads == 1]
     all_names = data.name.unique().tolist()
-    print(all_names)
     names = [
         # "SortedVec::binary_search_branchless_prefetch",
         "Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<2>>",
@@ -960,10 +991,12 @@ def plot_binsearch_blog(multithreaded=False):
         ymax=40,
         highlight=1,
     )
-    # eytzinger vs binsearch
+
+    # eytzinger vs binsearch vs s-trees
     names = [
         "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
         "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
+        "PartitionedSTree<16, 16, Map>::search_interleave_128 20"
     ]
     keep = []
     plot(
@@ -975,6 +1008,41 @@ def plot_binsearch_blog(multithreaded=False):
         new_best=False,
         ymax=40,
         highlight=1,
+    )
+
+    data = all_data
+    names = [
+        "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
+        "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
+    ]
+    keep = []
+    plot(
+        "eytzinger-single-vs-multithreaded",
+        "Eytzinger - single vs. multithreaded",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=150,
+        highlight=1,
+        threads=[1, 8]
+    )
+
+    names = [
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
+    ]
+    keep = []
+    plot(
+        "binsearch-single-vs-multithreaded",
+        "Binary search - single vs. multithreaded",
+        data,
+        names,
+        keep,
+        new_best=False,
+        ymax=150,
+        highlight=1,
+        threads=[1, 8]
     )
 
     all_data = read_file(f"{input_file_prefix}-non-pow2-human-release.json")
@@ -1105,5 +1173,5 @@ if args.interp_search_test:
     plot_interp_search_test()
 else:
     plot_binsearch_blog()
-    plot_binsearch_blog(multithreaded=True)
+    # plot_binsearch_blog(multithreaded=True)
 # plot_all()
