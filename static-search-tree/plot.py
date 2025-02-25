@@ -1014,35 +1014,20 @@ def plot_binsearch_blog(multithreaded=False):
     names = [
         "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
         "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
     ]
     keep = []
     plot(
-        "eytzinger-single-vs-multithreaded",
-        "Eytzinger - single vs. multithreaded",
+        "single-vs-multithreaded",
+        "Single vs. multithreaded search",
         data,
         names,
         keep,
         new_best=False,
         ymax=150,
         highlight=1,
-        threads=[1, 8]
-    )
-
-    names = [
-        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
-        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
-    ]
-    keep = []
-    plot(
-        "binsearch-single-vs-multithreaded",
-        "Binary search - single vs. multithreaded",
-        data,
-        names,
-        keep,
-        new_best=False,
-        ymax=150,
-        highlight=1,
-        threads=[1, 8]
+        threads=[1, 8, 1, 8]
     )
 
     all_data = read_file(f"{input_file_prefix}-non-pow2-human-release.json")
