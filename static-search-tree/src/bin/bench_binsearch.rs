@@ -45,6 +45,8 @@ struct Args {
     #[clap(long)]
     range: bool,
     #[clap(long)]
+    threads: usize,
+    #[clap(long)]
     positive: bool,
 }
 
@@ -78,7 +80,10 @@ fn main() {
         };
 
         // TODO: add number of cores as a constant
-        let queries = ARGS.queries.unwrap_or(1_000_000).next_multiple_of(128 * 8);
+        let queries = ARGS
+            .queries
+            .unwrap_or(1_000_000)
+            .next_multiple_of(128 * ARGS.threads);
         let qs = if ARGS.positive {
             &gen_positive_queries(queries, &vals)
         } else {
@@ -348,7 +353,7 @@ fn run_exps<I: SearchIndex>(
 ) {
     for &exp in exps {
         results.push(Result::new(name, size, index, qs, exp, run, 1));
-        results.push(Result::new(name, size, index, qs, exp, run, 8));
+        results.push(Result::new(name, size, index, qs, exp, run, ARGS.threads));
     }
 }
 

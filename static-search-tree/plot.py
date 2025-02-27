@@ -578,14 +578,14 @@ def update_names(names, new_name):
     return names, new_keep
 
 
-def plot_binsearch_blog(multithreaded=False):
+def plot_binsearch_blog(multithreaded=False, threads=8):
     # by default, read non-pow2 data
     all_data = read_file(f"{input_file_prefix}-non-pow2{release}.json")
     print(all_data)
     if not multithreaded:
         data = all_data[all_data.threads == 1]
     else:
-        data = all_data[all_data.threads == 8]
+        data = all_data[all_data.threads == threads]
 
     multithreaded_suffix = "" if not multithreaded else "-multithreaded"
 
@@ -898,7 +898,7 @@ def plot_binsearch_blog(multithreaded=False):
     # parallel searching
 
     all_data = read_file(f"{input_file_prefix}-non-pow2{release}.json")
-    data = all_data[all_data.threads == 8]
+    data = all_data[all_data.threads == threads]
     # prefetched vs non-prefetched binsearch
     names = [
         "SortedVec::binary_search_branchless_prefetch",
@@ -1042,7 +1042,7 @@ def plot_binsearch_blog(multithreaded=False):
     )
 
     # 8 physical threads on my machine
-    data = all_data[all_data.threads == 8]
+    data = all_data[all_data.threads == threads]
     all_names = data.name.unique().tolist()
     # Interpolation search - batching on human data
     names = [
@@ -1127,12 +1127,14 @@ parser.add_argument(
 parser.add_argument(
     "--out_format", default="png", type=str, help="Output format of the plots"
 )
+parser.add_argument(
+    "--threads", default=8, type=int, help="number of threads"
+)
 parser.add_argument("--interp_search_test", action="store_true")
 
 args = parser.parse_args()
 if args.release:
     release = "-release"
-
 if args.human:
     human = "-human"
 store_dir = args.store_dir
@@ -1142,6 +1144,6 @@ out_format = args.out_format
 if args.interp_search_test:
     plot_interp_search_test()
 else:
-    plot_binsearch_blog()
+    plot_binsearch_blog(threads=args.threads)
     # plot_binsearch_blog(multithreaded=True)
 # plot_all()
