@@ -884,16 +884,16 @@ def plot_binsearch_blog(multithreaded=False):
         "Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<128>>",
     ]
 
-    plot(
-        "binsearch-branchless-batched-comparison-pow2",
-        "Different batch sizes for branchless batched search",
-        data,
-        names,
-        keep,
-        new_best=False,
-        ymax=2000,
-        highlight=1,
-    )
+    # plot(
+    #     "binsearch-branchless-batched-comparison-pow2",
+    #     "Different batch sizes for branchless batched search",
+    #     data,
+    #     names,
+    #     keep,
+    #     new_best=False,
+    #     ymax=2000,
+    #     highlight=1,
+    # )
 
     # parallel searching
 
