@@ -308,7 +308,7 @@ def read_file(filename):
     global palette
 
     names = sorted(data.name.unique())
-    colors = sns.color_palette(n_colors=15)
+    colors = sns.color_palette(n_colors=20)
     colors += colors
     colors += colors
     colors += colors
@@ -820,23 +820,7 @@ def plot_binsearch_blog(multithreaded=False):
         "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>>",
         "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
     ]
-    keep = []
-    plot(
-        f"binsearch-eytzinger-conclusion{multithreaded_suffix}",
-        "Binary search and Eytzinger layout - best parameters",
-        data,
-        names,
-        keep,
-        new_best=False,
-        ymax=size(200),
-        highlight=1,
-    )
-
-    # Binsearch and Eytzinger conclusion
-    names = [
-        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
-        "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
-    ]
+    print(names)
     keep = []
     plot(
         f"binsearch-eytzinger-conclusion{multithreaded_suffix}",
@@ -918,8 +902,8 @@ def plot_binsearch_blog(multithreaded=False):
     # prefetched vs non-prefetched binsearch
     names = [
         "SortedVec::binary_search_branchless_prefetch",
-        "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless<16>>",
-        "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<16>>",
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>>",
     ]
     keep = []
     plot(
@@ -994,9 +978,10 @@ def plot_binsearch_blog(multithreaded=False):
 
     # eytzinger vs binsearch vs s-trees
     names = [
-        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>>",
         "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
-        "PartitionedSTree<16, 16, Map>::search_interleave_128 20"
+        "STree<>::batch_final LeftMax",
+        "STree<>::batch_interleave_all_128 LeftMax"
     ]
     keep = []
     plot(
@@ -1006,7 +991,7 @@ def plot_binsearch_blog(multithreaded=False):
         names,
         keep,
         new_best=False,
-        ymax=40,
+        ymax=80,
         highlight=1,
     )
 
@@ -1014,8 +999,8 @@ def plot_binsearch_blog(multithreaded=False):
     names = [
         "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
         "Batched<16, Eytzinger, Eytzinger::batch_impl_prefetched<16, 4>>",
-        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
-        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless<32>>",
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>>",
+        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>>",
     ]
     keep = []
     plot(
