@@ -96,6 +96,7 @@ impl SortedVec {
             // The +1 and +2 ensure l<m<r.
             // HOT: The division is slow.
             // OMFG is there really not a better way to do this? Multiple integer types are a nightmare
+            // try doing the division in u32
             let mut m: usize = l + (r - l) * (q_val - l_val + 1) / (r_val - l_val + 2);
             let low = l + (r - l) / 16;
             let high = l + 15 * (r - l) / 16;

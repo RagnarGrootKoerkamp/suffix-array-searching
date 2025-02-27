@@ -9,5 +9,4 @@ resolver = "2"
 lto = "thin"
 incremental = true
 opt-level = 3
-debug = true
 panic = 'abort'

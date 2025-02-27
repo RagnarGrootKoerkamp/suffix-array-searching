@@ -337,6 +337,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cmov"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b1dc960ba75d543267db9254da8ec1cb318a037beb3f8d2497520e410096fab"
+
+[[package]]
 name = "color-backtrace"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1003,6 +1009,7 @@ version = "0.1.0"
 dependencies = [
  "alloc-madvise",
  "clap",
+ "cmov",
  "color-backtrace",
  "ctor",
  "itertools 0.13.0",

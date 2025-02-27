@@ -236,18 +236,20 @@ fn main() {
                 "",
             );
 
-            // // SECTION 5.6: Prefix lookup + interleaving
-            for &b in &bs {
-                try_run_exps(
-                    &mut results,
-                    size,
-                    &PartitionedSTree16M::try_new(vals, b),
-                    qs,
-                    run,
-                    &[&full(PartitionedSTree16M::search_interleave_128)],
-                    &format!("{b}"),
-                );
-            }
+            // SECTION 4.1: left-max tree
+            let exps = [
+                &batched(STree16::batch_final::<128>) as &dyn SearchScheme<_>,
+                &full(STree16::batch_interleave_all_128),
+            ];
+            run_exps(
+                &mut results,
+                size,
+                &STree16::new_params(vals, true, false, false),
+                qs,
+                run,
+                &exps,
+                "LeftMax",
+            );
 
             run_exps(
                 &mut results,

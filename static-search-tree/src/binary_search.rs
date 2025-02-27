@@ -139,7 +139,6 @@ impl SortedVec {
                 let cmp = self.get((bases[i] + half - 1) as usize) < qb[i];
                 bases[i] = select_unpredictable(cmp, bases[i] + half, bases[i]);
                 prefetch_index(&self.vals, (bases[i] + half / 2 - 1) as usize);
-                prefetch_index(&self.vals, (bases[i] + half + half / 2 - 1) as usize);
             }
         }
 
