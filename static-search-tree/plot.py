@@ -870,19 +870,19 @@ def plot_binsearch_blog(multithreaded=False, threads=8):
     )
 
     # power-of-two data for a plot illustrating the pathological case of binary search
-    all_data = read_file(f"{input_file_prefix}{release}.json")
-    data = all_data[all_data.threads == 1]
-    all_names = data.name.unique().tolist()
-    names = [
-        # "SortedVec::binary_search_branchless_prefetch",
-        "Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<2>>",
-        "Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<4>>",
-        "Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<8>>",
-        "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<16>>",
-        "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>>",
-        "Batched<64, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<64>>",
-        "Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<128>>",
-    ]
+    # all_data = read_file(f"{input_file_prefix}{release}.json")
+    # data = all_data[all_data.threads == 1]
+    # all_names = data.name.unique().tolist()
+    # names = [
+    #     # "SortedVec::binary_search_branchless_prefetch",
+    #     "Batched<2, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<2>>",
+    #     "Batched<4, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<4>>",
+    #     "Batched<8, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<8>>",
+    #     "Batched<16, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<16>>",
+    #     "Batched<32, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<32>>",
+    #     "Batched<64, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<64>>",
+    #     "Batched<128, SortedVec, SortedVec::batch_impl_binary_search_branchless_prefetch<128>>",
+    # ]
 
     # plot(
     #     "binsearch-branchless-batched-comparison-pow2",
