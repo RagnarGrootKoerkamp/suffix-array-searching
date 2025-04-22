@@ -22,6 +22,14 @@ the =results= and =plots= directories (the scripts expect them to exist).
 1. Run the experiments: =cargo run -r --bin bench -- --release=.
 
    See =cargo run -r --bin bench -- --help= for more options.
+
+   *Note:* To use SIMD, make sure to compile for your native CPU, e.g. by adding
+   the following to =.cargo/config.toml=:
+
+   #+begin_src toml
+   [build]
+   rustflags = ["-C", "target-cpu=native"]
+   #+end_src
 2. To generate plots: =python3 ./plot.py=. This will error at some
    point that =results-human-release.json= isn't found. To avoid that, comment
    out the last =plot_blog()= call.
