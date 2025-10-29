@@ -1,12 +1,11 @@
-use std::ops::Index;
 use itertools::Itertools;
-
+use std::ops::Index;
 
 type Seq = [u8];
 
 pub struct SA<'a> {
     t: &'a Seq,
-    sa: Vec<u32>
+    sa: Vec<u32>,
 }
 
 impl Index<usize> for SA<'_> {
@@ -15,13 +14,11 @@ impl Index<usize> for SA<'_> {
     fn index(&self, i: usize) -> &Self::Output {
         unsafe { self.sa.get_unchecked(i) }
     }
-
-
 }
 
 impl SA<'_> {
-    pub fn build(t: &Seq) -> SA {
-        // taken over from 
+    pub fn build(t: &Seq) -> SA<'_> {
+        // taken over from
         let mut sa: Vec<i64> = vec![0; t.len() + 100000];
         sais::sais64::parallel::sais(t, &mut sa, None, 5).unwrap();
         sa.resize(t.len(), 0);
@@ -31,10 +28,7 @@ impl SA<'_> {
             assert!(t[x as usize..] < t[y as usize..]);
         }
 
-        SA {
-            t,
-            sa,
-        }
+        SA { t, sa }
     }
 
     pub fn suffix(&self, i: usize) -> &Seq {
@@ -44,7 +38,6 @@ impl SA<'_> {
     pub fn suffix_at(&self, i: u32) -> &Seq {
         unsafe { self.t.get_unchecked(i as usize..) }
     }
-
 }
 
 // completely basic binsearch
@@ -62,7 +55,6 @@ pub fn binary_search(sa: &SA, q: &Seq, cnt: &mut usize) -> usize {
     }
     sa[l] as usize
 }
-
 
 pub fn branchless_bin_search(sa: &SA, q: &Seq, cnt: &mut usize) -> usize {
     let mut base = 0;
